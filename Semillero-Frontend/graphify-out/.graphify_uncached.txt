@@ -1,0 +1,6 @@
+C:\Users\MSI\Pictures\Proyecto Grado\Semillero-Frontend\.github\workflows\ci.yml
+C:\Users\MSI\Pictures\Proyecto Grado\Semillero-Frontend\CLAUDE.md
+C:\Users\MSI\Pictures\Proyecto Grado\Semillero-Frontend\FUNCIONALIDADES.md
+C:\Users\MSI\Pictures\Proyecto Grado\Semillero-Frontend\README.md
+C:\Users\MSI\Pictures\Proyecto Grado\Semillero-Frontend\backend\n8n\docker-compose.yml
+C:\Users\MSI\Pictures\Proyecto Grado\Semillero-Frontend\docker-compose.yml

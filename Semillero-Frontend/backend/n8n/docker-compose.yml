@@ -1,0 +1,28 @@
+volumes:
+  n8n_storage:
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    hostname: n8n
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-super-secret-key}
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET:-even-more-secret}
+      - N8N_DEFAULT_BINARY_DATA_MODE=${N8N_DEFAULT_BINARY_DATA_MODE:-filesystem}
+    volumes:
+      - n8n_storage:/home/node/.n8n
+      - .:/demo-data
+    entrypoint: /bin/sh -c "
+      if [ -z \"\$(n8n list:workflow --onlyId 2>/dev/null)\" ]; then
+        echo 'Base de datos limpia. Importando credenciales y flujos del MVP...';
+        n8n import:credentials --input=/demo-data/credentials.json;
+        n8n import:workflow --input=/demo-data/workflows.json;
+      fi;
+      exec tini -- /docker-entrypoint.sh"
+
