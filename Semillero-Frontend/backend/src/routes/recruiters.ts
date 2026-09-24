@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { AuthenticatedRequest, companyAuthMiddleware } from '../middlewares/companyAuth';
+import { AuthenticatedRequest } from '../middlewares/companyAuth';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -21,7 +21,6 @@ const recruiterLimiter = rateLimit({
 // POST /api/recruiters - Crear recruiter (empresa-only)
 router.post(
   '/',
-  companyAuthMiddleware,
   recruiterLimiter,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
@@ -101,7 +100,6 @@ router.post(
 // GET /api/recruiters - Listar recruiters (empresa-only)
 router.get(
   '/',
-  companyAuthMiddleware,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (req.locals?.profile?.role !== 'empresa') {
@@ -140,7 +138,6 @@ router.get(
 // PATCH /api/recruiters/:id - Actualizar recruiter
 router.patch(
   '/:id',
-  companyAuthMiddleware,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (req.locals?.profile?.role !== 'empresa') {
@@ -200,7 +197,6 @@ router.patch(
 // DELETE /api/recruiters/:id - Soft-delete (suspend)
 router.delete(
   '/:id',
-  companyAuthMiddleware,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (req.locals?.profile?.role !== 'empresa') {

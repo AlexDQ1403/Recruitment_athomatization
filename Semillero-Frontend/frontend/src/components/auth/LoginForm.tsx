@@ -59,6 +59,9 @@ export const LoginForm = () => {
         <p style={{ marginTop: 16, textAlign: 'center', fontSize: 13, color: 'var(--text-3)' }}>
           <Link href="/forgot-password">¿Olvidaste tu contraseña?</Link>
         </p>
+        <p style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: 'var(--text-3)' }}>
+          ¿No tienes cuenta? <Link href="/register">Regístrate</Link>
+        </p>
       </div>
     </div>
   );

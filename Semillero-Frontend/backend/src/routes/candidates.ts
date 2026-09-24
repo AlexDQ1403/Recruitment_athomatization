@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { AuthenticatedRequest, companyAuthMiddleware } from '../middlewares/companyAuth';
+import { AuthenticatedRequest } from '../middlewares/companyAuth';
 import * as n8nService from '../services/n8nService';
 
 const router = Router();
@@ -26,7 +26,6 @@ const CANDIDATE_FIELDS =
 // GET /api/candidates - Listar candidatos de la empresa (con filtros)
 router.get(
   '/',
-  companyAuthMiddleware,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const companyId = req.locals?.companyId;
@@ -77,7 +76,6 @@ router.get(
 // GET /api/candidates/:id - Detalle de un candidato
 router.get(
   '/:id',
-  companyAuthMiddleware,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const companyId = req.locals?.companyId;
@@ -109,7 +107,6 @@ router.get(
 // PATCH /api/candidates/:id/status - Cambiar estado (dispara entrevista en 'en_contacto')
 router.patch(
   '/:id/status',
-  companyAuthMiddleware,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const companyId = req.locals?.companyId;

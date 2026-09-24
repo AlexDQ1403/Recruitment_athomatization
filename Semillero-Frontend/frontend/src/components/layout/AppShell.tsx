@@ -1,14 +1,19 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { QueryProvider } from '../ui/QueryProvider';
 import { getStoredUser, setStoredUser, clearAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { User } from '../../types';
 
+/** Rutas que solo puede ver el rol 'candidato'. */
+const CANDIDATE_HOME = '/candidate/profile';
+const COMPANY_HOME = '/dashboard';
+
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -27,6 +32,19 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
         const u: User = { id: profile.id, email: profile.email, full_name: profile.full_name, role: profile.role, company_id: profile.company_id || '' };
         setStoredUser(u);
         setUser(u);
+
+        // El rol se decide aquí, con el dato de la BD, no con lo que diga el
+        // cliente. El backend vuelve a comprobarlo en cada endpoint: esto solo
+        // evita que el usuario aterrice en una pantalla que no le corresponde.
+        const inCandidateArea = pathname?.startsWith('/candidate') ?? false;
+        if (u.role === 'candidato' && !inCandidateArea) {
+          router.replace(CANDIDATE_HOME);
+          return;
+        }
+        if (u.role !== 'candidato' && inCandidateArea) {
+          router.replace(COMPANY_HOME);
+          return;
+        }
       } else {
         const stored = getStoredUser();
         if (stored) setUser(stored);
@@ -41,7 +59,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [router, pathname]);
 
   const handleLogout = async () => { await clearAuth(); router.push('/login'); };
 

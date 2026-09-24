@@ -1,4 +1,14 @@
-export type UserRole = 'superAdmin' | 'empresa' | 'recruiter';
+export type UserRole = 'superAdmin' | 'empresa' | 'recruiter' | 'candidato';
+
+/** Estado de una postulación, visible para el candidato. */
+export type ApplicationStatus = 'enviada' | 'en_revision' | 'descartada' | 'contactado';
+
+export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  enviada: 'Enviada',
+  en_revision: 'En revisión',
+  descartada: 'Descartada',
+  contactado: 'Contactado',
+};
 export type CandidateStatus = 'rechazado' | 'en_contacto' | 'seguimiento';
 export type CandidateSource = 'internal' | 'scraping' | 'applicant';
 

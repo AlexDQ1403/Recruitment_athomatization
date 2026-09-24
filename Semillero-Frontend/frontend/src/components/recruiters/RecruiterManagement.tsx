@@ -9,6 +9,7 @@ import { ConfirmModal } from '../ui/ConfirmModal';
 export const RecruiterManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Recruiter | null>(null);
+  const [editTarget, setEditTarget] = useState<Recruiter | null>(null);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -26,6 +27,17 @@ export const RecruiterManagement = () => {
       toast.success('Reclutador creado exitosamente');
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al crear reclutador'),
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, full_name }: { id: string; full_name: string }) =>
+      recruiterService.rename(id, full_name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recruiters'] });
+      setEditTarget(null);
+      toast.success('Nombre actualizado');
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al renombrar'),
   });
 
   const suspendMutation = useMutation({
@@ -69,6 +81,48 @@ export const RecruiterManagement = () => {
             + Nuevo reclutador
           </button>
         </div>
+
+        {editTarget && (
+          <div className="modal-overlay" onClick={() => setEditTarget(null)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Editar reclutador</h3>
+                <button onClick={() => setEditTarget(null)} className="modal-close">×</button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const value = new FormData(e.currentTarget).get('full_name');
+                  const name = String(value ?? '').trim();
+                  if (name.length < 2) {
+                    toast.error('El nombre debe tener al menos 2 caracteres');
+                    return;
+                  }
+                  renameMutation.mutate({ id: editTarget.id, full_name: name });
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+              >
+                <div className="form-group">
+                  <label htmlFor="edit_full_name">Nombre completo</label>
+                  <input
+                    id="edit_full_name"
+                    name="full_name"
+                    defaultValue={editTarget.full_name}
+                    required
+                    minLength={2}
+                    maxLength={120}
+                  />
+                </div>
+                <p style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+                  El correo no se puede cambiar: es la credencial de acceso.
+                </p>
+                <button type="submit" className="btn-primary" disabled={renameMutation.isPending}>
+                  {renameMutation.isPending ? 'Guardando...' : 'Guardar'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
 
         {showForm && (
           <div className="modal-overlay" onClick={() => setShowForm(false)}>
@@ -128,6 +182,12 @@ export const RecruiterManagement = () => {
                         </span>
                       </td>
                       <td style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                          className="btn-secondary-sm"
+                          onClick={() => setEditTarget(r)}
+                        >
+                          Editar
+                        </button>
                         <button
                           className="btn-secondary-sm"
                           onClick={() => suspendMutation.mutate({ id: r.id, suspended: !r.suspended })}

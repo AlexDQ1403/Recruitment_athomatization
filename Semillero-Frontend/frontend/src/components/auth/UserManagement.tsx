@@ -11,6 +11,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   superAdmin: 'Super Admin',
   empresa: 'Empresa',
   recruiter: 'Reclutador',
+  candidato: 'Candidato',
 };
 
 export const UserManagement = () => {

@@ -44,6 +44,27 @@ async function callOpenAI(messages: { role: string; content: string }[]): Promis
   return data.choices?.[0]?.message?.content ?? '';
 }
 
+/**
+ * Confirma que la sesión pertenece al usuario y a su empresa.
+ * Sin esta comprobación, un cliente podría enviar el session_id de otro
+ * reclutador y escribir en su conversación o leer su contexto (IDOR).
+ */
+async function assertSessionOwnership(
+  sessionId: string,
+  userId: string,
+  companyId: string
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('chat_sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .eq('company_id', companyId)
+    .maybeSingle();
+
+  return !error && !!data;
+}
+
 async function getOrCreateSession(userId: string, companyId: string): Promise<string> {
   const { data: sessions, error: fetchError } = await supabaseAdmin
     .from('chat_sessions')
@@ -100,7 +121,22 @@ router.post('/', chatLimiter, async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
-    const activeSessionId = sessionId || (await getOrCreateSession(userId, companyId));
+    let activeSessionId: string;
+    if (sessionId) {
+      const owns = await assertSessionOwnership(sessionId, userId, companyId);
+      if (!owns) {
+        logger.warn('Intento de uso de sesión ajena', {
+          correlationId: getCorrelationId(req),
+          sessionId,
+          userId,
+        });
+        res.status(403).json({ error: 'Sesión no encontrada' });
+        return;
+      }
+      activeSessionId = sessionId;
+    } else {
+      activeSessionId = await getOrCreateSession(userId, companyId);
+    }
 
     const { data: contextMessages } = await supabaseAdmin
       .from('chat_messages')
@@ -221,6 +257,11 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
             candidates_found: filteredCandidates.length,
           })
         : Promise.resolve(),
+      // Mantiene el orden por actividad en la lista de sesiones
+      supabaseAdmin
+        .from('chat_sessions')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', activeSessionId),
     ]);
 
     const { count } = await supabaseAdmin

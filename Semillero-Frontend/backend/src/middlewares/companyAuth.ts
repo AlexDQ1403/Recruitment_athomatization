@@ -8,7 +8,13 @@ const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
 export interface AuthenticatedRequest extends Request {
   locals?: {
     user?: { id: string; email: string };
-    profile?: { id: string; role: string; company_id?: string; suspended?: boolean };
+    profile?: {
+      id: string;
+      role: string;
+      full_name?: string;
+      company_id?: string;
+      suspended?: boolean;
+    };
     companyId?: string;
   };
 }
@@ -39,7 +45,7 @@ export const companyAuthMiddleware = async (
     // 2. Obtener profile con role + company_id + suspended
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, role, company_id, suspended')
+      .select('id, role, full_name, company_id, suspended')
       .eq('id', user.id)
       .single();
 

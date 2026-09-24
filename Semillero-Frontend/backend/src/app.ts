@@ -5,11 +5,15 @@ import rateLimit from 'express-rate-limit';
 import { correlationMiddleware } from './utils/tracing';
 import { errorHandler } from './middlewares/errorHandler';
 import { companyAuthMiddleware } from './middlewares/companyAuth';
+import { requireRole, requireCompany } from './middlewares/requireRole';
 import { config } from './config';
 import chatRouter from './routes/chat';
 import n8nWebhookRouter from './routes/n8n-webhook';
 import recruiterRouter from './routes/recruiters';
 import candidatesRouter from './routes/candidates';
+import reportsRouter from './routes/reports';
+import registerRouter from './routes/register';
+import candidatePortalRouter from './routes/candidate-portal';
 
 export const createApp = () => {
   const app = express();
@@ -23,10 +27,17 @@ export const createApp = () => {
 
   app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-  // Rutas con autenticación company-scoped
-  app.use('/api/chat', companyAuthMiddleware, chatRouter);
-  app.use('/api/recruiters', recruiterRouter);
-  app.use('/api/candidates', candidatesRouter);
+  // Registro público (solo empresas y candidatos pueden crear cuenta)
+  app.use('/api/register', registerRouter);
+
+  // Portal del candidato (exige rol 'candidato', sin empresa asociada)
+  app.use('/api/me', candidatePortalRouter);
+
+  // Rutas de empresa: autenticadas, con empresa y vetadas a candidatos
+  app.use('/api/chat', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, chatRouter);
+  app.use('/api/recruiters', companyAuthMiddleware, requireRole('empresa'), requireCompany, recruiterRouter);
+  app.use('/api/candidates', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, candidatesRouter);
+  app.use('/api/reports', companyAuthMiddleware, requireRole('empresa'), requireCompany, reportsRouter);
 
   // Rutas sin autenticación (webhooks externos)
   app.use('/api/n8n-webhook', n8nWebhookRouter);

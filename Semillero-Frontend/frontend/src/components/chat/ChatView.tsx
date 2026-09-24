@@ -3,47 +3,96 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ChatMessage, Candidate } from '../../types';
 import { supabase } from '../../lib/supabase';
+import { chatService, ChatSession, MAX_SESSIONS } from '../../services/chatService';
+import { ConfirmModal } from '../ui/ConfirmModal';
 
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
+const tempId = () => Math.random().toString(36).slice(2);
+
 export const ChatView = () => {
   const searchParams = useSearchParams();
-  const [userId, setUserId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState(searchParams.get('q') ?? '');
   const [loading, setLoading] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
-  // Obtener sesión una sola vez al montar
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) return;
-      setUserId(session.user.id);
-      setToken(session.access_token);
+      if (session) setToken(session.access_token);
     });
   }, []);
 
-  // Cargar historial cuando tengamos userId
+  // Carga las sesiones y selecciona la más reciente
   useEffect(() => {
-    if (!userId || initialized.current) return;
+    if (initialized.current) return;
     initialized.current = true;
-    supabase
-      .from('chat_history')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(50)
-      .then(({ data }) => {
-        if (data && data.length > 0) setMessages(data as ChatMessage[]);
-      });
-  }, [userId]);
+
+    chatService
+      .listSessions()
+      .then((list) => {
+        setSessions(list);
+        if (list.length > 0) setActiveSessionId(list[0].id);
+      })
+      .catch((err) => setSessionError(err instanceof Error ? err.message : 'Error al cargar sesiones'))
+      .finally(() => setLoadingSessions(false));
+  }, []);
+
+  // Carga los mensajes de la sesión activa
+  useEffect(() => {
+    if (!activeSessionId) {
+      setMessages([]);
+      return;
+    }
+    chatService
+      .getMessages(activeSessionId)
+      .then(setMessages)
+      .catch(() => setMessages([]));
+  }, [activeSessionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleNewSession = useCallback(async () => {
+    if (sessions.length >= MAX_SESSIONS) {
+      setSessionError(`Máximo ${MAX_SESSIONS} búsquedas guardadas. Elimina una para crear otra.`);
+      return;
+    }
+    try {
+      const created = await chatService.createSession();
+      setSessions((prev) => [created, ...prev]);
+      setActiveSessionId(created.id);
+      setMessages([]);
+      setSessionError(null);
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : 'Error al crear sesión');
+    }
+  }, [sessions.length]);
+
+  const handleDeleteSession = useCallback(async (session: ChatSession) => {
+    try {
+      await chatService.deleteSession(session.id);
+      setSessions((prev) => {
+        const remaining = prev.filter((s) => s.id !== session.id);
+        if (activeSessionId === session.id) {
+          setActiveSessionId(remaining[0]?.id ?? null);
+        }
+        return remaining;
+      });
+      setSessionError(null);
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : 'Error al eliminar sesión');
+    }
+  }, [activeSessionId]);
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || loading || !token) return;
@@ -52,14 +101,12 @@ export const ChatView = () => {
     setInput('');
     setLoading(true);
 
-    const tempId = Math.random().toString(36).slice(2);
-    const userMsg: ChatMessage = {
-      id: tempId,
+    setMessages((prev) => [...prev, {
+      id: tempId(),
       role: 'user',
       content,
       created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
+    }]);
 
     try {
       const res = await fetch('/api/chat', {
@@ -68,22 +115,27 @@ export const ChatView = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: content }),
+        // Sin session_id el backend abre una sesión nueva y devuelve la suya
+        body: JSON.stringify({ message: content, session_id: activeSessionId ?? undefined }),
       });
 
       const body = await res.json();
 
       if (!res.ok) {
-        const errText = body?.error ?? `Error ${res.status}`;
         setMessages((prev) => [...prev, {
-          id: Math.random().toString(36).slice(2),
+          id: tempId(),
           role: 'assistant',
-          content: `⚠️ ${errText}`,
+          content: `⚠️ ${body?.error ?? `Error ${res.status}`}`,
           created_at: new Date().toISOString(),
         }]);
       } else {
+        // El backend pudo crear la sesión: adoptamos su id
+        if (body.session_id && body.session_id !== activeSessionId) {
+          setActiveSessionId(body.session_id);
+          chatService.listSessions().then(setSessions).catch(() => null);
+        }
         setMessages((prev) => [...prev, {
-          id: Math.random().toString(36).slice(2),
+          id: tempId(),
           role: 'assistant',
           content: body.message ?? 'No se pudo obtener respuesta.',
           candidates: body.candidates,
@@ -92,7 +144,7 @@ export const ChatView = () => {
       }
     } catch {
       setMessages((prev) => [...prev, {
-        id: Math.random().toString(36).slice(2),
+        id: tempId(),
         role: 'assistant',
         content: '⚠️ Sin conexión al servidor. Verifica tu red e intenta de nuevo.',
         created_at: new Date().toISOString(),
@@ -100,7 +152,7 @@ export const ChatView = () => {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, token]);
+  }, [input, loading, token, activeSessionId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -112,73 +164,133 @@ export const ChatView = () => {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Búsqueda por chat</h1>
-        <p>Pide candidatos en lenguaje natural — el sistema los busca automáticamente</p>
+      {deleteTarget && (
+        <ConfirmModal
+          message={`¿Eliminar la búsqueda "${deleteTarget.name}"? Se perderán sus mensajes.`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { handleDeleteSession(deleteTarget); setDeleteTarget(null); }}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1>Búsqueda por chat</h1>
+          <p>Pide candidatos en lenguaje natural — el sistema los busca automáticamente</p>
+        </div>
+        <button
+          className="btn-primary"
+          style={{ width: 'auto', padding: '10px 20px' }}
+          onClick={handleNewSession}
+          disabled={loadingSessions || sessions.length >= MAX_SESSIONS}
+          title={sessions.length >= MAX_SESSIONS ? `Máximo ${MAX_SESSIONS} búsquedas` : undefined}
+        >
+          + Nueva búsqueda
+        </button>
       </div>
 
-      <div className="chat-room" style={{ height: 'calc(100vh - 200px)' }}>
-        <div className="chat-messages">
-          {messages.length === 0 && !loading && (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-3)' }}>
-              <p style={{ fontSize: 32, marginBottom: 12 }}>🔍</p>
-              <p style={{ fontSize: 15, marginBottom: 6, color: 'var(--text-2)' }}>Empieza una búsqueda</p>
-              <p style={{ fontSize: 13 }}>Ej: "Necesito un desarrollador Python con 3 años de experiencia en Bogotá"</p>
-            </div>
-          )}
+      {sessionError && (
+        <div className="form-error" style={{ marginBottom: 12 }}>{sessionError}</div>
+      )}
 
-          {messages.map((msg) => (
-            <div key={msg.id}>
-              <div className={`chat-message ${msg.role === 'user' ? 'own' : 'other'}`}>
+      <div className="chat-layout">
+        <aside className="chat-sessions" aria-label="Búsquedas guardadas">
+          <p className="nav-section-label">
+            Búsquedas ({sessions.length}/{MAX_SESSIONS})
+          </p>
+          {loadingSessions ? (
+            <div className="skeleton" style={{ height: 32, marginBottom: 8 }} />
+          ) : sessions.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: 'var(--text-3)', padding: '4px 2px' }}>
+              Escribe abajo para empezar
+            </p>
+          ) : (
+            sessions.map((s) => (
+              <div
+                key={s.id}
+                className={`session-item${s.id === activeSessionId ? ' active' : ''}`}
+              >
+                <button
+                  className="session-name"
+                  onClick={() => setActiveSessionId(s.id)}
+                  title={s.name}
+                >
+                  {s.name}
+                </button>
+                <button
+                  className="btn-danger-sm"
+                  onClick={() => setDeleteTarget(s)}
+                  aria-label={`Eliminar ${s.name}`}
+                  title="Eliminar"
+                >×</button>
+              </div>
+            ))
+          )}
+        </aside>
+
+        <div className="chat-room">
+          <div className="chat-messages">
+            {messages.length === 0 && !loading && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-3)' }}>
+                <p style={{ fontSize: 32, marginBottom: 12 }}>🔍</p>
+                <p style={{ fontSize: 15, marginBottom: 6, color: 'var(--text-2)' }}>Empieza una búsqueda</p>
+                <p style={{ fontSize: 13 }}>Ej: &quot;Necesito un desarrollador Python con 3 años de experiencia en Bogotá&quot;</p>
+              </div>
+            )}
+
+            {messages.map((msg) => (
+              <div key={msg.id}>
+                <div className={`chat-message ${msg.role === 'user' ? 'own' : 'other'}`}>
+                  <div className="bubble">
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</p>
+                    <span className="timestamp">{formatTime(msg.created_at)}</span>
+                  </div>
+                </div>
+                {msg.candidates && msg.candidates.length > 0 && (
+                  <CandidateCards candidates={msg.candidates} />
+                )}
+              </div>
+            ))}
+
+            {loading && (
+              <div className="chat-message other">
                 <div className="bubble">
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</p>
-                  <span className="timestamp">{formatTime(msg.created_at)}</span>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 0' }}>
+                    {[0, 1, 2].map((i) => (
+                      <span key={i} style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: 'var(--text-3)',
+                        animation: `bounce .9s ${i * 0.15}s infinite`,
+                      }} />
+                    ))}
+                  </div>
                 </div>
               </div>
-              {msg.candidates && msg.candidates.length > 0 && (
-                <CandidateCards candidates={msg.candidates} />
-              )}
-            </div>
-          ))}
+            )}
+            <div ref={bottomRef} />
+          </div>
 
-          {loading && (
-            <div className="chat-message other">
-              <div className="bubble">
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 0' }}>
-                  {[0, 1, 2].map((i) => (
-                    <span key={i} style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: 'var(--text-3)',
-                      animation: `bounce .9s ${i * 0.15}s infinite`,
-                    }} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-
-        <div className="chat-input-area">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder='Ej: "Busca un ingeniero de sistemas con experiencia en React en Medellín"'
-            rows={1}
-            disabled={loading}
-          />
-          <button
-            type="button"
-            onClick={sendMessage}
-            disabled={loading || !input.trim()}
-            aria-label="Enviar"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
+          <div className="chat-input-area">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder='Ej: "Busca un ingeniero de sistemas con experiencia en React en Medellín"'
+              rows={1}
+              disabled={loading}
+            />
+            <button
+              type="button"
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              aria-label="Enviar"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>

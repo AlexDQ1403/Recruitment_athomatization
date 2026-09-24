@@ -40,6 +40,19 @@ export const recruiterService = {
     return res.json();
   },
 
+  async rename(id: string, fullName: string): Promise<Recruiter> {
+    const res = await fetch(`/api/recruiters/${id}`, {
+      method: 'PATCH',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ full_name: fullName }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error ?? 'Error al renombrar reclutador');
+    }
+    return res.json();
+  },
+
   async setSuspended(id: string, suspended: boolean): Promise<Recruiter> {
     const res = await fetch(`/api/recruiters/${id}`, {
       method: 'PATCH',
