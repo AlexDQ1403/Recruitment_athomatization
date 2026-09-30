@@ -118,6 +118,27 @@ export const candidateService = {
     return res.json() as Promise<Candidate>;
   },
 
+  /**
+   * Aprueba al candidato para que la Empresa lo vea en su Dashboard e
+   * histórico de procesos (solo reclutador, ver migración 018).
+   */
+  async presentToCompany(id: string): Promise<{ presented_to_company: boolean; presented_at: string }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('No autorizado');
+
+    const res = await fetch(`/api/candidates/${id}/present`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error ?? 'Error al presentar el candidato a la empresa');
+    }
+
+    return res.json();
+  },
+
   async delete(id: string): Promise<void> {
     const { error } = await supabase.from('candidates').delete().eq('id', id);
     if (error) throw new Error(error.message);

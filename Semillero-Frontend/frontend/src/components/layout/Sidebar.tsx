@@ -10,31 +10,42 @@ interface Props {
   onClose: () => void;
 }
 
+const DASHBOARD_ITEM = {
+  href: '/dashboard', label: 'Dashboard',
+  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+};
+const CHAT_ITEM = {
+  href: '/chat', label: 'Búsqueda por chat',
+  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+};
+const VACANCIES_ITEM = {
+  href: '/vacancies', label: 'Vacantes',
+  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>,
+};
+const CANDIDATES_ITEM = {
+  href: '/candidates', label: 'Candidatos',
+  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+};
+const HISTORY_ITEM = {
+  href: '/history', label: 'Historial de búsquedas',
+  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+};
+
+// Reclutador (y superAdmin): conserva todo, incluido chat/historial.
 const NAV = [
   {
     section: 'Principal',
-    items: [
-      {
-        href: '/dashboard', label: 'Dashboard',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
-      },
-      {
-        href: '/chat', label: 'Búsqueda por chat',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
-      },
-      {
-        href: '/vacancies', label: 'Vacantes',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>,
-      },
-      {
-        href: '/candidates', label: 'Candidatos',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
-      },
-      {
-        href: '/history', label: 'Historial de búsquedas',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-      },
-    ],
+    items: [DASHBOARD_ITEM, CHAT_ITEM, VACANCIES_ITEM, CANDIDATES_ITEM, HISTORY_ITEM],
+  },
+];
+
+// Empresa: sin chat ni historial de búsqueda — ver requireRole('recruiter')
+// en /api/chat (backend/src/app.ts). "Candidatos" es aquí el histórico de
+// procesos presentados por los reclutadores, no gestión operativa.
+const EMPRESA_MAIN_NAV = [
+  {
+    section: 'Principal',
+    items: [DASHBOARD_ITEM, VACANCIES_ITEM, CANDIDATES_ITEM],
   },
 ];
 
@@ -61,6 +72,19 @@ const EMPRESA_NAV = [
       {
         href: '/reports', label: 'Reportes',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+      },
+    ],
+  },
+];
+
+// Empresa y reclutador: perfil propio (foto, y para empresa nombre/correo).
+const ACCOUNT_NAV = [
+  {
+    section: 'Cuenta',
+    items: [
+      {
+        href: '/profile', label: 'Mi perfil',
+        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
       },
     ],
   },
@@ -99,10 +123,13 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
       return CANDIDATO_NAV;
     }
     if (user?.role === 'empresa') {
-      return [...NAV, ...EMPRESA_NAV];
+      return [...EMPRESA_MAIN_NAV, ...EMPRESA_NAV, ...ACCOUNT_NAV];
     }
     if (user?.role === 'superAdmin') {
       return [...NAV, ...SUPERADMIN_NAV];
+    }
+    if (user?.role === 'recruiter') {
+      return [...NAV, ...ACCOUNT_NAV];
     }
     return NAV;
   })();
@@ -162,10 +189,16 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
           </div>
           <button
             onClick={onLogout}
+            className="logout-btn"
             aria-label="Cerrar sesión"
             title="Cerrar sesión"
-            style={{ color: 'var(--text-3)', fontSize: 18, padding: 4 }}
-          >⎋</button>
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
         </div>
       </aside>
     </>

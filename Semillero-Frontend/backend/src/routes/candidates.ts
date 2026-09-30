@@ -104,6 +104,75 @@ router.get(
   }
 );
 
+// PATCH /api/candidates/:id/present - Reclutador aprueba presentar el
+// candidato a la empresa (habilita el Dashboard y el histórico de Empresa).
+// :id es el candidato legado (candidates.id), el mismo que usa el Kanban;
+// la relación en company_candidates se crea aquí si todavía no existía.
+router.patch(
+  '/:id/present',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const companyId = req.locals?.companyId;
+      const userId = req.locals?.user?.id;
+      const role = req.locals?.profile?.role;
+
+      if (!companyId || !userId) {
+        res.status(403).json({ error: 'Usuario sin empresa asignada' });
+        return;
+      }
+      if (role !== 'recruiter') {
+        res.status(403).json({ error: 'Solo un reclutador puede presentar candidatos a la empresa' });
+        return;
+      }
+
+      const { data: candidate, error: fetchError } = await supabaseAdmin
+        .from('candidates')
+        .select('id, status, source')
+        .eq('id', req.params.id)
+        .eq('company_id', companyId)
+        .single();
+
+      if (fetchError || !candidate) {
+        res.status(404).json({ error: 'Candidato no encontrado' });
+        return;
+      }
+
+      const { data: updated, error: upsertError } = await supabaseAdmin
+        .from('company_candidates')
+        .upsert(
+          {
+            company_id: companyId,
+            legacy_candidate_id: candidate.id,
+            status: candidate.status,
+            source: candidate.source,
+            presented_to_company: true,
+            presented_at: new Date().toISOString(),
+            presented_by: userId,
+          },
+          { onConflict: 'company_id,legacy_candidate_id' }
+        )
+        .select('id, presented_to_company, presented_at, presented_by')
+        .single();
+
+      if (upsertError) {
+        res.status(400).json({ error: upsertError.message });
+        return;
+      }
+
+      logger.info('Candidato presentado a la empresa', {
+        candidateId: candidate.id,
+        companyId,
+        recruiterId: userId,
+      });
+
+      res.json(updated);
+    } catch (err) {
+      logger.error('Error presentando candidato a la empresa', { error: String(err) });
+      res.status(500).json({ error: 'Error interno' });
+    }
+  }
+);
+
 // PATCH /api/candidates/:id/status - Cambiar estado (dispara entrevista en 'en_contacto')
 router.patch(
   '/:id/status',

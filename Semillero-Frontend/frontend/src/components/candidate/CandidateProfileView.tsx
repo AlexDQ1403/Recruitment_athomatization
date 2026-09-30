@@ -4,12 +4,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { candidatePortalService, MyProfile } from '../../services/candidatePortalService';
 import { ToastContainer } from '../ui/Toast';
 import { useToast } from '../../hooks/useToast';
+import { ConfirmModal } from '../ui/ConfirmModal';
+import { CandidateExperienceSection } from './CandidateExperienceSection';
+import { CandidateEducationSection } from './CandidateEducationSection';
+import { CandidateSkillsSection } from './CandidateSkillsSection';
+import { CandidateSearchPreferencesSection } from './CandidateSearchPreferencesSection';
 
 export const CandidateProfileView = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<Partial<MyProfile> | null>(null);
+  const [confirmDeleteCv, setConfirmDeleteCv] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['my-profile'],
@@ -33,6 +39,16 @@ export const CandidateProfileView = () => {
       toast.success('CV subido correctamente');
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al subir el CV'),
+  });
+
+  const deleteCvMutation = useMutation({
+    mutationFn: () => candidatePortalService.deleteCv(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-profile'] });
+      setConfirmDeleteCv(false);
+      toast.success('CV eliminado');
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al eliminar el CV'),
   });
 
   if (isLoading) {
@@ -69,6 +85,14 @@ export const CandidateProfileView = () => {
   return (
     <>
       <ToastContainer toasts={toast.toasts} onRemove={toast.remove} />
+      {confirmDeleteCv && (
+        <ConfirmModal
+          message="¿Eliminar tu hoja de vida actual? Los reclutadores ya no podrán abrirla."
+          confirmLabel={deleteCvMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+          onConfirm={() => deleteCvMutation.mutate()}
+          onCancel={() => setConfirmDeleteCv(false)}
+        />
+      )}
 
       <div className="page-header">
         <h1>Mi perfil</h1>
@@ -94,6 +118,30 @@ export const CandidateProfileView = () => {
             onChange={set('position')}
             placeholder="Desarrollador Backend"
             maxLength={120}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="professional_title">Titular profesional</label>
+          <input
+            id="professional_title"
+            value={current.professional_title ?? ''}
+            onChange={set('professional_title')}
+            placeholder="Ej: Desarrollador Full Stack | React · Node.js"
+            maxLength={160}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="professional_summary">Extracto / Acerca de</label>
+          <textarea
+            id="professional_summary"
+            value={current.professional_summary ?? ''}
+            onChange={(e) => setForm((f) => ({ ...(f ?? {}), professional_summary: e.target.value }))}
+            placeholder="Un resumen breve de tu perfil profesional"
+            maxLength={2000}
+            rows={4}
+            style={{ resize: 'vertical' }}
           />
         </div>
 
@@ -157,6 +205,10 @@ export const CandidateProfileView = () => {
 
         <div className="form-group">
           <label>Hoja de vida</label>
+          <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: -4, marginBottom: 8 }}>
+            El archivo es solo para que el reclutador lo abra — no reemplaza los campos de este
+            perfil ni tu perfil de búsqueda; esos se usan para que te encuentren.
+          </p>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -164,17 +216,22 @@ export const CandidateProfileView = () => {
               onClick={() => fileRef.current?.click()}
               disabled={uploadMutation.isPending}
             >
-              {uploadMutation.isPending ? 'Subiendo...' : 'Subir CV'}
+              {uploadMutation.isPending ? 'Subiendo...' : current.cv_url ? 'Reemplazar CV' : 'Subir CV'}
             </button>
             {current.cv_url && (
-              <a
-                href={current.cv_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 12.5 }}
-              >
-                Ver CV actual
-              </a>
+              <>
+                <a href={current.cv_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5 }}>
+                  Ver CV actual
+                </a>
+                <button
+                  type="button"
+                  className="btn-danger-sm"
+                  style={{ width: 'auto', padding: '4px 10px', fontSize: 12 }}
+                  onClick={() => setConfirmDeleteCv(true)}
+                >
+                  Eliminar
+                </button>
+              </>
             )}
             <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
               PDF, DOC o DOCX · máx. 5 MB
@@ -212,6 +269,13 @@ export const CandidateProfileView = () => {
           {saveMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
         </button>
       </form>
+
+      <div style={{ maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 28, marginTop: 28 }}>
+        <CandidateExperienceSection />
+        <CandidateEducationSection />
+        <CandidateSkillsSection />
+        <CandidateSearchPreferencesSection />
+      </div>
     </>
   );
 };

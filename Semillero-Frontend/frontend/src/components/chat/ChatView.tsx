@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChatMessage, Candidate } from '../../types';
+import { ChatMessage, Candidate, SOURCE_LABELS } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { chatService, ChatSession, MAX_SESSIONS } from '../../services/chatService';
 import { ConfirmModal } from '../ui/ConfirmModal';
@@ -317,9 +317,16 @@ const CandidateCards = ({ candidates }: { candidates: Candidate[] }) => (
             )}
           </div>
           <span className={`badge ${c.source === 'internal' ? 'badge-hired' : 'badge-pending'}`} style={{ fontSize: 11 }}>
-            {c.source === 'internal' ? 'BD interna' : 'Web'}
+            {SOURCE_LABELS[c.source] ?? c.source}
           </span>
         </div>
+        {c.resume_url && (
+          <a href={c.resume_url} target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: 11.5, color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: c.match_reason ? 8 : 0 }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Ver hoja de vida
+          </a>
+        )}
         {c.match_reason && (
           <div style={{
             fontSize: 11.5, color: 'var(--accent)', background: 'var(--accent-glow)',

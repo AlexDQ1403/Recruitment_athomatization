@@ -17,10 +17,12 @@ router.use(companyAuthMiddleware, requireRole('candidato'));
 // Campos que el candidato puede ver de su propia ficha.
 // No incluye nada del proceso interno de las empresas.
 const OWN_PROFILE_FIELDS =
-  'id, position, experience_years, expected_salary, location, phone, cv_url, linkedin_url, visible, created_at, updated_at';
+  'id, position, professional_title, professional_summary, experience_years, expected_salary, location, phone, cv_url, linkedin_url, visible, created_at, updated_at';
 
 const updateSchema = z.object({
   position: z.string().trim().max(120).nullish(),
+  professional_title: z.string().trim().max(160).nullish(),
+  professional_summary: z.string().trim().max(2000).nullish(),
   experience_years: z.coerce.number().int().min(0).max(60).nullish(),
   expected_salary: z.coerce.number().min(0).max(1_000_000_000).nullish(),
   location: z.string().trim().max(120).nullish(),
@@ -28,6 +30,38 @@ const updateSchema = z.object({
   cv_url: z.string().trim().url().max(2048).nullish(),
   linkedin_url: z.string().trim().url().max(2048).nullish(),
   visible: z.boolean().optional(),
+});
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const experienceSchema = z.object({
+  company_name: z.string().trim().min(1).max(160),
+  role_title: z.string().trim().min(1).max(160),
+  start_date: z.string().trim().regex(DATE_RE, 'Fecha inválida (YYYY-MM-DD)'),
+  end_date: z.string().trim().regex(DATE_RE, 'Fecha inválida (YYYY-MM-DD)').nullish(),
+  description: z.string().trim().max(2000).nullish(),
+});
+const experienceUpdateSchema = experienceSchema.partial();
+
+const educationSchema = z.object({
+  institution: z.string().trim().min(1).max(160),
+  degree: z.string().trim().min(1).max(160),
+  start_date: z.string().trim().regex(DATE_RE, 'Fecha inválida (YYYY-MM-DD)').nullish(),
+  end_date: z.string().trim().regex(DATE_RE, 'Fecha inválida (YYYY-MM-DD)').nullish(),
+});
+const educationUpdateSchema = educationSchema.partial();
+
+const skillSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  category: z.enum(['tecnica', 'blanda', 'idioma', 'herramienta']).default('tecnica'),
+});
+
+const searchPreferencesSchema = z.object({
+  target_position: z.string().trim().max(160).nullish(),
+  technologies: z.array(z.string().trim().min(1).max(60)).max(40).optional(),
+  sectors: z.array(z.string().trim().min(1).max(60)).max(40).optional(),
+  modality: z.enum(['presencial', 'remoto', 'híbrido']).nullish(),
+  keywords: z.array(z.string().trim().min(1).max(60)).max(40).optional(),
 });
 
 /** Resuelve el candidate_profile del usuario autenticado. */
@@ -109,6 +143,223 @@ router.patch('/profile', async (req: AuthenticatedRequest, res: Response): Promi
     logger.error('Error actualizando perfil de candidato', { error: String(err) });
     res.status(500).json({ error: 'Error interno' });
   }
+});
+
+// ─── Experiencia laboral ───────────────────────────────────────────────────
+
+router.get('/experience', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_experience')
+    .select('id, company_name, role_title, start_date, end_date, description')
+    .eq('candidate_profile_id', profileId)
+    .order('start_date', { ascending: false });
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ experience: data ?? [] });
+});
+
+router.post('/experience', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const parsed = experienceSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_experience')
+    .insert({ ...parsed.data, candidate_profile_id: profileId })
+    .select('id, company_name, role_title, start_date, end_date, description')
+    .single();
+
+  if (error) { res.status(400).json({ error: error.message }); return; }
+  res.status(201).json(data);
+});
+
+router.patch('/experience/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const parsed = experienceUpdateSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }); return; }
+  if (Object.keys(parsed.data).length === 0) { res.status(400).json({ error: 'Nada que actualizar' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_experience')
+    .update(parsed.data)
+    .eq('id', req.params.id)
+    .eq('candidate_profile_id', profileId)
+    .select('id, company_name, role_title, start_date, end_date, description')
+    .single();
+
+  if (error || !data) { res.status(404).json({ error: 'Registro no encontrado' }); return; }
+  res.json(data);
+});
+
+router.delete('/experience/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const { error } = await supabaseAdmin
+    .from('candidate_experience')
+    .delete()
+    .eq('id', req.params.id)
+    .eq('candidate_profile_id', profileId);
+
+  if (error) { res.status(400).json({ error: error.message }); return; }
+  res.status(204).send();
+});
+
+// ─── Formación académica ───────────────────────────────────────────────────
+
+router.get('/education', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_education')
+    .select('id, institution, degree, start_date, end_date')
+    .eq('candidate_profile_id', profileId)
+    .order('start_date', { ascending: false, nullsFirst: false });
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ education: data ?? [] });
+});
+
+router.post('/education', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const parsed = educationSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_education')
+    .insert({ ...parsed.data, candidate_profile_id: profileId })
+    .select('id, institution, degree, start_date, end_date')
+    .single();
+
+  if (error) { res.status(400).json({ error: error.message }); return; }
+  res.status(201).json(data);
+});
+
+router.patch('/education/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const parsed = educationUpdateSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }); return; }
+  if (Object.keys(parsed.data).length === 0) { res.status(400).json({ error: 'Nada que actualizar' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_education')
+    .update(parsed.data)
+    .eq('id', req.params.id)
+    .eq('candidate_profile_id', profileId)
+    .select('id, institution, degree, start_date, end_date')
+    .single();
+
+  if (error || !data) { res.status(404).json({ error: 'Registro no encontrado' }); return; }
+  res.json(data);
+});
+
+router.delete('/education/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const { error } = await supabaseAdmin
+    .from('candidate_education')
+    .delete()
+    .eq('id', req.params.id)
+    .eq('candidate_profile_id', profileId);
+
+  if (error) { res.status(400).json({ error: error.message }); return; }
+  res.status(204).send();
+});
+
+// ─── Habilidades ────────────────────────────────────────────────────────────
+
+router.get('/skills', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_skills')
+    .select('id, name, category')
+    .eq('candidate_profile_id', profileId)
+    .order('category')
+    .order('name');
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ skills: data ?? [] });
+});
+
+router.post('/skills', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const parsed = skillSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_skills')
+    .upsert({ ...parsed.data, candidate_profile_id: profileId }, { onConflict: 'candidate_profile_id,name' })
+    .select('id, name, category')
+    .single();
+
+  if (error) { res.status(400).json({ error: error.message }); return; }
+  res.status(201).json(data);
+});
+
+router.delete('/skills/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const { error } = await supabaseAdmin
+    .from('candidate_skills')
+    .delete()
+    .eq('id', req.params.id)
+    .eq('candidate_profile_id', profileId);
+
+  if (error) { res.status(400).json({ error: error.message }); return; }
+  res.status(204).send();
+});
+
+// ─── Preferencias de búsqueda / matching ───────────────────────────────────
+// Separadas a propósito de la hoja de vida (ver migración 020): esto es lo
+// que alimenta el chat de reclutadores, no el archivo de CV.
+
+router.get('/search-preferences', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_search_preferences')
+    .select('target_position, technologies, sectors, modality, keywords')
+    .eq('candidate_profile_id', profileId)
+    .maybeSingle();
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(data ?? { target_position: null, technologies: [], sectors: [], modality: null, keywords: [] });
+});
+
+router.patch('/search-preferences', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
+  if (!profileId) { res.status(404).json({ error: 'Ficha de candidato no encontrada' }); return; }
+
+  const parsed = searchPreferencesSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }); return; }
+
+  const { data, error } = await supabaseAdmin
+    .from('candidate_search_preferences')
+    .upsert({ ...parsed.data, candidate_profile_id: profileId }, { onConflict: 'candidate_profile_id' })
+    .select('target_position, technologies, sectors, modality, keywords')
+    .single();
+
+  if (error) { res.status(400).json({ error: error.message }); return; }
+  res.json(data);
 });
 
 // GET /api/me/applications

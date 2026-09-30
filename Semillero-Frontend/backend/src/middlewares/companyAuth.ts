@@ -14,6 +14,7 @@ export interface AuthenticatedRequest extends Request {
       full_name?: string;
       company_id?: string;
       suspended?: boolean;
+      avatar_url?: string | null;
     };
     companyId?: string;
   };
@@ -45,7 +46,7 @@ export const companyAuthMiddleware = async (
     // 2. Obtener profile con role + company_id + suspended
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, role, full_name, company_id, suspended')
+      .select('id, role, full_name, company_id, suspended, avatar_url')
       .eq('id', user.id)
       .single();
 

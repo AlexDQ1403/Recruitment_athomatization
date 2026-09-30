@@ -150,3 +150,28 @@ export interface StatusHistoryEntry {
   changed_at: string;
   changer?: { full_name: string };
 }
+
+/**
+ * Un proceso de selección tal como lo ve la Empresa: candidato presentado
+ * por un reclutador, con la oferta y el estado del proceso. Nunca candidatos
+ * sin aprobar — ver GET /api/company/candidates (migración 018).
+ */
+export interface CompanyCandidateProcess {
+  candidate: {
+    id: string;
+    full_name: string;
+    position: string | null;
+    location: string | null;
+    experience_years: number | null;
+  };
+  recruiter: { id: string; full_name: string } | null;
+  vacancy: { id: string; title: string } | null;
+  presented_at: string | null;
+  status: string;
+  status_history: {
+    from_status: string | null;
+    to_status: string;
+    changed_at: string;
+    changed_by_name: string | null;
+  }[];
+}

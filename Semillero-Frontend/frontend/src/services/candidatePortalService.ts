@@ -6,6 +6,8 @@ export interface MyProfile {
   full_name: string;
   email: string;
   position: string | null;
+  professional_title: string | null;
+  professional_summary: string | null;
   experience_years: number | null;
   expected_salary: number | null;
   location: string | null;
@@ -13,6 +15,40 @@ export interface MyProfile {
   cv_url: string | null;
   linkedin_url: string | null;
   visible: boolean;
+}
+
+export interface ExperienceEntry {
+  id: string;
+  company_name: string;
+  role_title: string;
+  start_date: string;
+  end_date: string | null;
+  description: string | null;
+}
+export type ExperienceInput = Omit<ExperienceEntry, 'id'>;
+
+export interface EducationEntry {
+  id: string;
+  institution: string;
+  degree: string;
+  start_date: string | null;
+  end_date: string | null;
+}
+export type EducationInput = Omit<EducationEntry, 'id'>;
+
+export type SkillCategory = 'tecnica' | 'blanda' | 'idioma' | 'herramienta';
+export interface SkillEntry {
+  id: string;
+  name: string;
+  category: SkillCategory;
+}
+
+export interface SearchPreferences {
+  target_position: string | null;
+  technologies: string[];
+  sectors: string[];
+  modality: 'presencial' | 'remoto' | 'híbrido' | null;
+  keywords: string[];
 }
 
 export interface VacancySummary {
@@ -118,5 +154,103 @@ export const candidatePortalService = {
     const { data: { publicUrl } } = supabase.storage.from('resumes').getPublicUrl(path);
     await candidatePortalService.updateProfile({ cv_url: publicUrl });
     return publicUrl;
+  },
+
+  /** Quita la referencia al archivo — no reemplaza los campos manuales del perfil. */
+  async deleteCv(): Promise<void> {
+    await candidatePortalService.updateProfile({ cv_url: null });
+  },
+
+  // ─── Experiencia laboral ─────────────────────────────────
+
+  async listExperience(): Promise<ExperienceEntry[]> {
+    const res = await fetch('/api/me/experience', { headers: await authHeaders() });
+    const data = await handle<{ experience: ExperienceEntry[] }>(res, 'Error al cargar tu experiencia');
+    return data.experience ?? [];
+  },
+  async addExperience(input: ExperienceInput): Promise<ExperienceEntry> {
+    const res = await fetch('/api/me/experience', {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return handle<ExperienceEntry>(res, 'Error al guardar la experiencia');
+  },
+  async updateExperience(id: string, input: Partial<ExperienceInput>): Promise<ExperienceEntry> {
+    const res = await fetch(`/api/me/experience/${id}`, {
+      method: 'PATCH',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return handle<ExperienceEntry>(res, 'Error al actualizar la experiencia');
+  },
+  async deleteExperience(id: string): Promise<void> {
+    const res = await fetch(`/api/me/experience/${id}`, { method: 'DELETE', headers: await authHeaders() });
+    if (!res.ok && res.status !== 204) await handle(res, 'Error al eliminar la experiencia');
+  },
+
+  // ─── Formación académica ─────────────────────────────────
+
+  async listEducation(): Promise<EducationEntry[]> {
+    const res = await fetch('/api/me/education', { headers: await authHeaders() });
+    const data = await handle<{ education: EducationEntry[] }>(res, 'Error al cargar tu formación');
+    return data.education ?? [];
+  },
+  async addEducation(input: EducationInput): Promise<EducationEntry> {
+    const res = await fetch('/api/me/education', {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return handle<EducationEntry>(res, 'Error al guardar la formación');
+  },
+  async updateEducation(id: string, input: Partial<EducationInput>): Promise<EducationEntry> {
+    const res = await fetch(`/api/me/education/${id}`, {
+      method: 'PATCH',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return handle<EducationEntry>(res, 'Error al actualizar la formación');
+  },
+  async deleteEducation(id: string): Promise<void> {
+    const res = await fetch(`/api/me/education/${id}`, { method: 'DELETE', headers: await authHeaders() });
+    if (!res.ok && res.status !== 204) await handle(res, 'Error al eliminar la formación');
+  },
+
+  // ─── Habilidades ──────────────────────────────────────────
+
+  async listSkills(): Promise<SkillEntry[]> {
+    const res = await fetch('/api/me/skills', { headers: await authHeaders() });
+    const data = await handle<{ skills: SkillEntry[] }>(res, 'Error al cargar tus habilidades');
+    return data.skills ?? [];
+  },
+  async addSkill(name: string, category: SkillCategory): Promise<SkillEntry> {
+    const res = await fetch('/api/me/skills', {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, category }),
+    });
+    return handle<SkillEntry>(res, 'Error al guardar la habilidad');
+  },
+  async deleteSkill(id: string): Promise<void> {
+    const res = await fetch(`/api/me/skills/${id}`, { method: 'DELETE', headers: await authHeaders() });
+    if (!res.ok && res.status !== 204) await handle(res, 'Error al eliminar la habilidad');
+  },
+
+  // ─── Preferencias de búsqueda / matching ─────────────────
+  // Separado a propósito del CV: esto es lo que alimenta el chat de
+  // reclutadores (ver backend/src/routes/chat.ts), no el archivo subido.
+
+  async getSearchPreferences(): Promise<SearchPreferences> {
+    const res = await fetch('/api/me/search-preferences', { headers: await authHeaders() });
+    return handle<SearchPreferences>(res, 'Error al cargar tus preferencias de búsqueda');
+  },
+  async updateSearchPreferences(input: Partial<SearchPreferences>): Promise<SearchPreferences> {
+    const res = await fetch('/api/me/search-preferences', {
+      method: 'PATCH',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return handle<SearchPreferences>(res, 'Error al guardar tus preferencias de búsqueda');
   },
 };

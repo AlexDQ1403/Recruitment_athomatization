@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { registerService, validatePassword } from '../../services/registerService';
+import { mapRegisterError, AuthAlert } from '../../lib/authErrors';
+import { Alert } from '../ui/Alert';
 
 type Variant = 'company' | 'candidate';
 
@@ -31,22 +33,32 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
     location: '',
     experience_years: '',
   });
-  const [error, setError] = useState<string | null>(null);
+  const [alert, setAlert] = useState<AuthAlert | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  /** Errores de validación local: no vienen de Supabase, van sin acción. */
+  const setValidationError = (detail: string) =>
+    setAlert({
+      kind: 'unknown',
+      severity: 'error',
+      title: 'Revisa los datos',
+      detail,
+      action: { type: 'none' },
+    });
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setAlert(null);
 
     // Validación en cliente: conveniencia, nunca la única barrera.
     // El backend revalida todo con Zod.
     const passwordError = validatePassword(form.password);
     if (passwordError) {
-      setError(passwordError);
+      setValidationError(passwordError);
       return;
     }
 
@@ -72,7 +84,7 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
       }
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo completar el registro');
+      setAlert(mapRegisterError(err));
     } finally {
       setLoading(false);
     }
@@ -111,7 +123,14 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
         <p className="subtitle">{copy.subtitle}</p>
 
         <form onSubmit={handleSubmit}>
-          {error && <div className="form-error">{error}</div>}
+          {alert && (
+            <Alert
+              severity={alert.severity}
+              title={alert.title}
+              detail={alert.detail}
+              onDismiss={() => setAlert(null)}
+            />
+          )}
 
           {variant === 'company' && (
             <>

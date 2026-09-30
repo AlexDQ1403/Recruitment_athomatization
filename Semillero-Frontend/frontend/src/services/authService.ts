@@ -4,7 +4,10 @@ import { User, UserRole } from '../types';
 export const authService = {
   async login(email: string, password: string): Promise<User> {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
+    // Se propaga el AuthError tal cual: su .code es lo que permite distinguir
+    // 'email_not_confirmed' de 'invalid_credentials'. Envolverlo en
+    // new Error(message) perdía esa información.
+    if (error) throw error;
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -19,6 +22,23 @@ export const authService = {
 
   async logout() {
     await supabase.auth.signOut();
+  },
+
+  /**
+   * Reenvía el correo de confirmación de cuenta.
+   *
+   * Supabase responde igual exista o no el correo, así que esto NO revela si
+   * hay cuenta con esa dirección. Solo se ofrece cuando el login ya devolvió
+   * 'email_not_confirmed', es decir, cuando sabemos que la cuenta existe y le
+   * falta confirmar.
+   */
+  async resendConfirmation(email: string) {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/login` },
+    });
+    if (error) throw error;
   },
 
   async sendPasswordReset(email: string) {

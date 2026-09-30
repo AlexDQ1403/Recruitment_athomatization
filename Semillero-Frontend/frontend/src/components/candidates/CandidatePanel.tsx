@@ -5,6 +5,7 @@ import { candidateService, CreateCandidateInput } from '../../services/candidate
 import { Candidate, CandidateStatus, CandidateNote, StatusHistoryEntry, STATUS_LABELS } from '../../types';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../ui/Toast';
+import { getStoredUser } from '../../lib/auth';
 
 const STATUS_COLORS: Record<CandidateStatus, string> = {
   rechazado: 'badge-rejected', 'en_contacto': 'badge-pending', seguimiento: 'badge-interviewed',
@@ -114,6 +115,20 @@ function InfoTab({ candidate: c, onResumeUploaded, onUpdate, toast }: {
     resume_url: c.resume_url,
   });
   const [saving, setSaving] = useState(false);
+  const [presenting, setPresenting] = useState(false);
+  const isRecruiter = getStoredUser()?.role === 'recruiter';
+
+  const handlePresent = async () => {
+    setPresenting(true);
+    try {
+      await candidateService.presentToCompany(c.id);
+      toast.success('Candidato presentado a la empresa');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al presentar el candidato');
+    } finally {
+      setPresenting(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -228,6 +243,12 @@ function InfoTab({ candidate: c, onResumeUploaded, onUpdate, toast }: {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Editar información
         </button>
+
+        {isRecruiter && (
+          <button onClick={handlePresent} disabled={presenting} className="btn-primary" style={{ padding: '9px' }}>
+            {presenting ? 'Presentando...' : 'Presentar a empresa'}
+          </button>
+        )}
 
         {c.resume_url ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

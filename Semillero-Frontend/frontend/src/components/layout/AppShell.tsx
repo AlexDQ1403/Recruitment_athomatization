@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
-import { QueryProvider } from '../ui/QueryProvider';
+import { QueryProvider, createQueryClient } from '../ui/QueryProvider';
+import { ConfirmModal } from '../ui/ConfirmModal';
 import { getStoredUser, setStoredUser, clearAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { User } from '../../types';
@@ -11,11 +12,23 @@ import { User } from '../../types';
 const CANDIDATE_HOME = '/candidate/profile';
 const COMPANY_HOME = '/dashboard';
 
+/**
+ * Chat y su historial son herramientas operativas del reclutador; Empresa no
+ * las tiene (ver requireRole('recruiter') en /api/chat, backend/src/app.ts).
+ * El backend ya rechaza estas rutas para empresa — esto es solo para que no
+ * aterrice en una pantalla vacía/con error 403.
+ */
+const RECRUITER_ONLY_PATHS = ['/chat', '/history'];
+
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  // Propio de AppShell para poder vaciarlo al cerrar sesión
+  const [queryClient] = useState(createQueryClient);
 
   useEffect(() => {
     const init = async () => {
@@ -45,6 +58,10 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
           router.replace(COMPANY_HOME);
           return;
         }
+        if (u.role === 'empresa' && RECRUITER_ONLY_PATHS.some((p) => pathname?.startsWith(p))) {
+          router.replace(COMPANY_HOME);
+          return;
+        }
       } else {
         const stored = getStoredUser();
         if (stored) setUser(stored);
@@ -61,7 +78,25 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, [router, pathname]);
 
-  const handleLogout = async () => { await clearAuth(); router.push('/login'); };
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    const result = await clearAuth();
+
+    // Vacía la caché en memoria: candidatos, reclutadores y reportes de la
+    // sesión anterior no deben sobrevivir a un cambio de usuario en la misma
+    // pestaña.
+    queryClient.clear();
+
+    if (!result.ok) {
+      // La sesión local ya está limpia, así que se sale igualmente; solo se
+      // avisa de que el servidor puede no haberla revocado.
+      console.warn('Cierre de sesión incompleto en el servidor:', result.error);
+    }
+
+    setLogoutConfirm(false);
+    setLoggingOut(false);
+    router.replace('/login');
+  };
 
   if (!user) return (
     <div style={{ display: 'grid', placeItems: 'center', height: '100vh', background: 'var(--bg)' }} aria-label="Cargando">
@@ -75,7 +110,16 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
-    <QueryProvider>
+    <QueryProvider client={queryClient}>
+      {logoutConfirm && (
+        <ConfirmModal
+          message="¿Cerrar la sesión actual? Se cerrará también en tus otros dispositivos."
+          confirmLabel={loggingOut ? 'Cerrando...' : 'Cerrar sesión'}
+          onConfirm={handleLogout}
+          onCancel={() => setLogoutConfirm(false)}
+        />
+      )}
+
       <div className="app-layout">
         {/* Botón hamburguesa — solo visible en móvil */}
         <button
@@ -94,7 +138,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
 
         <Sidebar
           user={user}
-          onLogout={handleLogout}
+          onLogout={() => setLogoutConfirm(true)}
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
