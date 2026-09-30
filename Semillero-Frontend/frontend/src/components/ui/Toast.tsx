@@ -20,7 +20,7 @@ const COLORS = {
 
 export const ToastContainer = ({ toasts, onRemove }: Props) => (
   <div style={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 999 }}>
-    {toasts.map((t) => {
+    {toasts.map((t) => {    
       const c = COLORS[t.type];
       return (
         <div

@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${syne.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable}`}>
+    <html lang="es" suppressHydrationWarning className={`${syne.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable}`}>
       <body>{children}</body>
     </html>
   );
