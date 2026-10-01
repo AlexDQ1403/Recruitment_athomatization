@@ -49,7 +49,6 @@ export const ForgotPasswordForm = () => {
 
   return (
     <AuthLayout
-      label="Recuperar acceso"
       heading="A todos se nos olvida algo."
       semi={semi}
       shake={!!error && !loading}

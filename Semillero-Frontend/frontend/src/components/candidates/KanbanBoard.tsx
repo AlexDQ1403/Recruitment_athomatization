@@ -7,9 +7,9 @@ import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../ui/Toast';
 
 const COLUMNS: { status: CandidateStatus; label: string; color: string }[] = [
-  { status: 'seguimiento',  label: 'Seguimiento',  color: '#fbbf24' },
-  { status: 'en_contacto',  label: 'En Contacto',  color: '#4f6ef7' },
-  { status: 'rechazado',    label: 'Rechazado',    color: '#f87171' },
+  { status: 'seguimiento',  label: 'Seguimiento',  color: 'var(--yellow)' },
+  { status: 'en_contacto',  label: 'En Contacto',  color: 'var(--blue)' },
+  { status: 'rechazado',    label: 'Rechazado',    color: 'var(--red)' },
 ];
 
 const fmt = (n?: number) => n !== undefined ? `$${Math.round(n / 1000)}k` : '';
@@ -67,7 +67,7 @@ export const KanbanBoard = ({ onSelect }: Props) => {
   if (isError) return (
     <div style={{ padding: 32, textAlign: 'center', color: 'var(--red)', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }} role="alert">
       <span>No se pudo cargar el tablero. Verifica tu conexión.</span>
-      <button onClick={() => refetch()} style={{ fontSize: 13, color: 'var(--accent)', padding: '6px 16px', borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+      <button onClick={() => refetch()} style={{ fontSize: 13, color: 'var(--accent-text)', padding: '6px 16px', borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
         Reintentar
       </button>
     </div>
@@ -109,7 +109,7 @@ export const KanbanBoard = ({ onSelect }: Props) => {
                 borderRadius: 'var(--radius-lg)',
                 overflow: 'hidden',
                 transition: 'border-color 150ms',
-                boxShadow: isOver ? `0 0 0 1px ${col.color}22` : 'none',
+                boxShadow: isOver ? `0 0 0 3px color-mix(in srgb, ${col.color} 18%, transparent)` : 'none',
               }}
             >
               {/* Cabecera columna */}
@@ -175,16 +175,16 @@ function KanbanCard({ candidate: c, onSelect, onDragStart, onDragEnd, isDragging
         borderRadius: 10, padding: '12px 14px', cursor: 'grab',
         transition: 'box-shadow 150ms, transform 150ms, opacity 150ms',
         opacity: isDragging ? 0.4 : 1,
-        boxShadow: isDragging ? 'none' : '0 1px 4px rgba(0,0,0,.2)',
+        boxShadow: isDragging ? 'none' : 'var(--shadow)',
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(0,0,0,.35)'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 4px rgba(0,0,0,.2)'; }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-lg)'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow)'; }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <div style={{
           width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
           background: 'linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%)',
-          display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700, color: '#fff',
+          display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-inv)',
         }}>
           {c.full_name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
         </div>
@@ -208,7 +208,7 @@ function KanbanCard({ candidate: c, onSelect, onDragStart, onDragEnd, isDragging
         )}
         <span style={{
           fontSize: 10, marginLeft: 'auto', padding: '2px 6px', borderRadius: 999,
-          background: c.source === 'internal' ? 'rgba(52,211,153,.1)' : c.source === 'applicant' ? 'rgba(155,127,212,.1)' : 'rgba(251,191,36,.1)',
+          background: `color-mix(in srgb, ${c.source === 'internal' ? 'var(--green)' : c.source === 'applicant' ? 'var(--purple)' : 'var(--yellow)'} 14%, transparent)`,
           color: c.source === 'internal' ? 'var(--green)' : c.source === 'applicant' ? 'var(--purple)' : 'var(--yellow)',
         }}>
           {c.source === 'internal' ? 'BD' : c.source === 'applicant' ? 'Aplicante' : 'Web'}

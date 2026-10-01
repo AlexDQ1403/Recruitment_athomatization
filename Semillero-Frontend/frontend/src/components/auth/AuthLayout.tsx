@@ -8,7 +8,7 @@ import { ThemeToggle } from '../landing/ThemeToggle';
 import landing from '../landing/landing.module.css';
 import styles from './auth.module.css';
 
-// Posiciones fijas (sin azar en render) de los triángulos que flotan alrededor de Semi
+// Posiciones fijas (sin azar en render) de los camellitos de contorno que flotan alrededor de Semi
 const SPARKS = [
   { x: '12%', y: '38%', c: '#c81b1d', s: '14px', t: '7s', d: '0s' },
   { x: '84%', y: '30%', c: '#3d5ba8', s: '18px', t: '9s', d: '-2s' },
@@ -89,7 +89,6 @@ export function useSemiEyes(
 }
 
 interface LayoutProps {
-  label: string;
   heading: string;
   semi: SemiState;
   /** Semi se sacude (p. ej. ante un error) */
@@ -101,11 +100,11 @@ interface LayoutProps {
 }
 
 // Estructura común de las páginas de acceso: barra superior, Semi protagonista y la tarjeta
-export function AuthLayout({ label, heading, semi, shake, eyesRef, semiRef, children }: LayoutProps) {
+export function AuthLayout({ heading, semi, shake, eyesRef, semiRef, children }: LayoutProps) {
   return (
     <div className={`${landing.page} ${styles.authPage}`}>
       <header className={`${styles.topBar} ${landing.navEnter}`}>
-        <Logo id="semillero-mark-auth" />
+        <Logo />
         <div className={styles.topActions}>
           <Link href="/" className={styles.backLink}>
             <span aria-hidden="true">←</span> Volver al inicio
@@ -118,9 +117,6 @@ export function AuthLayout({ label, heading, semi, shake, eyesRef, semiRef, chil
         {/* Semi es el protagonista: grande, hablando y reaccionando a lo que pasa */}
         <section className={styles.brandSide}>
           <div className={styles.brandText}>
-            <Reveal delay={100}>
-              <p className={landing.label}>{label}</p>
-            </Reveal>
             <Reveal variant="words" delay={200}>
               <h1 className={styles.brandHeading}>
                 <SplitWords text={heading} />
@@ -129,7 +125,7 @@ export function AuthLayout({ label, heading, semi, shake, eyesRef, semiRef, chil
           </div>
 
           <div className={styles.semiStage}>
-            {/* triangulitos de la marca flotando alrededor de Semi */}
+            {/* camellitos de contorno flotando alrededor de Semi */}
             <div className={styles.sparks} aria-hidden="true">
               {SPARKS.map((sp, i) => (
                 <span

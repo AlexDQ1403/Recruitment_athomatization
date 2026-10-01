@@ -4,8 +4,10 @@ import { Constellation } from './Constellation';
 import { NavActions } from './NavActions';
 import { Logo } from './Logo';
 import { Mascot } from './Mascot';
+import { MobileMenu } from './MobileMenu';
 import { PipelineStages } from './PipelineStages';
 import { Reveal, SplitWords } from './Reveal';
+import { RoleShowcase } from './RoleShowcase';
 import { Sprout } from './Sprout';
 import { ThemeToggle } from './ThemeToggle';
 import styles from './landing.module.css';
@@ -24,6 +26,7 @@ export function LandingPage() {
           <div className={styles.navActions}>
             <ThemeToggle />
             <NavActions />
+            <MobileMenu />
           </div>
         </div>
       </header>
@@ -34,23 +37,20 @@ export function LandingPage() {
           <div className={styles.heroText}>
             <Reveal variant="words">
               <h1 className={styles.display}>
-                <SplitWords text="Tu próximo talento ya está aquí. Solo pregunta." />
+                <SplitWords text="Busca candidatos como le hablarías a un colega." />
               </h1>
             </Reveal>
-            <Reveal delay={550}>
-              <p className={styles.label}>Reclutamiento con inteligencia artificial</p>
-            </Reveal>
-            <Reveal delay={700}>
+            <Reveal delay={500}>
               <p className={styles.body}>
-                Semillero reúne vacantes, candidatos y reclutadores en un solo lugar.
-                Describe el perfil que buscas en lenguaje natural y la plataforma
-                encuentra a las personas que encajan.
+                Escribe «desarrolladora Python, tres años, Bogotá» y Kmella revisa tu
+                base de candidatos por ti. Vacantes, postulaciones y tu equipo de
+                reclutamiento quedan en el mismo lugar.
               </p>
             </Reveal>
-            <Reveal delay={850}>
+            <Reveal delay={620}>
               <div className={styles.ctaRow}>
-                <Link href="/register" className={styles.pill}>Empezar ahora</Link>
-                <Link href="/login" className={styles.ghost}>Ya tengo cuenta →</Link>
+                <Link href="/register" className={styles.pill}>Crear cuenta</Link>
+                <Link href="/login" className={styles.textLink}>Ya tengo cuenta</Link>
               </div>
             </Reveal>
           </div>
@@ -63,19 +63,13 @@ export function LandingPage() {
         <section id="chat" className={`${styles.split} ${styles.reverse}`}>
           <div className={styles.splitText}>
             <Reveal>
-              <p className={styles.label}>01 — Búsqueda por chat</p>
+              <h2 className={styles.headingLg}>Sin filtros ni casillas.</h2>
             </Reveal>
-            <Reveal variant="words">
-              <h2 className={styles.headingLg}>
-                <SplitWords text="Describe el perfil. Semillero lo encuentra." />
-              </h2>
-            </Reveal>
-            <Reveal delay={250}>
+            <Reveal delay={120}>
               <p className={styles.body}>
-                Nada de filtros interminables. Escribe lo que necesitas como se lo
-                dirías a un colega y la IA recorre tu base de candidatos para
-                mostrarte los perfiles más cercanos. Cada búsqueda queda en tu
-                historial para volver a ella.
+                Una frase basta. La búsqueda entiende ciudad, años de experiencia y
+                habilidades, te muestra los perfiles más cercanos y guarda cada
+                consulta en tu historial para retomarla después.
               </p>
             </Reveal>
           </div>
@@ -86,18 +80,13 @@ export function LandingPage() {
         <section id="pipeline" className={styles.split}>
           <div className={styles.splitText}>
             <Reveal>
-              <p className={styles.label}>02 — Pipeline de candidatos</p>
+              <h2 className={styles.headingLg}>Del primer mensaje a la decisión.</h2>
             </Reveal>
-            <Reveal variant="words">
-              <h2 className={styles.headingLg}>
-                <SplitWords text="Cada candidato, en su lugar." />
-              </h2>
-            </Reveal>
-            <Reveal delay={250}>
+            <Reveal delay={120}>
               <p className={styles.body}>
-                Mueve candidatos entre etapas desde la tabla o el tablero kanban,
-                deja notas y consulta el historial de cambios. El dashboard y los
-                reportes te muestran cómo avanza el proceso.
+                Mueve a cada persona entre etapas desde la tabla o el tablero, deja
+                notas y revisa quién cambió qué. El dashboard te dice cómo va el
+                proceso sin abrir una hoja de cálculo.
               </p>
             </Reveal>
           </div>
@@ -107,57 +96,28 @@ export function LandingPage() {
         {/* ─── Roles ────────────────────────────────────── */}
         <section id="roles" className={styles.section}>
           <Reveal>
-            <p className={styles.label}>03 — Para quién es</p>
+            <h2 className={`${styles.headingLg} ${styles.rolesHeading}`}>Una entrada para cada quien.</h2>
           </Reveal>
-          <Reveal variant="words">
-            <h2 className={styles.headingLg}>
-              <SplitWords text="Dos puertas, un mismo proceso." />
-            </h2>
-          </Reveal>
-          <div className={styles.roles}>
-            <Reveal delay={100} className={styles.role}>
-              <p className={styles.roleTag}>Empresas</p>
-              <h3 className={styles.headingSm}>Publica, busca y decide con tu equipo.</h3>
-              <p className={styles.bodyMuted}>
-                Crea vacantes con salario, modalidad y skills, invita a tus
-                reclutadores y gestiona el pipeline completo con búsqueda por IA.
-              </p>
-              <Link href="/register/company" className={styles.ghost}>Registrar mi empresa →</Link>
-            </Reveal>
-            <Reveal delay={260} className={styles.role}>
-              <p className={styles.roleTag}>Candidatos</p>
-              <h3 className={styles.headingSm}>Tu perfil trabaja por ti.</h3>
-              <p className={styles.bodyMuted}>
-                Crea tu perfil profesional, sube tu hoja de vida y sigue el estado
-                de cada una de tus postulaciones desde un solo lugar.
-              </p>
-              <Link href="/register/candidate" className={styles.ghost}>Crear mi perfil →</Link>
-            </Reveal>
-          </div>
+          <RoleShowcase />
         </section>
 
         {/* ─── Cierre ───────────────────────────────────── */}
         <section id="empezar" className={`${styles.split} ${styles.closing}`}>
           <div className={styles.splitText}>
             <Reveal>
-              <p className={styles.label}>04 — Empieza hoy</p>
+              <h2 className={styles.headingLg}>Empieza con una vacante o con tu hoja de vida.</h2>
             </Reveal>
-            <Reveal variant="words">
-              <h2 className={styles.headingLg}>
-                <SplitWords text="Tu próximo contratado está a una pregunta de distancia." />
-              </h2>
-            </Reveal>
-            <Reveal delay={250}>
+            <Reveal delay={120}>
               <p className={styles.body}>
-                Crea la cuenta de tu empresa, invita a tus reclutadores y haz tu
-                primera búsqueda. Si buscas empleo, arma tu perfil y deja que las
-                oportunidades te encuentren.
+                Las empresas crean su cuenta e invitan a sus reclutadores en pocos
+                minutos. Si buscas empleo, sube tu hoja de vida y mira qué vacantes
+                encajan contigo.
               </p>
             </Reveal>
-            <Reveal delay={400}>
+            <Reveal delay={240}>
               <div className={styles.ctaRow}>
-                <Link href="/register/company" className={styles.pill}>Soy empresa</Link>
-                <Link href="/register/candidate" className={styles.ghost}>Busco empleo →</Link>
+                <Link href="/register/company" className={styles.pill}>Registrar mi empresa</Link>
+                <Link href="/register/candidate" className={styles.textLink}>Crear mi perfil</Link>
               </div>
             </Reveal>
           </div>
@@ -168,16 +128,16 @@ export function LandingPage() {
       <footer className={styles.footer}>
         <div className={styles.footerTop}>
           <Reveal className={styles.footerBrand}>
-            <Logo id="semillero-mark-footer" />
+            <Logo height={44} variant="onred" />
             <p className={styles.bodyMuted}>
-              Reclutamiento con inteligencia artificial: vacantes, candidatos y
-              reclutadores conectados en un solo lugar.
+              Vacantes, candidatos y equipos de reclutamiento en un mismo lugar,
+              con búsqueda en lenguaje natural.
             </p>
           </Reveal>
 
           <Reveal delay={100}>
             <nav className={styles.footerCol} aria-label="Explorar">
-              <p className={styles.footerTitle}>Explora</p>
+              <p className={styles.footerTitle}>Producto</p>
               <a href="#chat">Búsqueda por chat</a>
               <a href="#pipeline">Pipeline de candidatos</a>
               <a href="#roles">Para quién es</a>
@@ -186,7 +146,7 @@ export function LandingPage() {
 
           <Reveal delay={200}>
             <nav className={styles.footerCol} aria-label="Únete">
-              <p className={styles.footerTitle}>Únete</p>
+              <p className={styles.footerTitle}>Cuentas</p>
               <Link href="/register/company">Registrar empresa</Link>
               <Link href="/register/candidate">Crear perfil de candidato</Link>
             </nav>
@@ -194,7 +154,7 @@ export function LandingPage() {
         </div>
 
         <div className={styles.footerBottom}>
-          <p className={styles.caption}>© 2026 Semillero · Hecho en Colombia</p>
+          <p className={styles.caption}>© 2026 Kmella · Hecho en Colombia</p>
           <a href="#inicio" className={styles.backTop}>
             Volver arriba <span aria-hidden="true">↑</span>
           </a>

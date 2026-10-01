@@ -89,8 +89,7 @@ export const ResetPasswordForm = () => {
 
   return (
     <AuthLayout
-      label="Nueva contraseña"
-      heading="Un nuevo comienzo para tu cuenta."
+      heading="Elige una contraseña nueva."
       semi={semi}
       shake={!!error && !loading}
       eyesRef={eyesRef}

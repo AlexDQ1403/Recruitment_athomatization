@@ -3,7 +3,7 @@ import { ResetPasswordForm } from '../../components/auth/ResetPasswordForm';
 import { SiteShell } from '../../components/landing/SiteShell';
 
 export const metadata: Metadata = {
-  title: 'Nueva contraseña — Semillero',
+  title: 'Nueva contraseña — Kmella',
 };
 
 export default function ResetPasswordPage() {

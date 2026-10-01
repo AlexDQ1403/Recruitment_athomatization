@@ -3,7 +3,7 @@ import { ForgotPasswordForm } from '../../components/auth/ForgotPasswordForm';
 import { SiteShell } from '../../components/landing/SiteShell';
 
 export const metadata: Metadata = {
-  title: 'Recuperar contraseña — Semillero',
+  title: 'Recuperar contraseña — Kmella',
 };
 
 export default function ForgotPasswordPage() {

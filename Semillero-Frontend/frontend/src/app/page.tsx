@@ -3,7 +3,7 @@ import { LandingPage } from '../components/landing/LandingPage';
 import { SiteShell } from '../components/landing/SiteShell';
 
 export const metadata: Metadata = {
-  title: 'Semillero — Reclutamiento con IA',
+  title: 'Kmella — Reclutamiento con IA',
   description:
     'Vacantes, candidatos y reclutadores en un solo lugar. Encuentra talento describiendo el perfil en lenguaje natural.',
 };

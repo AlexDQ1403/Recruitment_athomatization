@@ -55,7 +55,6 @@ export function RegisterChoice() {
 
   return (
     <AuthLayout
-      label="Crear cuenta"
       heading="Empecemos por conocerte."
       semi={semi}
       eyesRef={eyesRef}

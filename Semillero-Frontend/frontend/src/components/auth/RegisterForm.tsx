@@ -18,17 +18,15 @@ type Field =
   | 'location'
   | 'experience_years';
 
-const COPY: Record<Variant, { label: string; heading: string; title: string; subtitle: string; cta: string }> = {
+const COPY: Record<Variant, { heading: string; title: string; subtitle: string; cta: string }> = {
   company: {
-    label: 'Cuenta de empresa',
-    heading: 'Encuentra a tu próximo gran talento.',
+    heading: 'Trae a tu equipo de reclutamiento.',
     title: 'Registra tu empresa',
     subtitle: 'Crea la cuenta administradora de tu organización',
     cta: 'Crear cuenta de empresa',
   },
   candidate: {
-    label: 'Cuenta de candidato',
-    heading: 'Tu próxima oportunidad te está buscando.',
+    heading: 'Una hoja de vida para todas tus postulaciones.',
     title: 'Crea tu perfil',
     subtitle: 'Postúlate a vacantes y deja que las empresas te encuentren',
     cta: 'Crear cuenta de candidato',
@@ -116,7 +114,7 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
     if (field !== 'none') return FIELD_SAY[field] ?? { pose: 'chat', mood: 'normal', say: 'Te sigo…' };
     if (tip >= 0) return IDLE_TIPS[variant][tip % IDLE_TIPS[variant].length];
     return variant === 'company'
-      ? { pose: 'inicio', mood: 'happy', say: '¡Qué bien que tu empresa llegue a Semillero! Te ayudo a registrarla.' }
+      ? { pose: 'inicio', mood: 'happy', say: '¡Qué bien que tu empresa llegue a Kmella! Te ayudo a registrarla.' }
       : { pose: 'inicio', mood: 'happy', say: '¡Bienvenido! Creemos tu perfil para que las empresas te encuentren.' };
   })();
 
@@ -166,7 +164,6 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
 
   return (
     <AuthLayout
-      label={copy.label}
       heading={copy.heading}
       semi={semi}
       shake={!!error && !loading}

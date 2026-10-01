@@ -70,8 +70,7 @@ export const LoginForm = () => {
 
   return (
     <AuthLayout
-      label="Bienvenido de nuevo"
-      heading="Tu próximo paso empieza aquí."
+      heading="Qué bueno verte otra vez."
       semi={semi}
       shake={!!error && !loading}
       eyesRef={eyesRef}
@@ -104,12 +103,7 @@ export const LoginForm = () => {
           </div>
 
           <div className={styles.field}>
-            <div className={styles.labelRow}>
-              <label htmlFor="password">Contraseña</label>
-              <Link href="/forgot-password" className={styles.smallLink}>
-                ¿La olvidaste?
-              </Link>
-            </div>
+            <label htmlFor="password">Contraseña</label>
             <PasswordInput
               id="password"
               show={showPassword}
@@ -122,6 +116,9 @@ export const LoginForm = () => {
               autoComplete="current-password"
               required
             />
+            <Link href="/forgot-password" className={`${styles.smallLink} ${styles.forgotLink}`}>
+              ¿La olvidaste?
+            </Link>
           </div>
 
           <button type="submit" className={`${landing.pill} ${styles.submit}`} data-loading={loading} disabled={loading || done}>

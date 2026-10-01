@@ -29,6 +29,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px;
   padding: 8px 14px;
   border-radius: 9999px;
   font-size: 13px;
@@ -38,9 +39,11 @@
   color: var(--muted) !important;
   transition: color 160ms ease, background-color 160ms ease;
 }
-.backLink span { display: inline-block; transition: transform 300ms var(--ease); }
+.backLink span { display: inline-block; transition: transform 200ms var(--ease); }
 .backLink:hover { color: var(--text) !important; background: var(--toggle-hover); }
-.backLink:hover span { transform: translateX(-4px); }
+@media (hover: hover) and (pointer: fine) {
+  .backLink:hover span { transform: translateX(-4px); }
+}
 
 /* ─── Distribución ─────────────────────────────────── */
 .layout {
@@ -61,7 +64,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  animation: fadeUp 900ms var(--ease) both;
+  animation: fadeUp 400ms var(--ease) both;
 }
 
 .brandText {
@@ -89,7 +92,7 @@
   position: relative;
   width: 100%;
   max-width: 440px;
-  animation: fadeUp 900ms var(--ease) 150ms both;
+  animation: fadeUp 400ms var(--ease) 60ms both;
 }
 
 /* ─── Escenario de Semi ────────────────────────────── */
@@ -145,7 +148,7 @@
   line-height: 1.45;
   text-align: center;
   color: var(--text);
-  animation: sayIn 450ms var(--ease) both;
+  animation: sayIn 250ms var(--ease) both;
 }
 /* colita del globo apuntando a Semi */
 .semiSay::after {
@@ -161,12 +164,16 @@
   border-bottom: 1px solid var(--panel-border);
 }
 @keyframes sayIn {
-  from { opacity: 0; transform: translateY(8px) scale(0.92); }
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
   to { opacity: 1; transform: none; }
 }
 
+@keyframes fadeOnly {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -246,10 +253,15 @@
 }
 
 .smallLink {
+  position: relative;
   font-size: 13px;
   font-weight: 500;
   color: var(--primary-text) !important;
 }
+/* área táctil ampliada sin mover el texto */
+.smallLink::before { content: ''; position: absolute; inset: -12px -8px; }
+/* "¿La olvidaste?" va después del campo: el orden de tabulación queda correo → contraseña → ingresar */
+.forgotLink { align-self: flex-end; margin-top: 2px; }
 .smallLink:hover { text-decoration: underline !important; }
 
 .field input {
@@ -279,8 +291,8 @@
   top: 50%;
   right: 8px;
   transform: translateY(-50%);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: none;
@@ -390,13 +402,20 @@
   border: 1px solid var(--panel-border);
   background: var(--input-bg);
   color: var(--text) !important;
-  transition: border-color 200ms ease, transform 300ms var(--ease), box-shadow 200ms ease;
+  transition: border-color 200ms ease, transform 200ms var(--ease), box-shadow 200ms ease;
 }
-.choice:hover,
 .choice:focus-visible {
   border-color: var(--primary-text);
   box-shadow: 0 0 0 4px var(--primary-glow);
   transform: translateY(-2px);
+}
+@media (hover: hover) and (pointer: fine) {
+  .choice:hover {
+    border-color: var(--primary-text);
+    box-shadow: 0 0 0 4px var(--primary-glow);
+    transform: translateY(-2px);
+  }
+  .choice:hover .choiceArrow { transform: translateX(4px); color: var(--primary-text); }
 }
 
 .choiceIcon {
@@ -418,9 +437,8 @@
   margin-left: auto;
   font-size: 20px;
   color: var(--muted);
-  transition: transform 300ms var(--ease), color 200ms ease;
+  transition: transform 200ms var(--ease), color 200ms ease;
 }
-.choice:hover .choiceArrow,
 .choice:focus-visible .choiceArrow { transform: translateX(4px); color: var(--primary-text); }
 
 /* Confirmación: revisa tu correo */
@@ -444,7 +462,7 @@
 
 /* ─── Animaciones de apoyo (sutiles, acompañan a Semi) ─ */
 
-/* Triángulos de la marca flotando alrededor de Semi */
+/* Camellitos de contorno flotando alrededor de Semi */
 .sparks {
   position: absolute;
   inset: 0;
@@ -453,45 +471,48 @@
 }
 .sparks span {
   position: absolute;
-  width: var(--s);
-  height: var(--s);
-  opacity: 0.7;
+  /* silueta de camello: más ancha que alta */
+  width: calc(var(--s) * 2.1);
+  height: calc(var(--s) * 1.75);
+  opacity: 0.75;
   animation: spark var(--t) ease-in-out infinite;
   animation-delay: var(--dl);
 }
 .sparks span::before {
-  /* triángulo de contorno: polígono exterior menos uno interior en sentido contrario */
+  /* camellito de contorno (solo el borde): una máscara con la silueta pintada del color de la marca */
   content: '';
   position: absolute;
   inset: 0;
   background: var(--c);
-  clip-path: polygon(50% 0, 100% 100%, 0 100%, 0 100%, 12% 92%, 88% 92%, 50% 16%, 12% 92%, 0 100%);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -1 26 22'%3E%3Cpath d='M1.5 7.5L3 6L5 6.2L6 8.5C7 10 8 9 8.5 8C9.5 4 11.5 3.5 12.5 6C13.5 4 16 3.5 17 6.5C19 7 21 8 21.5 10L22.5 13L21.5 13.2L20.5 11.5L20.5 18L19.2 18L18.8 13L17.5 13L17.3 18L16 18L15.8 12.8L9.5 12.8L9.3 18L8 18L7.8 12.5L7 12.5L6.8 18L5.5 18L5.6 11.5C5 10.5 4.6 9.5 4.3 8.5L3.5 8.5L1.8 8.6Z' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -1 26 22'%3E%3Cpath d='M1.5 7.5L3 6L5 6.2L6 8.5C7 10 8 9 8.5 8C9.5 4 11.5 3.5 12.5 6C13.5 4 16 3.5 17 6.5C19 7 21 8 21.5 10L22.5 13L21.5 13.2L20.5 11.5L20.5 18L19.2 18L18.8 13L17.5 13L17.3 18L16 18L15.8 12.8L9.5 12.8L9.3 18L8 18L7.8 12.5L7 12.5L6.8 18L5.5 18L5.6 11.5C5 10.5 4.6 9.5 4.3 8.5L3.5 8.5L1.8 8.6Z' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 @keyframes spark {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-18px) rotate(40deg); }
+  /* flotan y se mecen un poco (un camello girando de cabeza no se reconoce) */
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-16px) rotate(6deg); }
 }
 
 /* Los elementos de la tarjeta entran en cascada */
 .card > *,
 .form > * {
-  animation: rise 700ms var(--ease) both;
+  animation: rise 350ms var(--ease) both;
 }
-.card > :nth-child(1) { animation-delay: 250ms; }
-.card > :nth-child(2) { animation-delay: 320ms; }
-.card > :nth-child(3) { animation-delay: 390ms; }
-.card > :nth-child(4) { animation-delay: 460ms; }
-.card > :nth-child(5) { animation-delay: 530ms; }
-.form > :nth-child(1) { animation-delay: 420ms; }
-.form > :nth-child(2) { animation-delay: 500ms; }
-.form > :nth-child(3) { animation-delay: 580ms; }
-.form > :nth-child(4) { animation-delay: 660ms; }
-.form > :nth-child(5) { animation-delay: 740ms; }
-.choices > * { animation: rise 700ms var(--ease) both; }
-.choices > :nth-child(1) { animation-delay: 450ms; }
-.choices > :nth-child(2) { animation-delay: 560ms; }
+.card > :nth-child(1) { animation-delay: 80ms; }
+.card > :nth-child(2) { animation-delay: 120ms; }
+.card > :nth-child(3) { animation-delay: 160ms; }
+.card > :nth-child(4) { animation-delay: 200ms; }
+.card > :nth-child(5) { animation-delay: 240ms; }
+.form > :nth-child(1) { animation-delay: 160ms; }
+.form > :nth-child(2) { animation-delay: 200ms; }
+.form > :nth-child(3) { animation-delay: 240ms; }
+.form > :nth-child(4) { animation-delay: 280ms; }
+.form > :nth-child(5) { animation-delay: 320ms; }
+.choices > * { animation: rise 350ms var(--ease) both; }
+.choices > :nth-child(1) { animation-delay: 160ms; }
+.choices > :nth-child(2) { animation-delay: 210ms; }
 @keyframes rise {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -503,13 +524,15 @@
   background-repeat: no-repeat;
   background-position: 0 100%;
   background-size: 0% 2px;
-  transition: background-size 450ms var(--ease), border-color 160ms ease, box-shadow 160ms ease;
+  transition: background-size 250ms var(--ease), border-color 160ms ease, box-shadow 160ms ease;
 }
 .field input:focus { background-size: 100% 2px; }
 
 /* Botón: se levanta al pasar el mouse, se hunde al presionar y muestra puntos al cargar */
-.submit { position: relative; transition: background 160ms ease, transform 200ms var(--ease), box-shadow 200ms ease; }
-.submit:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 24px var(--primary-glow); }
+.submit { position: relative; transition: background 160ms ease, transform 160ms var(--ease), box-shadow 200ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .submit:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 24px var(--primary-glow); }
+}
 .submit:not(:disabled):active { transform: translateY(0) scale(0.98); box-shadow: none; }
 .submit[data-loading='true']::after {
   content: '';
@@ -562,8 +585,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brandSide, .cardWrap, .semiSay, .semiShake, .semiStage::before, .doneIcon,
-  .sparks span, .card > *, .form > *, .choices > *, .card:has(.error), .error { animation: none; }
+  .semiShake, .semiStage::before, .sparks span, .card:has(.error) { animation: none; }
+  /* sin desplazamientos, pero el contenido sigue apareciendo con un fundido */
+  .brandSide, .cardWrap, .semiSay, .doneIcon, .card > *, .form > *, .choices > *, .error {
+    animation: fadeOnly 200ms ease both;
+  }
   .submit, .field input { transition: none; }
   .choice, .rules li span { transition: none; }
 }

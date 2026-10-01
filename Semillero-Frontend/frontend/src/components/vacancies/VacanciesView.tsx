@@ -7,6 +7,7 @@ import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../ui/Toast';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import Link from 'next/link';
+import { Icon } from '../ui/Icon';
 
 const STATUS_LABELS: Record<VacancyStatus, string> = {
   active: 'Activa', paused: 'Pausada', closed: 'Cerrada',
@@ -132,7 +133,7 @@ export const VacanciesView = () => {
         {isError && (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--red)' }} role="alert">
             Error al cargar vacantes.
-            <button onClick={() => refetch()} style={{ marginLeft: 12, color: 'var(--accent)', fontSize: 13 }}>Reintentar</button>
+            <button onClick={() => refetch()} style={{ marginLeft: 12, color: 'var(--accent-text)', fontSize: 13 }}>Reintentar</button>
           </div>
         )}
 
@@ -149,7 +150,7 @@ export const VacanciesView = () => {
           </div>
         ) : data?.items.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--text-3)' }}>
-            <p style={{ fontSize: 32, marginBottom: 10 }}>📋</p>
+            <span className="empty-icon"><Icon name="clipboard" size={22} /></span>
             <p style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 4 }}>No hay vacantes{statusFilter ? ` con estado "${STATUS_LABELS[statusFilter as VacancyStatus]}"` : ''}</p>
             <p style={{ fontSize: 12 }}>Crea una vacante para empezar a recibir aplicaciones</p>
           </div>
@@ -190,18 +191,17 @@ function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus 
       borderRadius: 'var(--radius-lg)', padding: 22,
       display: 'flex', flexDirection: 'column', gap: 14,
       transition: 'border-color 150ms',
-      borderLeft: `3px solid ${v.status === 'active' ? 'var(--green)' : v.status === 'paused' ? 'var(--yellow)' : 'var(--border)'}`,
     }}>
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-          <h3 style={{ fontSize: 15, fontFamily: 'var(--font-display)', fontStyle: 'italic', color: 'var(--text-1)', lineHeight: 1.2 }}>
+          <h3 style={{ fontSize: 15, fontFamily: 'var(--font-display)', color: 'var(--text-1)', lineHeight: 1.35 }}>
             {v.title}
           </h3>
           <span className={`badge ${STATUS_COLORS[v.status]}`} style={{ flexShrink: 0, fontSize: 10 }}>
             {STATUS_LABELS[v.status]}
           </span>
         </div>
-        <p style={{ fontSize: 12.5, color: 'var(--accent)', fontWeight: 600 }}>{v.company}</p>
+        <p style={{ fontSize: 12.5, color: 'var(--accent-text)', fontWeight: 600 }}>{v.company}</p>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -249,19 +249,19 @@ function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus 
         <div style={{ display: 'flex', gap: 5 }}>
           <button onClick={onCopyLink} title="Copiar link de aplicación"
             style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 12, transition: 'color 120ms' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-text)')}
             onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
           </button>
           <Link href={`/candidates?vacancy=${v.id}`} title="Ver candidatos"
             style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 12, display: 'flex', alignItems: 'center' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-text)')}
             onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
           </Link>
-          <button onClick={onToggleStatus} title={v.status === 'active' ? 'Pausar' : 'Activar'}
-            style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: v.status === 'active' ? 'var(--yellow)' : 'var(--green)', fontSize: 12 }}>
-            {v.status === 'active' ? '⏸' : '▶'}
+          <button onClick={onToggleStatus} title={v.status === 'active' ? 'Pausar' : 'Activar'} aria-label={v.status === 'active' ? 'Pausar vacante' : 'Activar vacante'}
+            style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: v.status === 'active' ? 'var(--yellow)' : 'var(--green)', display: 'grid', placeItems: 'center' }}>
+            <Icon name={v.status === 'active' ? 'pause' : 'play'} size={13} />
           </button>
           <button onClick={onEdit} title="Editar"
             style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 12 }}>

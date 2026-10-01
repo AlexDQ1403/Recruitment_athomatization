@@ -24,9 +24,9 @@ export const ConfirmModal = ({ message, onConfirm, onCancel, confirmLabel = 'Con
             onClick={onConfirm}
             style={{
               padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-              background: danger ? 'rgba(248,113,113,.15)' : 'var(--accent)',
-              border: `1px solid ${danger ? 'rgba(248,113,113,.3)' : 'var(--accent)'}`,
-              color: danger ? 'var(--red)' : '#fff',
+              background: danger ? 'color-mix(in srgb, var(--red) 14%, transparent)' : 'var(--accent)',
+              border: `1px solid ${danger ? 'color-mix(in srgb, var(--red) 35%, transparent)' : 'var(--accent)'}`,
+              color: danger ? 'var(--red)' : 'var(--text-inv)',
             }}
           >
             {confirmLabel}

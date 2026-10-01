@@ -5,6 +5,7 @@ import { ChatMessage, Candidate } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { chatService, ChatSession, MAX_SESSIONS } from '../../services/chatService';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { Icon } from '../ui/Icon';
 
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
@@ -125,7 +126,7 @@ export const ChatView = () => {
         setMessages((prev) => [...prev, {
           id: tempId(),
           role: 'assistant',
-          content: `⚠️ ${body?.error ?? `Error ${res.status}`}`,
+          content: body?.error ?? `Error ${res.status}`,
           created_at: new Date().toISOString(),
         }]);
       } else {
@@ -146,7 +147,7 @@ export const ChatView = () => {
       setMessages((prev) => [...prev, {
         id: tempId(),
         role: 'assistant',
-        content: '⚠️ Sin conexión al servidor. Verifica tu red e intenta de nuevo.',
+        content: 'Sin conexión con el servidor. Revisa tu red e intenta de nuevo.',
         created_at: new Date().toISOString(),
       }]);
     } finally {
@@ -232,7 +233,7 @@ export const ChatView = () => {
           <div className="chat-messages">
             {messages.length === 0 && !loading && (
               <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-3)' }}>
-                <p style={{ fontSize: 32, marginBottom: 12 }}>🔍</p>
+                <span className="empty-icon"><Icon name="search" size={22} /></span>
                 <p style={{ fontSize: 15, marginBottom: 6, color: 'var(--text-2)' }}>Empieza una búsqueda</p>
                 <p style={{ fontSize: 13 }}>Ej: &quot;Necesito un desarrollador Python con 3 años de experiencia en Bogotá&quot;</p>
               </div>
@@ -260,7 +261,7 @@ export const ChatView = () => {
                       <span key={i} style={{
                         width: 6, height: 6, borderRadius: '50%',
                         background: 'var(--text-3)',
-                        animation: `bounce .9s ${i * 0.15}s infinite`,
+                        animation: `dotRise .9s ${i * 0.15}s infinite`,
                       }} />
                     ))}
                   </div>
@@ -322,7 +323,7 @@ const CandidateCards = ({ candidates }: { candidates: Candidate[] }) => (
         </div>
         {c.match_reason && (
           <div style={{
-            fontSize: 11.5, color: 'var(--accent)', background: 'var(--accent-glow)',
+            fontSize: 11.5, color: 'var(--accent-text)', background: 'var(--accent-glow)',
             borderRadius: 6, padding: '5px 10px', display: 'flex', alignItems: 'flex-start', gap: 6,
           }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0, marginTop: 1 }}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>

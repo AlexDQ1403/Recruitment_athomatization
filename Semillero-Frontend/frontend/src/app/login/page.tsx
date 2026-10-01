@@ -3,7 +3,7 @@ import { LoginForm } from '../../components/auth/LoginForm';
 import { SiteShell } from '../../components/landing/SiteShell';
 
 export const metadata: Metadata = {
-  title: 'Iniciar sesión — Semillero',
+  title: 'Iniciar sesión — Kmella',
 };
 
 export default function LoginPage() {

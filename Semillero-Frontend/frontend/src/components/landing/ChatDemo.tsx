@@ -117,12 +117,14 @@ export function ChatDemo() {
       </p>
 
       <div className={styles.chatStatus} data-show={phase === 'searching'}>
+        <div className={styles.chatStatusInner}>
         <span className={styles.searchDots}>
           <span />
           <span />
           <span />
         </span>
         Buscando en tu base de candidatos
+        </div>
       </div>
 
       <ul className={styles.chatResults} data-in={phase === 'done'}>

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportService, DailyContactedReport } from '../../services/reportService';
+import { Icon } from '../ui/Icon';
 
 const PERIODS = [
   { days: 1, label: 'Últimas 24 h' },
@@ -79,7 +80,7 @@ export const ReportsView = () => {
         </div>
       ) : !data || data.total === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-3)' }}>
-          <p style={{ fontSize: 32, marginBottom: 12 }}>📭</p>
+          <span className="empty-icon"><Icon name="inbox" size={22} /></span>
           <p style={{ fontSize: 15, color: 'var(--text-2)', marginBottom: 6 }}>
             Sin candidatos contactados en este periodo
           </p>

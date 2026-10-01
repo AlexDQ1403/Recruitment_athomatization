@@ -2,6 +2,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { User } from '../../types';
+import { useLandingTheme } from '../landing/ThemeToggle';
+import { Icon } from '../ui/Icon';
+import { BrandLogo } from '../ui/BrandMark';
 
 interface Props {
   user: User | null;
@@ -118,10 +121,10 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
         />
       )}
 
-      <aside className={`sidebar${open ? ' sidebar-open' : ''}`} aria-label="Navegación principal">
+      <aside id="sidebar" className={`sidebar${open ? ' sidebar-open' : ''}`} aria-label="Navegación principal">
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon" aria-hidden="true">S</div>
-          <span className="sidebar-logo-text">Semillero</span>
+          {/* misma marca que la web pública */}
+          <BrandLogo height={36} />
           {/* Botón cerrar en móvil */}
           <button
             className="sidebar-close-btn"
@@ -160,14 +163,34 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
               {ROLE_LABEL[user?.role ?? ''] ?? 'Reclutador'}
             </p>
           </div>
+          <ThemeButton />
           <button
             onClick={onLogout}
             aria-label="Cerrar sesión"
             title="Cerrar sesión"
-            style={{ color: 'var(--text-3)', fontSize: 18, padding: 4 }}
-          >⎋</button>
+            className="theme-toggle-app"
+          >
+            <Icon name="logOut" size={18} />
+          </button>
         </div>
       </aside>
     </>
   );
 };
+
+// Cambia entre claro y oscuro; la preferencia es la misma que en la web pública
+function ThemeButton() {
+  const { theme, toggle } = useLandingTheme();
+  const toLight = theme === 'dark';
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="theme-toggle-app"
+      aria-label={toLight ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      title={toLight ? 'Modo claro' : 'Modo oscuro'}
+    >
+      <Icon key={theme} name={toLight ? 'sun' : 'moon'} size={18} />
+    </button>
+  );
+}

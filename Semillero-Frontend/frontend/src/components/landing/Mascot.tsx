@@ -8,7 +8,7 @@ import styles from './landing.module.css';
 type Message = { text: string; cta?: { href: string; label: string } };
 const MESSAGES: Record<string, Message[]> = {
   inicio: [
-    { text: '¡Hola! Soy Semi, tu compu reclutador. Baja conmigo y te muestro todo.' },
+    { text: '¡Hola! Soy Semi, tu camello reclutador. Baja conmigo y te muestro todo.' },
     { text: 'Esa constelación de ahí son candidatos conectados. ¡Mira cómo cambia de forma!' },
     { text: 'Tip: puedes cambiar a modo claro u oscuro con el botón de arriba.' },
   ],
@@ -25,7 +25,7 @@ const MESSAGES: Record<string, Message[]> = {
   roles: [
     { text: '¿Empresa o candidato? Tú eliges el camino, yo te acompaño.' },
     { text: 'Las empresas pueden invitar a su equipo de reclutadores.' },
-    { text: 'Si buscas empleo, sube tu hoja de vida y sigue tus postulaciones.' },
+    { text: 'Si buscas empleo, sube tu hoja de vida y te muestro las vacantes que más te encajan.' },
   ],
   empezar: [
     { text: '¡Me encantaría trabajar contigo! Crea tu cuenta y empezamos.', cta: { href: '/register', label: 'Crear cuenta →' } },
@@ -66,8 +66,6 @@ export function Mascot() {
 
   const rootRef = useRef<HTMLDivElement>(null);
   const tiltRef = useRef<HTMLDivElement>(null);
-  const armLRef = useRef<SVGGElement>(null);
-  const armRRef = useRef<SVGGElement>(null);
   const eyesRef = useRef<SVGGElement>(null);
   const sectionRef = useRef('inicio');
   const wakeRef = useRef<() => void>(() => {});
@@ -128,6 +126,10 @@ export function Mascot() {
     let sleeping = false;
     const look = { x: 0, y: 0, tx: 0, ty: 0 };
     let raf = 0;
+    // mientras duerme y está quieto, el bucle se pausa; cualquier actividad lo reanuda
+    let paused = false;
+    // la sorpresa por scroll rápido se mantiene un momento para que la burbuja no parpadee
+    let wowUntil = 0;
 
     const onActivity = () => {
       lastActivity = performance.now();
@@ -135,25 +137,43 @@ export function Mascot() {
         sleeping = false;
         wakeRef.current();
       }
+      if (paused) {
+        paused = false;
+        raf = requestAnimationFrame(tick);
+      }
     };
     const onScroll = () => onActivity();
 
-    // ¿El globo cae encima de algún texto de la página? Se mide sobre las líneas reales del texto
+    // ¿El globo cae encima de algún texto de la página? Se mide sobre las líneas reales del texto.
+    // Las líneas se guardan en coordenadas de documento y solo se vuelven a medir al cambiar el
+    // tamaño de la ventana o cada 1,5 s (por las animaciones de entrada), no en cada comprobación.
     const range = document.createRange();
     const PAD = 8;
-    const hits = (a: DOMRect, b: DOMRect) =>
-      a.left - PAD < b.right && a.right + PAD > b.left && a.top - PAD < b.bottom && a.bottom + PAD > b.top;
-    const overlapsText = (box: DOMRect) => {
-      const els = document.querySelectorAll('main h1, main h2, main h3, main p, main li, main a');
-      for (const el of Array.from(els)) {
-        const r = el.getBoundingClientRect();
-        if (!r.width || !hits(box, r)) continue;
+    type Box = { left: number; right: number; top: number; bottom: number };
+    let lines: Box[] = [];
+    let measuredAt = -Infinity;
+    const measureLines = () => {
+      const sy = window.scrollY;
+      const next: Box[] = [];
+      for (const el of Array.from(document.querySelectorAll('main h1, main h2, main h3, main p, main li, main a'))) {
         range.selectNodeContents(el);
-        for (const line of Array.from(range.getClientRects())) {
-          if (line.width && hits(box, line)) return true;
+        for (const r of Array.from(range.getClientRects())) {
+          if (r.width) next.push({ left: r.left, right: r.right, top: r.top + sy, bottom: r.bottom + sy });
         }
       }
-      return false;
+      lines = next;
+      measuredAt = performance.now();
+    };
+    const onResize = () => { measuredAt = -Infinity; };
+    window.addEventListener('resize', onResize);
+    const overlapsText = (box: DOMRect) => {
+      if (performance.now() - measuredAt > 1500) measureLines();
+      const sy = window.scrollY;
+      const top = box.top + sy - PAD;
+      const bottom = box.bottom + sy + PAD;
+      return lines.some(
+        (l) => box.left - PAD < l.right && box.right + PAD > l.left && top < l.bottom && bottom > l.top,
+      );
     };
     let lastCheck = 0;
     let clearSince = 0;
@@ -194,7 +214,8 @@ export function Mascot() {
       scrollVel += (sv - scrollVel) * 0.2;
 
       sleeping = sleeping || performance.now() - lastActivity > SLEEP_AFTER;
-      const fast = Math.abs(scrollVel) > 22;
+      if (Math.abs(scrollVel) > 22) wowUntil = performance.now() + 600;
+      const fast = performance.now() < wowUntil;
       const moving = Math.abs(vel) > 0.4 || Math.abs(scrollVel) > 2;
       const mood = sleeping ? 'sleep' : fast ? 'wow' : BASE_MOOD[sectionRef.current] ?? 'normal';
 
@@ -202,25 +223,19 @@ export function Mascot() {
       root.dataset.mood = mood;
       root.dataset.moving = String(moving && !sleeping);
 
-      if (!reduce) {
-        const tilt = clamp(vel * 1.1 + scrollVel * 0.15, -16, 16);
-        tiltRef.current?.style.setProperty('transform', `rotate(${tilt.toFixed(2)}deg)`);
-        // los brazos se abren con la velocidad, como si mantuviera el equilibrio
-        const swing = clamp(Math.abs(vel) * 3 + Math.abs(scrollVel) * 0.8, 0, 55);
-        const wob = Math.sin(performance.now() / 90) * Math.min(swing, 12);
-        armLRef.current?.setAttribute('transform', `rotate(${(swing + wob).toFixed(1)} 24 44)`);
-        armRRef.current?.setAttribute('transform', `rotate(${(-swing + wob).toFixed(1)} 96 44)`);
-      }
+      // sin inclinarse ni balancear patas con la velocidad: solo acompaña el scroll (y camina, por CSS)
 
       look.x += (look.tx - look.x) * 0.15;
       look.y += (clamp(look.ty + scrollVel * 0.08, -3, 3) - look.y) * 0.15;
       eyesRef.current?.setAttribute('transform', `translate(${look.x.toFixed(2)} ${look.y.toFixed(2)})`);
 
-      // cada ~120 ms revisa si el globo tapa texto; espera un momento libre antes de reaparecer
+      // cada ~120 ms revisa si el globo tapa texto; espera un momento libre antes de reaparecer.
+      // En móvil el texto ocupa todo el ancho y siempre "chocaría": ahí Semi se queda visible en la
+      // esquina como un asistente de chat y su globo se muestra siempre (se cierra con la ×).
       const now = performance.now();
       if (bubbleRef.current && now - lastCheck > 120) {
         lastCheck = now;
-        const hit = overlapsText(bubbleRef.current.getBoundingClientRect());
+        const hit = !mobile && overlapsText(bubbleRef.current.getBoundingClientRect());
         if (hit) clearSince = 0;
         else if (!clearSince) clearSince = now;
         const next = hit || (coveredRef.current && now - clearSince < 300);
@@ -230,6 +245,10 @@ export function Mascot() {
         }
       }
 
+      if (sleeping && Math.abs(vel) < 0.05 && Math.abs(scrollVel) < 0.05) {
+        paused = true;
+        return;
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -238,6 +257,7 @@ export function Mascot() {
       cancelAnimationFrame(raf);
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('resize', onResize);
     };
   }, []);
 
@@ -297,7 +317,7 @@ export function Mascot() {
 
         <div ref={tiltRef} className={styles.pcTilt}>
           <span key={anim.key} className={anim.kind === 'spin' ? styles.pcSpin : styles.pcHop}>
-            <SemiFigure armLRef={armLRef} armRRef={armRRef} eyesRef={eyesRef} />
+            <SemiFigure eyesRef={eyesRef} />
           </span>
         </div>
       </button>

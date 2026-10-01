@@ -1,14 +1,11 @@
 'use client';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import styles from './landing.module.css';
+import { THEME_ATTR as ATTR, THEME_STORAGE_KEY as STORAGE_KEY } from '../../lib/theme';
+
+export { themeInitScript } from '../../lib/theme';
 
 export type LandingTheme = 'dark' | 'light';
-
-const STORAGE_KEY = 'semillero_theme';
-const ATTR = 'data-landing-theme';
-
-// Se ejecuta antes de pintar la página para aplicar el tema guardado sin parpadeo
-export const themeInitScript = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}document.documentElement.setAttribute('${ATTR}',t)}catch(e){}})()`;
 
 const ThemeContext = createContext<{ theme: LandingTheme; toggle: () => void }>({
   theme: 'dark',

@@ -4,11 +4,12 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis
 import { candidateService } from '../../services/candidateService';
 import { getStoredUser } from '../../lib/auth';
 import { CandidateStatus, STATUS_LABELS } from '../../types';
+import { Icon } from '../ui/Icon';
 
 const STATUS_COLORS: Record<CandidateStatus, string> = {
-  seguimiento:  '#fbbf24',
-  'en_contacto': '#4f6ef7',
-  rechazado:    '#f87171',
+  seguimiento:  'var(--yellow)',
+  'en_contacto': 'var(--blue)',
+  rechazado:    'var(--red)',
 };
 const STATUS_LABELS_PLURAL: Record<CandidateStatus, string> = {
   seguimiento: 'En Seguimiento', 'en_contacto': 'En Contacto', rechazado: 'Rechazados',
@@ -53,14 +54,14 @@ export const DashboardView = () => {
 
       {(statsError || recentError) && (
         <div style={{
-          background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)',
+          background: 'color-mix(in srgb, var(--red) 9%, transparent)', border: '1px solid color-mix(in srgb, var(--red) 28%, transparent)',
           borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 24,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
         }} role="alert">
           <span style={{ fontSize: 13, color: 'var(--red)' }}>No se pudieron cargar los datos. Verifica tu conexión.</span>
           <button
             onClick={() => { refetchStats(); refetchRecent(); }}
-            style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500, padding: '4px 12px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+            style={{ fontSize: 12, color: 'var(--accent-text)', fontWeight: 500, padding: '4px 12px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)' }}
           >Reintentar</button>
         </div>
       )}
@@ -68,13 +69,13 @@ export const DashboardView = () => {
       {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card stat-card-total">
-          <div className="stat-icon">👥</div>
+          <div className="stat-icon"><Icon name="users" size={16} /></div>
           <div className="stat-value" style={{ color: 'var(--text-1)' }}>{total}</div>
           <div className="stat-label">Total candidatos</div>
         </div>
         {statuses.map((s) => (
           <div key={s} className="stat-card">
-            <div className="stat-icon">{s === 'seguimiento' ? '⏳' : s === 'en_contacto' ? '🎙️' : '❌'}</div>
+            <div className="stat-icon" style={{ color: STATUS_COLORS[s] }}><Icon name={s === 'seguimiento' ? 'clock' : s === 'en_contacto' ? 'phone' : 'xCircle'} size={16} /></div>
             <div className="stat-value" style={{ color: STATUS_COLORS[s] }}>{stats?.[s] ?? 0}</div>
             <div className="stat-label">{STATUS_LABELS_PLURAL[s]}</div>
             {total > 0 && (
@@ -83,7 +84,7 @@ export const DashboardView = () => {
           </div>
         ))}
         <div className="stat-card">
-          <div className="stat-icon">📈</div>
+          <div className="stat-icon" style={{ color: 'var(--green)' }}><Icon name="trendingUp" size={16} /></div>
           <div className="stat-value" style={{ color: 'var(--green)' }}>{conversionRate}%</div>
           <div className="stat-label">Tasa de contratación</div>
         </div>
@@ -125,7 +126,7 @@ export const DashboardView = () => {
                 <YAxis tick={{ fill: 'var(--text-3)', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                  cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                  cursor={{ fill: 'var(--surface-2)' }}
                 />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                   {barData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}

@@ -50,6 +50,14 @@ const SHAPES: Shape[] = [
   },
 ];
 
+// Silueta de camello bactriano de perfil (mira a la izquierda), caja 24×20; se centra al dibujar
+const CAMEL =
+  'M1.5 7.5L3 6L5 6.2L6 8.5C7 10 8 9 8.5 8C9.5 4 11.5 3.5 12.5 6C13.5 4 16 3.5 17 6.5' +
+  'C19 7 21 8 21.5 10L22.5 13L21.5 13.2L20.5 11.5L20.5 18L19.2 18L18.8 13L17.5 13L17.3 18L16 18' +
+  'L15.8 12.8L9.5 12.8L9.3 18L8 18L7.8 12.5L7 12.5L6.8 18L5.5 18L5.6 11.5C5 10.5 4.6 9.5 4.3 8.5' +
+  'L3.5 8.5L1.8 8.6Z';
+const CAMEL_W = 24;
+
 const MORPH = 1.8; // segundos que tarda en transformarse
 const HOLD = 3.4; // segundos que se mantiene cada figura
 const INTRO = 2.6;
@@ -68,7 +76,8 @@ interface Particle {
   delay: number;
   size: number;
   rot: number;
-  spin: number;
+  /** 1 o -1: cada camello mira hacia un lado */
+  flip: number;
   jitter: number;
   phase: number;
   alpha: number;
@@ -147,8 +156,8 @@ const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
 
 export function Constellation({
-  count = 1300,
-  ambient = 140,
+  count = 480,
+  ambient = 90,
   scale = 0.36,
   className,
   captionClassName,
@@ -185,9 +194,9 @@ export function Constellation({
         kx: Math.cos(ka),
         ky: Math.sin(ka),
         delay: rand() * STAGGER,
-        size: 1.5 + rand() * 2.4,
-        rot: rand() * Math.PI * 2,
-        spin: (rand() - 0.5) * 0.6,
+        size: 3.6 + rand() * 1.8,
+        rot: (rand() - 0.5) * 0.5,
+        flip: rand() < 0.5 ? -1 : 1,
         jitter: (rand() - 0.5) * 0.14,
         phase: rand() * Math.PI * 2,
         alpha: 0.55 + rand() * 0.45,
@@ -197,9 +206,9 @@ export function Constellation({
     const dust = Array.from({ length: ambient }, () => ({
       x: rand() * 3.2 - 1.6,
       y: rand() * 2.8 - 1.4,
-      size: 1.3 + rand() * 1.8,
-      rot: rand() * Math.PI * 2,
-      spin: (rand() - 0.5) * 0.4,
+      size: 3 + rand() * 1.4,
+      rot: (rand() - 0.5) * 0.5,
+      flip: rand() < 0.5 ? -1 : 1,
       jitter: (rand() - 0.5) * 0.14,
       phase: rand() * Math.PI * 2,
     }));
@@ -246,15 +255,15 @@ export function Constellation({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
-    const triangle = (path: Path2D, x: number, y: number, s: number, rot: number) => {
-      for (let k = 0; k < 3; k++) {
-        const a = rot + (k * Math.PI * 2) / 3;
-        const px = x + Math.cos(a) * s;
-        const py = y + Math.sin(a) * s;
-        if (k === 0) path.moveTo(px, py);
-        else path.lineTo(px, py);
-      }
-      path.closePath();
+    // cada partícula es un camellito de contorno: la silueta se escala, se inclina y se voltea con una matriz
+    const camel = new Path2D(CAMEL);
+    const centered = new Path2D();
+    centered.addPath(camel, new DOMMatrix([1, 0, 0, 1, -CAMEL_W / 2, -10]));
+    const stamp = (path: Path2D, x: number, y: number, size: number, rot: number, flip: number) => {
+      const k = (size * 2.2) / CAMEL_W; // ancho visible ≈ 2.2 × size px
+      const cos = Math.cos(rot) * k;
+      const sin = Math.sin(rot) * k;
+      path.addPath(centered, new DOMMatrix([flip * cos, flip * sin, -sin, cos, x, y]));
     };
 
     const draw = (now: number) => {
@@ -271,7 +280,6 @@ export function Constellation({
       const raw = (clock - morphStart) / morphLength;
 
       ctx.clearRect(0, 0, width, height);
-      ctx.lineWidth = 1;
 
       const colors = paletteRef.current;
       const paths = colors.map(() => new Path2D());
@@ -297,20 +305,26 @@ export function Constellation({
           y += (dy / dist) * push;
         }
 
-        triangle(paths[colorAt(p.x, p.y, p.jitter)], x, y, p.size, p.rot + (reduceMotion ? 0 : clock * p.spin));
+        // se mecen suavemente en vez de girar: un camello de cabeza no se lee
+        const sway = reduceMotion ? 0 : Math.sin(clock * 1.1 + p.phase) * 0.12;
+        stamp(paths[colorAt(p.x, p.y, p.jitter)], x, y, p.size, p.rot + sway, p.flip);
       }
 
       for (const d of dust) {
         const x = cx + (d.x + Math.sin(clock * 0.3 + d.phase) * drift * 2) * unit;
         const y = cy + (d.y + Math.cos(clock * 0.25 + d.phase) * drift * 2) * unit;
-        triangle(dustPaths[colorAt(d.x * 0.7, d.y * 0.7, d.jitter)], x, y, d.size, d.rot + (reduceMotion ? 0 : clock * d.spin));
+        const sway = reduceMotion ? 0 : Math.sin(clock * 0.9 + d.phase) * 0.1;
+        stamp(dustPaths[colorAt(d.x * 0.7, d.y * 0.7, d.jitter)], x, y, d.size, d.rot + sway, d.flip);
       }
 
+      // camellitos de contorno (solo el borde), igual que los que flotan en el login
+      ctx.lineWidth = 1;
+      ctx.lineJoin = 'round';
       colors.forEach((color, i) => {
         ctx.strokeStyle = color;
-        ctx.globalAlpha = 0.22;
+        ctx.globalAlpha = 0.3;
         ctx.stroke(dustPaths[i]);
-        ctx.globalAlpha = 0.8;
+        ctx.globalAlpha = 0.9;
         ctx.stroke(paths[i]);
       });
       ctx.globalAlpha = 1;

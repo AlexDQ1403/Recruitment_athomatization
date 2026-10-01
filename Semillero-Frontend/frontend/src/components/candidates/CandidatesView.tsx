@@ -8,6 +8,7 @@ import { candidateService, CreateCandidateInput } from '../../services/candidate
 import { Candidate } from '../../types';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../ui/Toast';
+import { Icon } from '../ui/Icon';
 
 type ViewMode = 'table' | 'kanban';
 
@@ -48,12 +49,14 @@ export const CandidatesView = () => {
             }}>
               {(['table', 'kanban'] as ViewMode[]).map((mode) => (
                 <button key={mode} onClick={() => setViewMode(mode)} style={{
-                  padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 500,
+                  padding: '6px 12px', minHeight: 32, borderRadius: 7, fontSize: 12, fontWeight: 500,
+                  display: 'flex', alignItems: 'center', gap: 6,
                   background: viewMode === mode ? 'var(--accent)' : 'transparent',
-                  color: viewMode === mode ? '#fff' : 'var(--text-3)',
+                  color: viewMode === mode ? 'var(--text-inv)' : 'var(--text-2)',
                   transition: 'background 150ms',
                 }}>
-                  {mode === 'table' ? '≡ Tabla' : '⬜ Kanban'}
+                  <Icon name={mode === 'table' ? 'list' : 'columns'} size={14} />
+                  {mode === 'table' ? 'Tabla' : 'Kanban'}
                 </button>
               ))}
             </div>
