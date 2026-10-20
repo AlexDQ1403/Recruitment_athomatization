@@ -1,8 +1,8 @@
 {
   ".claude/settings.local.json": {
-    "mtime": 1786493081.5457618,
-    "ast_hash": "57bf3834d9c926f3f959bdcf7b9d866f",
-    "semantic_hash": "57bf3834d9c926f3f959bdcf7b9d866f"
+    "mtime": 1790668026.5009224,
+    "ast_hash": "6f01b0efa94ffe81585c87d13630e105",
+    "semantic_hash": "6f01b0efa94ffe81585c87d13630e105"
   },
   "DIAGNOSTICO_BD.sql": {
     "mtime": 1786334208.1296992,
@@ -25,14 +25,14 @@
     "semantic_hash": "f431f5fda4cb2f85f81ee02311a86c8b"
   },
   "backend/src/app.ts": {
-    "mtime": 1790654286.7665308,
-    "ast_hash": "9a329e12707ceb4d010948069dbe4a5d",
-    "semantic_hash": "9a329e12707ceb4d010948069dbe4a5d"
+    "mtime": 1790667931.8593407,
+    "ast_hash": "6fe4f8dfd0ab9cce47a1188e6160d492",
+    "semantic_hash": "6fe4f8dfd0ab9cce47a1188e6160d492"
   },
   "backend/src/config/index.ts": {
-    "mtime": 1787703444.9172263,
-    "ast_hash": "e882d1a3ccaf7a1a27df0c59cb2b11e7",
-    "semantic_hash": "e882d1a3ccaf7a1a27df0c59cb2b11e7"
+    "mtime": 1792520055.9157915,
+    "ast_hash": "8f414e5d3fb0969c35d8a53942aee1b2",
+    "semantic_hash": "8f414e5d3fb0969c35d8a53942aee1b2"
   },
   "backend/src/db/migrations/003_candidate_features.sql": {
     "mtime": 1785343256.7330723,
@@ -115,9 +115,9 @@
     "semantic_hash": "e9c8ef3bad19b753868c5d8c53f4011d"
   },
   "backend/src/middlewares/companyAuth.ts": {
-    "mtime": 1790228040.7866623,
-    "ast_hash": "d0e3c9b34d810066d035ce13428c50e5",
-    "semantic_hash": "d0e3c9b34d810066d035ce13428c50e5"
+    "mtime": 1790667919.2433624,
+    "ast_hash": "d578060bb68717b85c529283dc56d672",
+    "semantic_hash": "d578060bb68717b85c529283dc56d672"
   },
   "backend/src/middlewares/errorHandler.ts": {
     "mtime": 1785343256.7428567,
@@ -130,24 +130,24 @@
     "semantic_hash": "f8262008313c264fefd3dfcc84a5d82c"
   },
   "backend/src/routes/candidate-portal.ts": {
-    "mtime": 1790228021.5513656,
-    "ast_hash": "1137ea8957b567a0404375e604b58213",
-    "semantic_hash": "1137ea8957b567a0404375e604b58213"
+    "mtime": 1790668551.9053288,
+    "ast_hash": "cd0f48dc3ff88ff2cfd839eccc23bce7",
+    "semantic_hash": "cd0f48dc3ff88ff2cfd839eccc23bce7"
   },
   "backend/src/routes/candidates.ts": {
-    "mtime": 1790228108.34979,
-    "ast_hash": "afecea25bbee8ee201da1f3a0db8f424",
-    "semantic_hash": "afecea25bbee8ee201da1f3a0db8f424"
+    "mtime": 1790667095.5256975,
+    "ast_hash": "68a67b2a46acaccb8575ecd27f44f424",
+    "semantic_hash": "68a67b2a46acaccb8575ecd27f44f424"
   },
   "backend/src/routes/chat.test.ts": {
-    "mtime": 1785343256.7428567,
-    "ast_hash": "68e257335eae90df42c73d2147482e99",
-    "semantic_hash": "68e257335eae90df42c73d2147482e99"
+    "mtime": 1792520055.9157915,
+    "ast_hash": "1fff63288e49744b329c0ba4ee146319",
+    "semantic_hash": "1fff63288e49744b329c0ba4ee146319"
   },
   "backend/src/routes/chat.ts": {
-    "mtime": 1790224093.5280964,
-    "ast_hash": "c74d52c0074aaf71f6ce8f9bf4e88fce",
-    "semantic_hash": "c74d52c0074aaf71f6ce8f9bf4e88fce"
+    "mtime": 1792520055.9157915,
+    "ast_hash": "66941724ad3a5833f8f10c807162522a",
+    "semantic_hash": "66941724ad3a5833f8f10c807162522a"
   },
   "backend/src/routes/n8n-webhook.ts": {
     "mtime": 1787248573.054024,
@@ -180,9 +180,9 @@
     "semantic_hash": "12da86ce92743d501c8ca7d3bf04fee2"
   },
   "backend/src/services/n8nService.ts": {
-    "mtime": 1787704265.640068,
-    "ast_hash": "97bac7d30107229a0a807afa6e13fb3d",
-    "semantic_hash": "97bac7d30107229a0a807afa6e13fb3d"
+    "mtime": 1792520055.9157915,
+    "ast_hash": "184cd8ecdcaf2ff32e9ff6bff4089496",
+    "semantic_hash": "184cd8ecdcaf2ff32e9ff6bff4089496"
   },
   "backend/src/utils/logger.ts": {
     "mtime": 1785343256.7428567,
@@ -310,9 +310,9 @@
     "semantic_hash": "559abdee496200c9361415bf00f96f95"
   },
   "frontend/src/app/candidates/page.tsx": {
-    "mtime": 1785343256.7529392,
-    "ast_hash": "cce5d7fb8d017f4a58e96b83b453b36f",
-    "semantic_hash": "cce5d7fb8d017f4a58e96b83b453b36f"
+    "mtime": 1790667186.8856504,
+    "ast_hash": "042664d71385c973593d37480ed77b5f",
+    "semantic_hash": "042664d71385c973593d37480ed77b5f"
   },
   "frontend/src/app/chat/page.tsx": {
     "mtime": 1785343256.7529392,
@@ -320,9 +320,9 @@
     "semantic_hash": "8b761f2bc7e91069b126f96832824c0f"
   },
   "frontend/src/app/dashboard/page.tsx": {
-    "mtime": 1785343256.7529392,
-    "ast_hash": "0f3196e2cbed1fe280b8db22b15e5b89",
-    "semantic_hash": "0f3196e2cbed1fe280b8db22b15e5b89"
+    "mtime": 1790667178.9706695,
+    "ast_hash": "1c297179f2f0be2a25f448c799d5293a",
+    "semantic_hash": "1c297179f2f0be2a25f448c799d5293a"
   },
   "frontend/src/app/forgot-password/page.tsx": {
     "mtime": 1785343256.7529392,
@@ -395,14 +395,14 @@
     "semantic_hash": "c7de95bba8e522f26ecf602f0182e1a4"
   },
   "frontend/src/components/auth/LoginForm.tsx": {
-    "mtime": 1790658787.7913222,
+    "mtime": 1790666870.1494074,
     "ast_hash": "a0ea238511b432ee97d1bc39f0f57e8d",
     "semantic_hash": "a0ea238511b432ee97d1bc39f0f57e8d"
   },
   "frontend/src/components/auth/RegisterForm.tsx": {
-    "mtime": 1790658865.9914002,
-    "ast_hash": "225aabc22e6f77e53c64384c64ab2334",
-    "semantic_hash": "225aabc22e6f77e53c64384c64ab2334"
+    "mtime": 1790666870.1504083,
+    "ast_hash": "48f1b855b2b0d721bf8e042fdc493b72",
+    "semantic_hash": "48f1b855b2b0d721bf8e042fdc493b72"
   },
   "frontend/src/components/auth/ResetPasswordForm.tsx": {
     "mtime": 1785343256.7631967,
@@ -420,14 +420,14 @@
     "semantic_hash": "0a243501d32a83ff818c4f6b033d3d22"
   },
   "frontend/src/components/candidate/CandidateProfileView.tsx": {
-    "mtime": 1790228311.4218543,
-    "ast_hash": "69a3734e900c0f67d424a15e8d22eac7",
-    "semantic_hash": "69a3734e900c0f67d424a15e8d22eac7"
+    "mtime": 1790668799.8269672,
+    "ast_hash": "79cdf4bbfec087de6418246e2f7b8fe8",
+    "semantic_hash": "79cdf4bbfec087de6418246e2f7b8fe8"
   },
   "frontend/src/components/candidates/CandidatePanel.tsx": {
-    "mtime": 1787249900.9479804,
-    "ast_hash": "ec323f14374c76d6b6b9a1f014f28822",
-    "semantic_hash": "ec323f14374c76d6b6b9a1f014f28822"
+    "mtime": 1790667138.8059635,
+    "ast_hash": "762d6668b0fe5dd49d20d8569c53c788",
+    "semantic_hash": "762d6668b0fe5dd49d20d8569c53c788"
   },
   "frontend/src/components/candidates/CandidateTable.test.tsx": {
     "mtime": 1785343256.7631967,
@@ -450,9 +450,9 @@
     "semantic_hash": "653937154aa5221794a2ff75c2cfa4cc"
   },
   "frontend/src/components/chat/ChatView.tsx": {
-    "mtime": 1790224030.8564334,
-    "ast_hash": "d1e344b4f7ba22208b5e562cbec16e2b",
-    "semantic_hash": "d1e344b4f7ba22208b5e562cbec16e2b"
+    "mtime": 1790668661.7641592,
+    "ast_hash": "0070bcce5e1623d1050ebe983a67ab32",
+    "semantic_hash": "0070bcce5e1623d1050ebe983a67ab32"
   },
   "frontend/src/components/chat/SearchHistoryView.tsx": {
     "mtime": 1785343256.7631967,
@@ -465,14 +465,14 @@
     "semantic_hash": "b5350b14ae77842964174035cfc41603"
   },
   "frontend/src/components/layout/AppShell.tsx": {
-    "mtime": 1790654367.8814871,
-    "ast_hash": "72581cfebbf9b81029d950a19d131587",
-    "semantic_hash": "72581cfebbf9b81029d950a19d131587"
+    "mtime": 1790667631.1624491,
+    "ast_hash": "2dabbfbd0ea8c8c3ec0432c7eb535932",
+    "semantic_hash": "2dabbfbd0ea8c8c3ec0432c7eb535932"
   },
   "frontend/src/components/layout/Sidebar.tsx": {
-    "mtime": 1790654376.0921185,
-    "ast_hash": "3ad1805b5f46d0ff89733d7d4d7e1d43",
-    "semantic_hash": "3ad1805b5f46d0ff89733d7d4d7e1d43"
+    "mtime": 1790668062.132383,
+    "ast_hash": "efa6dda34e2d1bf9a016965f8a66ad53",
+    "semantic_hash": "efa6dda34e2d1bf9a016965f8a66ad53"
   },
   "frontend/src/components/recruiters/RecruiterManagement.tsx": {
     "mtime": 1790228444.5798483,
@@ -495,9 +495,9 @@
     "semantic_hash": "c612566b97fbb4c12b3a3e0d29e19084"
   },
   "frontend/src/components/ui/QueryProvider.tsx": {
-    "mtime": 1790654341.4110026,
-    "ast_hash": "900f9e80c432aede957d81b29a1f3b69",
-    "semantic_hash": "900f9e80c432aede957d81b29a1f3b69"
+    "mtime": 1790666870.1524093,
+    "ast_hash": "c7e3669685c2d4ccf24c8fd7d15f3168",
+    "semantic_hash": "c7e3669685c2d4ccf24c8fd7d15f3168"
   },
   "frontend/src/components/ui/Toast.tsx": {
     "mtime": 1785343256.7631967,
@@ -515,9 +515,9 @@
     "semantic_hash": "6f3fac9f721820fff3501ff42b8d35a4"
   },
   "frontend/src/lib/auth.ts": {
-    "mtime": 1790658796.3905618,
-    "ast_hash": "caf7502da3ac2a8e9985f4ed1d630686",
-    "semantic_hash": "caf7502da3ac2a8e9985f4ed1d630686"
+    "mtime": 1790666870.153408,
+    "ast_hash": "69696ec5e64ac22d24bccaa59ffda3b7",
+    "semantic_hash": "69696ec5e64ac22d24bccaa59ffda3b7"
   },
   "frontend/src/lib/authErrors.test.ts": {
     "mtime": 1790658895.0620444,
@@ -535,14 +535,14 @@
     "semantic_hash": "da985f4f36f085a88fb1cb8fa0211c7b"
   },
   "frontend/src/services/authService.ts": {
-    "mtime": 1790658763.9978852,
+    "mtime": 1790666870.153408,
     "ast_hash": "290f1e091d5382a116b0fa5c4fb1b906",
     "semantic_hash": "290f1e091d5382a116b0fa5c4fb1b906"
   },
   "frontend/src/services/candidatePortalService.ts": {
-    "mtime": 1790228285.4644742,
-    "ast_hash": "75cad7874aeed3430b5b52e630ac61bb",
-    "semantic_hash": "75cad7874aeed3430b5b52e630ac61bb"
+    "mtime": 1790668744.2566216,
+    "ast_hash": "a5139d3c790a319140a4618fba5cc75a",
+    "semantic_hash": "a5139d3c790a319140a4618fba5cc75a"
   },
   "frontend/src/services/candidateService.test.ts": {
     "mtime": 1785343256.7731912,
@@ -550,9 +550,9 @@
     "semantic_hash": "e29c50c5fe0267b3670cf6f5c11b2af5"
   },
   "frontend/src/services/candidateService.ts": {
-    "mtime": 1787704525.2190096,
-    "ast_hash": "2366e9996ecc5dc89579a52704ca011f",
-    "semantic_hash": "2366e9996ecc5dc89579a52704ca011f"
+    "mtime": 1790667121.5796387,
+    "ast_hash": "042f4f5ac04718d70bba845452de2c45",
+    "semantic_hash": "042f4f5ac04718d70bba845452de2c45"
   },
   "frontend/src/services/chatService.ts": {
     "mtime": 1790223987.0344775,
@@ -585,9 +585,9 @@
     "semantic_hash": "39529208dfc584ff87969cf460d5f8e5"
   },
   "frontend/src/types/index.ts": {
-    "mtime": 1790228120.7322917,
-    "ast_hash": "d3361f9359ae192a85cca314abe13c07",
-    "semantic_hash": "d3361f9359ae192a85cca314abe13c07"
+    "mtime": 1790667038.8279464,
+    "ast_hash": "3e76315d1c401df1e79bd4d643fe54ac",
+    "semantic_hash": "3e76315d1c401df1e79bd4d643fe54ac"
   },
   "frontend/tsconfig.json": {
     "mtime": 1785343256.7757022,
@@ -605,9 +605,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "skills-lock.json": {
-    "mtime": 1786490848.0721023,
-    "ast_hash": "0c32b5f3851f9b150ddc3bcf7294c389",
-    "semantic_hash": "0c32b5f3851f9b150ddc3bcf7294c389"
+    "mtime": 1792528154.8910818,
+    "ast_hash": "c7fed0eda54d71e67dc3044f4f21e8e8",
+    "semantic_hash": "c7fed0eda54d71e67dc3044f4f21e8e8"
   },
   ".agents/skills/fullstack-guardian/SKILL.md": {
     "mtime": 1786490847.0793664,
@@ -783,5 +783,185 @@
     "mtime": 1790227869.0249043,
     "ast_hash": "12448ec3afd00bb427cd6cf7aa8e36e5",
     "semantic_hash": "12448ec3afd00bb427cd6cf7aa8e36e5"
+  },
+  "backend/src/db/migrations/018_company_candidates_approval.sql": {
+    "mtime": 1790666566.1480918,
+    "ast_hash": "9cd7c0917f0174e877d2ded46a3ef559",
+    "semantic_hash": "9cd7c0917f0174e877d2ded46a3ef559"
+  },
+  "backend/src/db/migrations/019_profile_avatar.sql": {
+    "mtime": 1790667899.047639,
+    "ast_hash": "1cb2455dbbf8d73f7e126b0d9b78afb0",
+    "semantic_hash": "1cb2455dbbf8d73f7e126b0d9b78afb0"
+  },
+  "backend/src/db/migrations/020_candidate_cv_and_matching.sql": {
+    "mtime": 1790668500.308506,
+    "ast_hash": "9f13bf1024d4ac01e40e911add7a2c09",
+    "semantic_hash": "9f13bf1024d4ac01e40e911add7a2c09"
+  },
+  "backend/src/middlewares/requireRole.test.ts": {
+    "mtime": 1790666680.2138362,
+    "ast_hash": "b680aaf06a7f2a14487fdaa9e9f11cb4",
+    "semantic_hash": "b680aaf06a7f2a14487fdaa9e9f11cb4"
+  },
+  "backend/src/routes/account.test.ts": {
+    "mtime": 1790667956.1538186,
+    "ast_hash": "7715889e29d18d14afc48f1f3c351e85",
+    "semantic_hash": "7715889e29d18d14afc48f1f3c351e85"
+  },
+  "backend/src/routes/account.ts": {
+    "mtime": 1790667922.7951646,
+    "ast_hash": "115e016d44cde5585d6dc05309d98071",
+    "semantic_hash": "115e016d44cde5585d6dc05309d98071"
+  },
+  "backend/src/routes/candidates.test.ts": {
+    "mtime": 1790667212.397144,
+    "ast_hash": "19b8e02bdb00d2d041fa4208a5347531",
+    "semantic_hash": "19b8e02bdb00d2d041fa4208a5347531"
+  },
+  "backend/src/routes/company-candidates.test.ts": {
+    "mtime": 1790666691.7391155,
+    "ast_hash": "7765623f02e673d5b4aa220210c9623a",
+    "semantic_hash": "7765623f02e673d5b4aa220210c9623a"
+  },
+  "backend/src/routes/company-candidates.ts": {
+    "mtime": 1790666639.8457067,
+    "ast_hash": "a15b976aff0ca4b0aff1ee88c25a729f",
+    "semantic_hash": "a15b976aff0ca4b0aff1ee88c25a729f"
+  },
+  "backend/src/routes/recruiters.test.ts": {
+    "mtime": 1790667975.2319653,
+    "ast_hash": "c7f086ebc713a30f025bc0f028270d21",
+    "semantic_hash": "c7f086ebc713a30f025bc0f028270d21"
+  },
+  "frontend/src/app/api/account/profile/route.ts": {
+    "mtime": 1790667994.3296053,
+    "ast_hash": "8ff887d03f2e7f1d1155f796b95e4a50",
+    "semantic_hash": "8ff887d03f2e7f1d1155f796b95e4a50"
+  },
+  "frontend/src/app/api/candidates/[id]/present/route.ts": {
+    "mtime": 1790667110.8964093,
+    "ast_hash": "a8df9062f1682fff54446e1f21919bfb",
+    "semantic_hash": "a8df9062f1682fff54446e1f21919bfb"
+  },
+  "frontend/src/app/api/company/candidates/route.ts": {
+    "mtime": 1790667053.593343,
+    "ast_hash": "a3b7216fa2f9c7abe3b729c0d94b6ada",
+    "semantic_hash": "a3b7216fa2f9c7abe3b729c0d94b6ada"
+  },
+  "frontend/src/app/api/me/education/[id]/route.ts": {
+    "mtime": 1790668698.1242144,
+    "ast_hash": "f0a22fcba9851b50a00c02277307f77f",
+    "semantic_hash": "f0a22fcba9851b50a00c02277307f77f"
+  },
+  "frontend/src/app/api/me/education/route.ts": {
+    "mtime": 1790668692.172377,
+    "ast_hash": "0cf57ef7da0344bdceddee815c5dd8d2",
+    "semantic_hash": "0cf57ef7da0344bdceddee815c5dd8d2"
+  },
+  "frontend/src/app/api/me/experience/[id]/route.ts": {
+    "mtime": 1790668686.7134457,
+    "ast_hash": "3bca31739a79befb665a11b892a724f5",
+    "semantic_hash": "3bca31739a79befb665a11b892a724f5"
+  },
+  "frontend/src/app/api/me/experience/route.ts": {
+    "mtime": 1790668680.517903,
+    "ast_hash": "1029cd8fa5e3cc2e8670b8587ba49516",
+    "semantic_hash": "1029cd8fa5e3cc2e8670b8587ba49516"
+  },
+  "frontend/src/app/api/me/search-preferences/route.ts": {
+    "mtime": 1790668714.6313353,
+    "ast_hash": "befa2c29988db54f1da7ce046b095ffd",
+    "semantic_hash": "befa2c29988db54f1da7ce046b095ffd"
+  },
+  "frontend/src/app/api/me/skills/[id]/route.ts": {
+    "mtime": 1790668708.6446736,
+    "ast_hash": "be232a248127db08463b8c012f3127ec",
+    "semantic_hash": "be232a248127db08463b8c012f3127ec"
+  },
+  "frontend/src/app/api/me/skills/route.ts": {
+    "mtime": 1790668703.981386,
+    "ast_hash": "ef2c1f8ccc0c842a2d1571f2493e0788",
+    "semantic_hash": "ef2c1f8ccc0c842a2d1571f2493e0788"
+  },
+  "frontend/src/app/profile/page.tsx": {
+    "mtime": 1790668043.7123258,
+    "ast_hash": "c4f5b60e03a0cd9dee6def94e1e19f97",
+    "semantic_hash": "c4f5b60e03a0cd9dee6def94e1e19f97"
+  },
+  "frontend/src/components/account/AccountProfileView.tsx": {
+    "mtime": 1790668033.9107807,
+    "ast_hash": "9d2bc85e8f4931f4cfaf45a655f92907",
+    "semantic_hash": "9d2bc85e8f4931f4cfaf45a655f92907"
+  },
+  "frontend/src/components/candidate/CandidateEducationSection.tsx": {
+    "mtime": 1790668837.0545685,
+    "ast_hash": "764f38d0e2323203cda6b27f30b27c5e",
+    "semantic_hash": "764f38d0e2323203cda6b27f30b27c5e"
+  },
+  "frontend/src/components/candidate/CandidateExperienceSection.tsx": {
+    "mtime": 1790668820.256994,
+    "ast_hash": "6012b6b40c12fd2c32b770e36964d0d9",
+    "semantic_hash": "6012b6b40c12fd2c32b770e36964d0d9"
+  },
+  "frontend/src/components/candidate/CandidateSearchPreferencesSection.tsx": {
+    "mtime": 1790668867.6937978,
+    "ast_hash": "c2a397dfdd8be38fe3fd1444c54824f8",
+    "semantic_hash": "c2a397dfdd8be38fe3fd1444c54824f8"
+  },
+  "frontend/src/components/candidate/CandidateSkillsSection.tsx": {
+    "mtime": 1790668850.968469,
+    "ast_hash": "92f6483fb01162d73bc6c115d99eff4c",
+    "semantic_hash": "92f6483fb01162d73bc6c115d99eff4c"
+  },
+  "frontend/src/components/company/CompanyCandidatesHistoryView.tsx": {
+    "mtime": 1790667174.5124817,
+    "ast_hash": "9fa5ed0d4c20721f2df0566390e730bc",
+    "semantic_hash": "9fa5ed0d4c20721f2df0566390e730bc"
+  },
+  "frontend/src/components/company/EmpresaDashboardView.tsx": {
+    "mtime": 1790667155.6841054,
+    "ast_hash": "69ac1cb8ba9a970f58eb08758a6923ac",
+    "semantic_hash": "69ac1cb8ba9a970f58eb08758a6923ac"
+  },
+  "frontend/src/services/accountService.ts": {
+    "mtime": 1790667988.7397988,
+    "ast_hash": "3f49a8f59fa426d8ba630850506b801e",
+    "semantic_hash": "3f49a8f59fa426d8ba630850506b801e"
+  },
+  "frontend/src/services/companyCandidateService.ts": {
+    "mtime": 1790667049.074952,
+    "ast_hash": "c8ba12108b1bca6df73a673027a0b8e2",
+    "semantic_hash": "c8ba12108b1bca6df73a673027a0b8e2"
+  },
+  ".agents/skills/n8n-debugging-official/SKILL.md": {
+    "mtime": 1792528154.4733677,
+    "ast_hash": "9ff70fabf19b8938accd978b6f1a90a2",
+    "semantic_hash": "9ff70fabf19b8938accd978b6f1a90a2"
+  },
+  ".agents/skills/n8n-debugging-official/references/FETCHING_N8N_SOURCE.md": {
+    "mtime": 1792528154.474368,
+    "ast_hash": "19dec1ca8d8e7cdb70c5ddbfd5fcb2f0",
+    "semantic_hash": "19dec1ca8d8e7cdb70c5ddbfd5fcb2f0"
+  },
+  ".agents/skills/n8n-debugging-official/references/PARAMETER_VERIFICATION.md": {
+    "mtime": 1792528154.474368,
+    "ast_hash": "bb23acccabad451128b0bb4771d115a4",
+    "semantic_hash": "bb23acccabad451128b0bb4771d115a4"
+  },
+  ".claude/skills/n8n-debugging-official/SKILL.md": {
+    "mtime": 1792528154.4733677,
+    "ast_hash": "9ff70fabf19b8938accd978b6f1a90a2",
+    "semantic_hash": "9ff70fabf19b8938accd978b6f1a90a2"
+  },
+  ".claude/skills/n8n-debugging-official/references/FETCHING_N8N_SOURCE.md": {
+    "mtime": 1792528154.474368,
+    "ast_hash": "19dec1ca8d8e7cdb70c5ddbfd5fcb2f0",
+    "semantic_hash": "19dec1ca8d8e7cdb70c5ddbfd5fcb2f0"
+  },
+  ".claude/skills/n8n-debugging-official/references/PARAMETER_VERIFICATION.md": {
+    "mtime": 1792528154.474368,
+    "ast_hash": "bb23acccabad451128b0bb4771d115a4",
+    "semantic_hash": "bb23acccabad451128b0bb4771d115a4"
   }
 }

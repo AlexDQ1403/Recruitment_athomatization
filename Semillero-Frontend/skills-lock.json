@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/fullstack-guardian/SKILL.md",
       "computedHash": "44019dea8ef287894c7bbcae244797d7b2b0ae536648483585302c21f1d628eb"
+    },
+    "n8n-debugging-official": {
+      "source": "n8n-io/skills",
+      "sourceType": "github",
+      "skillPath": "skills/n8n-debugging-official/SKILL.md",
+      "computedHash": "a67ba16924649bd0b5569ad044599bdb587d2f59a14414e5a003a62f571e63c1"
     }
   }
 }

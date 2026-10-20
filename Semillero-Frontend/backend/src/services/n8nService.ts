@@ -63,8 +63,30 @@ export async function callN8nOutboundWebhook(
   }
 }
 
+// Throttles en memoria: se reinician con el servidor y no se comparten entre
+// instancias. Aceptable con una sola instancia; con varias, mover a una tabla.
+const SHORTAGE_WINDOW_MS = 60 * 60 * 1000;
+const NO_RESULTS_WINDOW_MS = 10 * 60 * 1000;
+const lastShortage = new Map<string, number>();
+const lastNoResults = new Map<string, number>();
+
+function throttled(store: Map<string, number>, key: string, windowMs: number): boolean {
+  const now = Date.now();
+  const last = store.get(key);
+  if (last !== undefined && now - last < windowMs) return true;
+  store.set(key, now);
+  return false;
+}
+
+/** Solo para pruebas. */
+export function resetN8nThrottles(): void {
+  lastShortage.clear();
+  lastNoResults.clear();
+}
+
 /**
- * Trigger para fallback de candidatos (sin resultados)
+ * Trigger para fallback de candidatos (sin resultados).
+ * No repite la misma consulta de la misma empresa dentro de 10 min.
  */
 export async function triggerNoSearchResults(
   companyId: string,
@@ -72,12 +94,20 @@ export async function triggerNoSearchResults(
   query: string,
   sessionId: string
 ): Promise<void> {
+  const key = `${companyId}:${query.trim().toLowerCase()}`;
+  if (throttled(lastNoResults, key, NO_RESULTS_WINDOW_MS)) return;
   await callN8nOutboundWebhook('no_search_results', {
     company_id: companyId,
     recruiter_id: recruiterId,
     query,
+    // El workflow "Automated_Recruiter" clasifica `body.mensaje`.
+    mensaje: query,
     session_id: sessionId,
   });
+}
+
+export function isN8nConfigured(): boolean {
+  return !!config.N8N_WEBHOOK_URL;
 }
 
 /**
@@ -88,6 +118,7 @@ export async function triggerCandidateShortage(
   currentCount: number,
   threshold: number = 30
 ): Promise<void> {
+  if (throttled(lastShortage, companyId, SHORTAGE_WINDOW_MS)) return;
   await callN8nOutboundWebhook('candidate_shortage', {
     company_id: companyId,
     current_count: currentCount,

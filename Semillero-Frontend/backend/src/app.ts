@@ -6,6 +6,7 @@ import { correlationMiddleware } from './utils/tracing';
 import { errorHandler } from './middlewares/errorHandler';
 import { companyAuthMiddleware } from './middlewares/companyAuth';
 import { requireRole, requireCompany } from './middlewares/requireRole';
+import { n8nSecret } from './middlewares/n8nSecret';
 import { config } from './config';
 import chatRouter from './routes/chat';
 import n8nWebhookRouter from './routes/n8n-webhook';
@@ -17,6 +18,14 @@ import candidatePortalRouter from './routes/candidate-portal';
 import sessionRouter from './routes/session';
 import companyCandidatesRouter from './routes/company-candidates';
 import accountRouter from './routes/account';
+
+const n8nWebhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes' },
+});
 
 export const createApp = () => {
   const app = express();
@@ -51,8 +60,8 @@ export const createApp = () => {
   // Perfil propio de empresa/reclutador (foto + para empresa, nombre y correo).
   app.use('/api/account', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, accountRouter);
 
-  // Rutas sin autenticación (webhooks externos)
-  app.use('/api/n8n-webhook', n8nWebhookRouter);
+  // Webhook entrante de n8n: límite de tasa + secreto compartido
+  app.use('/api/n8n-webhook', n8nWebhookLimiter, n8nSecret, n8nWebhookRouter);
 
   app.use(errorHandler);
   app.use((_req, res) => res.status(404).json({ error: 'Recurso no encontrado' }));

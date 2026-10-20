@@ -25,6 +25,9 @@ const MAX_MESSAGE_LENGTH = 1000;
 const MAX_SESSIONS_PER_USER = 5;
 const MAX_CONTEXT_MESSAGES = 5;
 
+const EXTERNAL_SEARCH_NOTICE =
+  '\n\n🔎 Estoy buscando perfiles nuevos en fuentes externas. Vuelve a consultar en unos minutos y los verás en tu base de candidatos.';
+
 const SAFE_CANDIDATE_FIELDS = ['id', 'full_name', 'position', 'experience_years', 'expected_salary', 'location', 'source', 'status', 'profile_url', 'resume_url', 'skills'] as const;
 
 function sanitizeCandidate(c: Record<string, unknown>, reason?: string): Record<string, unknown> {
@@ -130,14 +133,26 @@ async function getCompanySearchPool(companyId: string): Promise<PoolCandidate[]>
   return [...legacy, ...selfRegistered].slice(0, 150);
 }
 
-async function callOpenAI(messages: { role: string; content: string }[]): Promise<string> {
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+// OpenRouter expone la misma API que OpenAI; solo cambian URL, clave y el id
+// del modelo (con prefijo de proveedor, p. ej. "openai/gpt-4o-mini").
+const useOpenRouter = !!config.OPENROUTER_API_KEY;
+const LLM_URL = config.LLM_BASE_URL
+  ?? (useOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
+const LLM_KEY = config.OPENROUTER_API_KEY ?? config.OPENAI_API_KEY;
+const LLM_MODEL = config.LLM_MODEL ?? (useOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini');
+
+async function callLLM(messages: { role: string; content: string }[]): Promise<string> {
+  const res = await fetch(`${LLM_URL}/chat/completions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.OPENAI_API_KEY}` },
-    body: JSON.stringify({ model: 'gpt-4o-mini', messages, temperature: 0.3, max_tokens: 1000 }),
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${LLM_KEY}`,
+      ...(useOpenRouter && { 'X-Title': 'Semillero' }),
+    },
+    body: JSON.stringify({ model: LLM_MODEL, messages, temperature: 0.3, max_tokens: 1000 }),
   });
   const data = await res.json() as { error?: { message: string }; choices?: { message: { content: string } }[] };
-  if (!res.ok) throw new Error(data.error?.message ?? 'OpenAI error');
+  if (!res.ok) throw new Error(data.error?.message ?? 'LLM error');
   return data.choices?.[0]?.message?.content ?? '';
 }
 
@@ -285,9 +300,10 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
 
     let responseMessage = '';
     let filteredCandidates: Record<string, unknown>[] = [];
+    let noResultsTriggered = false;
 
     try {
-      const gptResponse = await callOpenAI(messages);
+      const gptResponse = await callLLM(messages);
       logger.info('GPT raw response', { correlationId: getCorrelationId(req), response: gptResponse.slice(0, 500) });
       const clean = gptResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const parsed = JSON.parse(clean) as {
@@ -310,9 +326,11 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
           .filter((c) => resultsMap.has(c.id))
           .map((c) => sanitizeCandidate(c as unknown as Record<string, unknown>, resultsMap.get(c.id)));
       } else {
+        noResultsTriggered = true;
         n8nService.triggerNoSearchResults(companyId, userId, message.trim(), activeSessionId).catch((err) => {
           logger.error('Error triggering n8n webhook', { error: String(err) });
         });
+        if (n8nService.isN8nConfigured()) responseMessage += EXTERNAL_SEARCH_NOTICE;
       }
     } catch {
       const kw = message.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
@@ -330,9 +348,11 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
         : 'No encontré candidatos que coincidan. Intenta con otros términos.';
 
       if (filteredCandidates.length === 0) {
+        noResultsTriggered = true;
         n8nService.triggerNoSearchResults(companyId, userId, message.trim(), activeSessionId).catch((err) => {
           logger.error('Error triggering n8n webhook', { error: String(err) });
         });
+        if (n8nService.isN8nConfigured()) responseMessage += EXTERNAL_SEARCH_NOTICE;
       }
     }
 
@@ -368,7 +388,7 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
     ]);
     const count = (legacyCount ?? 0) + (selfRegisteredCount ?? 0);
 
-    if (count < 30) {
+    if (count < 30 && !noResultsTriggered) {
       n8nService.triggerCandidateShortage(companyId, count).catch((err) => {
         logger.error('Error triggering shortage webhook', { error: String(err) });
       });
