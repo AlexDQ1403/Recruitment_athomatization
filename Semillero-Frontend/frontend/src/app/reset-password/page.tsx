@@ -1,2 +1,15 @@
+import type { Metadata } from 'next';
 import { ResetPasswordForm } from '../../components/auth/ResetPasswordForm';
-export default function ResetPasswordPage() { return <ResetPasswordForm />; }
+import { SiteShell } from '../../components/landing/SiteShell';
+
+export const metadata: Metadata = {
+  title: 'Nueva contraseña — Kmella',
+};
+
+export default function ResetPasswordPage() {
+  return (
+    <SiteShell>
+      <ResetPasswordForm />
+    </SiteShell>
+  );
+}

@@ -2,6 +2,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { User } from '../../types';
+import { useLandingTheme } from '../landing/ThemeToggle';
+import { Icon } from '../ui/Icon';
+import { BrandLogo } from '../ui/BrandMark';
 
 interface Props {
   user: User | null;
@@ -145,10 +148,10 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
         />
       )}
 
-      <aside className={`sidebar${open ? ' sidebar-open' : ''}`} aria-label="Navegación principal">
+      <aside id="sidebar" className={`sidebar${open ? ' sidebar-open' : ''}`} aria-label="Navegación principal">
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon" aria-hidden="true">S</div>
-          <span className="sidebar-logo-text">Semillero</span>
+          {/* misma marca que la web pública */}
+          <BrandLogo height={36} />
           {/* Botón cerrar en móvil */}
           <button
             className="sidebar-close-btn"
@@ -187,20 +190,34 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
               {ROLE_LABEL[user?.role ?? ''] ?? 'Reclutador'}
             </p>
           </div>
+          <ThemeButton />
           <button
             onClick={onLogout}
-            className="logout-btn"
             aria-label="Cerrar sesión"
             title="Cerrar sesión"
+            className="theme-toggle-app"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            <Icon name="logOut" size={18} />
           </button>
         </div>
       </aside>
     </>
   );
 };
+
+// Cambia entre claro y oscuro; la preferencia es la misma que en la web pública
+function ThemeButton() {
+  const { theme, toggle } = useLandingTheme();
+  const toLight = theme === 'dark';
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="theme-toggle-app"
+      aria-label={toLight ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      title={toLight ? 'Modo claro' : 'Modo oscuro'}
+    >
+      <Icon key={theme} name={toLight ? 'sun' : 'moon'} size={18} />
+    </button>
+  );
+}

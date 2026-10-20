@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { SearchHistory } from '../../types';
 import { useRouter } from 'next/navigation';
+import { Icon } from '../ui/Icon';
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -39,7 +40,7 @@ export const SearchHistoryView = () => {
         {isError && (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--red)', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }} role="alert">
             <span>No se pudo cargar el historial.</span>
-            <button onClick={() => refetch()} style={{ fontSize: 13, color: 'var(--accent)', padding: '6px 16px', borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+            <button onClick={() => refetch()} style={{ fontSize: 13, color: 'var(--accent-text)', padding: '6px 16px', borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
               Reintentar
             </button>
           </div>
@@ -66,7 +67,7 @@ export const SearchHistoryView = () => {
                   ? (
                     <tr>
                       <td colSpan={4} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-3)' }}>
-                        <p style={{ fontSize: 28, marginBottom: 8 }}>🔍</p>
+                        <span className="empty-icon"><Icon name="search" size={22} /></span>
                         <p style={{ fontSize: 14, marginBottom: 4, color: 'var(--text-2)' }}>Sin búsquedas aún</p>
                         <p style={{ fontSize: 12 }}>Las búsquedas con el chat IA aparecerán aquí</p>
                       </td>
@@ -86,7 +87,7 @@ export const SearchHistoryView = () => {
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5,
                           padding: '2px 10px', borderRadius: 4,
-                          background: item.candidates_found > 0 ? 'rgba(93,184,122,.1)' : 'rgba(90,90,90,.1)',
+                          background: item.candidates_found > 0 ? 'color-mix(in srgb, var(--green) 14%, transparent)' : 'var(--surface-3)',
                           color: item.candidates_found > 0 ? 'var(--green)' : 'var(--text-3)',
                           fontSize: 12, fontWeight: 700,
                         }}>

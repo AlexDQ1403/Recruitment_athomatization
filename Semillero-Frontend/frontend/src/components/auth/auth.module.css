@@ -1,0 +1,595 @@
+/* Páginas de acceso con el mismo lenguaje visual de la landing (usa sus tokens de .page) */
+
+.authPage {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Barra superior ───────────────────────────────── */
+.topBar {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 16px var(--gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--muted) !important;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+.backLink span { display: inline-block; transition: transform 200ms var(--ease); }
+.backLink:hover { color: var(--text) !important; background: var(--toggle-hover); }
+@media (hover: hover) and (pointer: fine) {
+  .backLink:hover span { transform: translateX(-4px); }
+}
+
+/* ─── Distribución ─────────────────────────────────── */
+.layout {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 24px var(--gutter) 60px;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: clamp(36px, 6vw, 96px);
+  align-items: center;
+}
+
+.brandSide {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeUp 400ms var(--ease) both;
+}
+
+.brandText {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 520px;
+}
+
+.brandHeading {
+  font-size: clamp(34px, 3.8vw, 54px);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  font-weight: var(--w-heading);
+}
+
+.formSide {
+  display: flex;
+  justify-content: center;
+}
+
+.cardWrap {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  animation: fadeUp 400ms var(--ease) 60ms both;
+}
+
+/* ─── Escenario de Semi ────────────────────────────── */
+.semiStage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 8px;
+  isolation: isolate; /* mantiene el foco de luz detrás de Semi y no detrás del fondo */
+}
+
+/* foco de luz de marca detrás de Semi */
+.semiStage::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  width: min(420px, 90%);
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--glow-blue) 0%, var(--glow-red) 45%, transparent 70%);
+  filter: blur(8px);
+  z-index: -1;
+  animation: stageGlow 5s ease-in-out infinite alternate;
+}
+@keyframes stageGlow {
+  from { transform: translateX(-50%) scale(0.92); opacity: 0.8; }
+  to { transform: translateX(-50%) scale(1.05); opacity: 1; }
+}
+
+/* anula la posición fija de la mascota de la landing */
+.semiInline {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  transform: none !important;
+  pointer-events: none;
+}
+.semiInline :global(svg) { width: 260px; height: 325px; }
+
+.semiSay {
+  position: relative;
+  max-width: 320px;
+  padding: 14px 18px;
+  border-radius: 20px;
+  background: var(--node-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--panel-shadow);
+  font-size: 16px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--text);
+  animation: sayIn 250ms var(--ease) both;
+}
+/* colita del globo apuntando a Semi */
+.semiSay::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--node-bg);
+  border-right: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+}
+@keyframes sayIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fadeOnly {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+.semiShake { display: inline-block; animation: shake 500ms ease; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px) rotate(-4deg); }
+  40% { transform: translateX(7px) rotate(3deg); }
+  60% { transform: translateX(-5px) rotate(-2deg); }
+  80% { transform: translateX(3px); }
+}
+
+/* ─── Tarjeta del formulario ───────────────────────── */
+.card {
+  position: relative;
+  z-index: 1;
+  padding: clamp(28px, 4vw, 40px);
+  border-radius: 24px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.cardTitle {
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-weight: var(--w-heading);
+}
+
+.cardSubtitle {
+  margin-top: 8px;
+  font-size: 15px;
+  font-weight: var(--w-body);
+  color: var(--soft);
+}
+
+.error {
+  margin-top: 20px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(200, 27, 29, 0.12);
+  border: 1px solid rgba(200, 27, 29, 0.35);
+  color: var(--primary-text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.form {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.smallLink {
+  position: relative;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--primary-text) !important;
+}
+/* área táctil ampliada sin mover el texto */
+.smallLink::before { content: ''; position: absolute; inset: -12px -8px; }
+/* "¿La olvidaste?" va después del campo: el orden de tabulación queda correo → contraseña → ingresar */
+.forgotLink { align-self: flex-end; margin-top: 2px; }
+.smallLink:hover { text-decoration: underline !important; }
+
+.field input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  background-color: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+.field input::placeholder { color: var(--muted); opacity: 0.7; }
+.field input:focus {
+  background-color: var(--input-bg);
+  border-color: var(--primary-text);
+  box-shadow: 0 0 0 4px var(--primary-glow);
+}
+
+.passwordWrap { position: relative; }
+.passwordWrap input { padding-right: 48px; }
+
+.eyeButton {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.eyeButton:hover { color: var(--text); background: var(--toggle-hover); }
+
+.submit {
+  width: 100%;
+  margin-top: 6px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.submit:disabled { opacity: 0.7; cursor: progress; }
+
+.switch {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--soft);
+}
+.switch a {
+  font-weight: 600;
+  color: var(--primary-text) !important;
+}
+.switch a:hover { text-decoration: underline !important; }
+
+/* ─── Registro ─────────────────────────────────────── */
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.optional {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.8;
+}
+
+/* requisitos de la contraseña, se marcan en vivo */
+.rules {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.rules li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 200ms ease;
+}
+.rules li span {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  transition: background-color 200ms ease, transform 300ms var(--ease);
+}
+.rules li[data-ok='true'] { color: var(--text); }
+.rules li[data-ok='true'] span {
+  background: var(--primary-text);
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.switchSep { margin: 0 10px; opacity: 0.5; }
+
+/* enlace con forma de texto (acciones dentro de la tarjeta) */
+.linkButton {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--primary-text);
+  cursor: pointer;
+}
+.linkButton:hover { text-decoration: underline; }
+
+/* Tarjetas para elegir el tipo de cuenta */
+.choices {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--panel-border);
+  background: var(--input-bg);
+  color: var(--text) !important;
+  transition: border-color 200ms ease, transform 200ms var(--ease), box-shadow 200ms ease;
+}
+.choice:focus-visible {
+  border-color: var(--primary-text);
+  box-shadow: 0 0 0 4px var(--primary-glow);
+  transform: translateY(-2px);
+}
+@media (hover: hover) and (pointer: fine) {
+  .choice:hover {
+    border-color: var(--primary-text);
+    box-shadow: 0 0 0 4px var(--primary-glow);
+    transform: translateY(-2px);
+  }
+  .choice:hover .choiceArrow { transform: translateX(4px); color: var(--primary-text); }
+}
+
+.choiceIcon {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.choiceText { display: flex; flex-direction: column; gap: 4px; }
+.choiceTitle { font-size: 17px; font-weight: 600; }
+.choiceDesc { font-size: 14px; font-weight: var(--w-body); color: var(--soft); line-height: 1.4; }
+
+.choiceArrow {
+  margin-left: auto;
+  font-size: 20px;
+  color: var(--muted);
+  transition: transform 200ms var(--ease), color 200ms ease;
+}
+.choice:focus-visible .choiceArrow { transform: translateX(4px); color: var(--primary-text); }
+
+/* Confirmación: revisa tu correo */
+.doneIcon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 16px;
+  background: var(--primary);
+  color: #ffffff;
+  animation: doneIn 700ms var(--ease) both;
+}
+@keyframes doneIn {
+  0% { transform: scale(0.4) rotate(-12deg); opacity: 0; }
+  60% { transform: scale(1.1) rotate(4deg); opacity: 1; }
+  100% { transform: none; }
+}
+.doneCta { margin-top: 26px; }
+
+/* ─── Animaciones de apoyo (sutiles, acompañan a Semi) ─ */
+
+/* Camellitos de contorno flotando alrededor de Semi */
+.sparks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.sparks span {
+  position: absolute;
+  /* silueta de camello: más ancha que alta */
+  width: calc(var(--s) * 2.1);
+  height: calc(var(--s) * 1.75);
+  opacity: 0.75;
+  animation: spark var(--t) ease-in-out infinite;
+  animation-delay: var(--dl);
+}
+.sparks span::before {
+  /* camellito de contorno (solo el borde): una máscara con la silueta pintada del color de la marca */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--c);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -1 26 22'%3E%3Cpath d='M1.5 7.5L3 6L5 6.2L6 8.5C7 10 8 9 8.5 8C9.5 4 11.5 3.5 12.5 6C13.5 4 16 3.5 17 6.5C19 7 21 8 21.5 10L22.5 13L21.5 13.2L20.5 11.5L20.5 18L19.2 18L18.8 13L17.5 13L17.3 18L16 18L15.8 12.8L9.5 12.8L9.3 18L8 18L7.8 12.5L7 12.5L6.8 18L5.5 18L5.6 11.5C5 10.5 4.6 9.5 4.3 8.5L3.5 8.5L1.8 8.6Z' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -1 26 22'%3E%3Cpath d='M1.5 7.5L3 6L5 6.2L6 8.5C7 10 8 9 8.5 8C9.5 4 11.5 3.5 12.5 6C13.5 4 16 3.5 17 6.5C19 7 21 8 21.5 10L22.5 13L21.5 13.2L20.5 11.5L20.5 18L19.2 18L18.8 13L17.5 13L17.3 18L16 18L15.8 12.8L9.5 12.8L9.3 18L8 18L7.8 12.5L7 12.5L6.8 18L5.5 18L5.6 11.5C5 10.5 4.6 9.5 4.3 8.5L3.5 8.5L1.8 8.6Z' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+@keyframes spark {
+  /* flotan y se mecen un poco (un camello girando de cabeza no se reconoce) */
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-16px) rotate(6deg); }
+}
+
+/* Los elementos de la tarjeta entran en cascada */
+.card > *,
+.form > * {
+  animation: rise 350ms var(--ease) both;
+}
+.card > :nth-child(1) { animation-delay: 80ms; }
+.card > :nth-child(2) { animation-delay: 120ms; }
+.card > :nth-child(3) { animation-delay: 160ms; }
+.card > :nth-child(4) { animation-delay: 200ms; }
+.card > :nth-child(5) { animation-delay: 240ms; }
+.form > :nth-child(1) { animation-delay: 160ms; }
+.form > :nth-child(2) { animation-delay: 200ms; }
+.form > :nth-child(3) { animation-delay: 240ms; }
+.form > :nth-child(4) { animation-delay: 280ms; }
+.form > :nth-child(5) { animation-delay: 320ms; }
+.choices > * { animation: rise 350ms var(--ease) both; }
+.choices > :nth-child(1) { animation-delay: 160ms; }
+.choices > :nth-child(2) { animation-delay: 210ms; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Campo activo: la etiqueta se enciende y aparece una línea que crece bajo el campo */
+.field label { transition: color 200ms ease; }
+.field:focus-within label { color: var(--primary-text); }
+.field input {
+  background-image: linear-gradient(var(--primary-text), var(--primary-text));
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 2px;
+  transition: background-size 250ms var(--ease), border-color 160ms ease, box-shadow 160ms ease;
+}
+.field input:focus { background-size: 100% 2px; }
+
+/* Botón: se levanta al pasar el mouse, se hunde al presionar y muestra puntos al cargar */
+.submit { position: relative; transition: background 160ms ease, transform 160ms var(--ease), box-shadow 200ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .submit:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 24px var(--primary-glow); }
+}
+.submit:not(:disabled):active { transform: translateY(0) scale(0.98); box-shadow: none; }
+.submit[data-loading='true']::after {
+  content: '';
+  width: 18px;
+  height: 6px;
+  margin-left: 10px;
+  background:
+    radial-gradient(circle, #fff 45%, transparent 50%) 0 50% / 6px 6px no-repeat,
+    radial-gradient(circle, #fff 45%, transparent 50%) 50% 50% / 6px 6px no-repeat,
+    radial-gradient(circle, #fff 45%, transparent 50%) 100% 50% / 6px 6px no-repeat;
+  animation: loadDots 900ms steps(3) infinite;
+}
+@keyframes loadDots {
+  0% { clip-path: inset(0 100% 0 0); }
+  100% { clip-path: inset(0 -34% 0 0); }
+}
+
+/* La tarjeta se sacude cuando aparece un error */
+.card:has(.error) { animation: cardShake 450ms ease; }
+@keyframes cardShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+.error { animation: errorIn 400ms var(--ease) both; }
+@keyframes errorIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ─── Responsive ───────────────────────────────────── */
+@media (max-width: 960px) {
+  .layout { grid-template-columns: 1fr; padding-top: 8px; }
+  .brandSide { text-align: left; }
+  .brandSide { align-items: center; text-align: center; gap: 8px; }
+  .brandText { align-items: center; }
+  .semiInline :global(svg) { width: 170px; height: 212px; }
+  .brandHeading { font-size: clamp(34px, 9vw, 48px); }
+  .backLink { padding: 8px 10px; }
+}
+
+@media (max-width: 480px) {
+  .fieldRow { grid-template-columns: 1fr; }
+  .choice { padding: 14px; gap: 12px; }
+  .choiceIcon { width: 40px; height: 40px; }
+  .semiSay { font-size: 14px; }
+  .semiInline :global(svg) { width: 140px; height: 175px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .semiShake, .semiStage::before, .sparks span, .card:has(.error) { animation: none; }
+  /* sin desplazamientos, pero el contenido sigue apareciendo con un fundido */
+  .brandSide, .cardWrap, .semiSay, .doneIcon, .card > *, .form > *, .choices > *, .error {
+    animation: fadeOnly 200ms ease both;
+  }
+  .submit, .field input { transition: none; }
+  .choice, .rules li span { transition: none; }
+}

@@ -1,5 +1,6 @@
 'use client';
 import { Toast as ToastType } from '../../types';
+import { Icon } from './Icon';
 
 interface Props {
   toasts: ToastType[];
@@ -7,20 +8,20 @@ interface Props {
 }
 
 const ICONS = {
-  success: '✓',
-  error: '✕',
+  success: <Icon name="check" size={12} style={{ strokeWidth: 3 }} />,
+  error: <Icon name="x" size={12} style={{ strokeWidth: 3 }} />,
   info: 'i',
 };
 
 const COLORS = {
-  success: { bg: 'rgba(52,211,153,.12)', border: 'rgba(52,211,153,.3)', color: '#34d399' },
-  error:   { bg: 'rgba(248,113,113,.12)', border: 'rgba(248,113,113,.3)', color: '#f87171' },
-  info:    { bg: 'rgba(79,110,247,.12)', border: 'rgba(79,110,247,.3)', color: '#4f6ef7' },
+  success: { bg: 'color-mix(in srgb, var(--green) 12%, var(--surface))', border: 'color-mix(in srgb, var(--green) 35%, transparent)', color: 'var(--green)' },
+  error:   { bg: 'color-mix(in srgb, var(--red) 12%, var(--surface))', border: 'color-mix(in srgb, var(--red) 35%, transparent)', color: 'var(--red)' },
+  info:    { bg: 'color-mix(in srgb, var(--blue) 12%, var(--surface))', border: 'color-mix(in srgb, var(--blue) 35%, transparent)', color: 'var(--blue)' },
 };
 
 export const ToastContainer = ({ toasts, onRemove }: Props) => (
-  <div style={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 999 }}>
-    {toasts.map((t) => {
+  <div role="status" aria-live="polite" style={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 999 }}>
+    {toasts.map((t) => {    
       const c = COLORS[t.type];
       return (
         <div
@@ -32,12 +33,13 @@ export const ToastContainer = ({ toasts, onRemove }: Props) => (
             background: c.bg,
             border: `1px solid ${c.border}`,
             borderRadius: 10,
+            boxShadow: 'var(--shadow-lg)',
             cursor: 'pointer',
-            animation: 'slideUp .2s ease',
+            animation: 'slideUp 220ms var(--ease)',
             minWidth: 240, maxWidth: 360,
           }}
         >
-          <span style={{ width: 20, height: 20, borderRadius: '50%', background: c.color, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+          <span style={{ width: 20, height: 20, borderRadius: '50%', background: c.color, color: 'var(--surface)', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
             {ICONS[t.type]}
           </span>
           <span style={{ fontSize: 13.5, color: 'var(--text-1)', flex: 1 }}>{t.message}</span>

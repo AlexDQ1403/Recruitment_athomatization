@@ -5,6 +5,7 @@ import { candidatePortalService, VacancySummary } from '../../services/candidate
 import { APPLICATION_STATUS_LABELS, ApplicationStatus } from '../../types';
 import { ToastContainer } from '../ui/Toast';
 import { useToast } from '../../hooks/useToast';
+import { Icon, IconName } from '../ui/Icon';
 
 const STATUS_CLASS: Record<ApplicationStatus, string> = {
   enviada: 'badge-pending',
@@ -79,7 +80,7 @@ export const CandidateApplicationsView = () => {
           ))
         ) : vacancies.length === 0 ? (
           <EmptyState
-            icon="📋"
+            icon="clipboard"
             title="No hay vacantes abiertas"
             hint="Vuelve más tarde: las empresas publican nuevas ofertas con frecuencia."
           />
@@ -102,7 +103,7 @@ export const CandidateApplicationsView = () => {
         ))
       ) : applications.length === 0 ? (
         <EmptyState
-          icon="✉️"
+          icon="mail"
           title="Aún no te has postulado"
           hint="Revisa las vacantes abiertas y envía tu primera postulación."
         />
@@ -189,9 +190,9 @@ const VacancyCard = ({
   );
 };
 
-const EmptyState = ({ icon, title, hint }: { icon: string; title: string; hint: string }) => (
+const EmptyState = ({ icon, title, hint }: { icon: IconName; title: string; hint: string }) => (
   <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-3)' }}>
-    <p style={{ fontSize: 32, marginBottom: 12 }}>{icon}</p>
+    <span className="empty-icon"><Icon name={icon} size={22} /></span>
     <p style={{ fontSize: 15, color: 'var(--text-2)', marginBottom: 6 }}>{title}</p>
     <p style={{ fontSize: 13 }}>{hint}</p>
   </div>

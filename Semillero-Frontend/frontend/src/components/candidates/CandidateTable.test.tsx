@@ -55,7 +55,7 @@ describe('CandidateTable', () => {
 
   it('muestra botón de exportar CSV deshabilitado sin datos', () => {
     render(<CandidateTable />, { wrapper });
-    const csvBtn = screen.getByText('↓ CSV');
+    const csvBtn = screen.getByRole('button', { name: /exportar csv/i });
     expect(csvBtn).toBeDisabled();
   });
 });

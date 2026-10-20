@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { QueryProvider, createQueryClient } from '../ui/QueryProvider';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { LandingThemeProvider } from '../landing/ThemeToggle';
 import { getStoredUser, setStoredUser, clearAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { User } from '../../types';
@@ -102,7 +103,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     <div style={{ display: 'grid', placeItems: 'center', height: '100vh', background: 'var(--bg)' }} aria-label="Cargando">
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} role="status" aria-live="polite">
         {[0, 1, 2].map((i) => (
-          <span key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: `bounce .9s ${i * 0.15}s infinite` }} />
+          <span key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: `dotRise .9s ${i * 0.15}s infinite` }} />
         ))}
         <span className="sr-only">Cargando...</span>
       </div>
@@ -110,6 +111,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
+    <LandingThemeProvider>
     <QueryProvider client={queryClient}>
       {logoutConfirm && (
         <ConfirmModal
@@ -145,5 +147,6 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
         <main className="main-content" id="main-content">{children}</main>
       </div>
     </QueryProvider>
+    </LandingThemeProvider>
   );
 };

@@ -49,8 +49,8 @@ export const CandidatePanel = ({ candidate: initial, onClose, onUpdate }: Props)
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20 }}>
         <div style={{
           width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
-          background: 'linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%)',
-          display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 700, color: '#fff',
+          background: 'linear-gradient(135deg, var(--accent) 0%, var(--brand-blue) 100%)',
+          display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 700, color: 'var(--text-inv)',
         }}>
           {candidate.full_name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
         </div>
@@ -78,7 +78,7 @@ export const CandidatePanel = ({ candidate: initial, onClose, onUpdate }: Props)
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '8px 16px', fontSize: 13, fontWeight: 500, borderRadius: '8px 8px 0 0',
             background: tab === t ? 'var(--surface-2)' : 'transparent',
-            color: tab === t ? 'var(--accent)' : 'var(--text-3)',
+            color: tab === t ? 'var(--accent-text)' : 'var(--text-2)',
             borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
           }}>
             {t === 'info' ? 'Info' : t === 'notas' ? 'Notas' : 'Historial'}
@@ -231,7 +231,7 @@ function InfoTab({ candidate: c, onResumeUploaded, onUpdate, toast }: {
 
       {(c.linkedin_url ?? c.profile_url) && (
         <a href={(c.linkedin_url ?? c.profile_url)!} target="_blank" rel="noopener noreferrer"
-          style={{ fontSize: 13, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          style={{ fontSize: 13, color: 'var(--accent-text)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/></svg>
           Ver LinkedIn
         </a>
@@ -337,7 +337,7 @@ function NotasTab({ candidateId, toast }: { candidateId: string; toast: ReturnTy
             borderRadius: 'var(--radius)', padding: '12px 14px',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
+              <span style={{ fontSize: 12, color: 'var(--accent-text)', fontWeight: 500 }}>
                 {n.author?.full_name ?? 'Usuario'}
               </span>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

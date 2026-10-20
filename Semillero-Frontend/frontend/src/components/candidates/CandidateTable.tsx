@@ -6,6 +6,7 @@ import { Candidate, CandidateStatus, STATUS_LABELS } from '../../types';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../ui/Toast';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { Icon } from '../ui/Icon';
 
 const STATUS_COLORS: Record<CandidateStatus, string> = {
   rechazado: 'badge-rejected', 'en_contacto': 'badge-pending', seguimiento: 'badge-interviewed',
@@ -80,7 +81,7 @@ export const CandidateTable = ({ onSelect }: Props) => {
   if (isError) return (
     <div className="table-error" role="alert" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <span>No se pudieron cargar los candidatos. Verifica tu conexión.</span>
-      <button onClick={() => refetch()} style={{ fontSize: 13, color: 'var(--accent)', padding: '6px 16px', borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+      <button onClick={() => refetch()} style={{ fontSize: 13, color: 'var(--accent-text)', padding: '6px 16px', borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
         Reintentar
       </button>
     </div>
@@ -112,7 +113,7 @@ export const CandidateTable = ({ onSelect }: Props) => {
                 placeholder="Buscar nombre, cargo, email..."
                 style={{ width: 260, paddingRight: 36, fontSize: 13 }}
               />
-              <button onClick={applySearch} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', fontSize: 15 }}>⌕</button>
+              <button onClick={applySearch} aria-label="Buscar" style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', width: 32, height: 32, display: 'grid', placeItems: 'center' }}><Icon name="search" size={15} /></button>
             </div>
 
             {/* Estado */}
@@ -131,13 +132,16 @@ export const CandidateTable = ({ onSelect }: Props) => {
             <button
               onClick={() => setShowFilters((v) => !v)}
               style={{
-                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500,
-                background: showFilters ? 'var(--accent-glow)' : 'var(--surface-2)',
+                padding: '6px 12px', minHeight: 32, borderRadius: 8, fontSize: 12, fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: showFilters ? 'var(--accent-subtle)' : 'var(--surface-2)',
                 border: `1px solid ${showFilters ? 'var(--accent)' : 'var(--border)'}`,
-                color: showFilters ? 'var(--accent)' : 'var(--text-2)',
+                color: showFilters ? 'var(--accent-text)' : 'var(--text-2)',
               }}
+              aria-expanded={showFilters}
             >
-              ⚙ Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              <Icon name="sliders" size={14} />
+              Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
 
             {activeFilterCount > 0 && (
@@ -149,12 +153,13 @@ export const CandidateTable = ({ onSelect }: Props) => {
               onClick={() => data?.items && exportCSV(data.items)}
               disabled={!data?.items?.length}
               style={{
-                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500,
+                padding: '6px 12px', minHeight: 32, borderRadius: 8, fontSize: 12, fontWeight: 500,
                 background: 'var(--surface-2)', border: '1px solid var(--border)',
-                color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 4,
+                color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
-              ↓ CSV
+              <Icon name="download" size={14} />
+              Exportar CSV
             </button>
           </div>
         </div>
@@ -283,7 +288,7 @@ export const CandidateTable = ({ onSelect }: Props) => {
                         </select>
                         {(c.linkedin_url ?? c.profile_url) && (
                           <a href={(c.linkedin_url ?? c.profile_url)!} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize: 14, color: 'var(--accent)', padding: '4px' }}
+                            style={{ fontSize: 14, color: 'var(--accent-text)', padding: '4px' }}
                             title="Ver LinkedIn">in</a>
                         )}
                         <button
