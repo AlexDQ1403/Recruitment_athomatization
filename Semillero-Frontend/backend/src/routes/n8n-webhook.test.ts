@@ -160,10 +160,34 @@ describe('POST /api/n8n-webhook', () => {
       expect((await post(validBody({ Experiencia: -1 }))).status).toBe(400);
     });
 
-    it('acepta campos opcionales vacíos', async () => {
-      const res = await post(validBody({ 'Correo Personal': '', urlLinkedin: '', Experiencia: '', 'Fecha de busqueda': '' }));
+    it('acepta campos opcionales vacíos mientras haya correo o perfil de LinkedIn', async () => {
+      const res = await post(validBody({ urlLinkedin: '', Experiencia: '', 'Fecha de busqueda': '' }));
       expect(res.status).toBe(200);
-      expect(inserts[0]).toMatchObject({ email: null, linkedin_url: null, experience_years: null, n8n_search_date: null });
+      expect(inserts[0]).toMatchObject({ email: 'ana@example.com', linkedin_url: null, experience_years: null, n8n_search_date: null });
+
+      const soloLinkedin = await post(validBody({ 'Correo Personal': '', Nombre: 'Luis Pérez', urlLinkedin: 'https://www.linkedin.com/in/luis-perez' }));
+      expect(soloLinkedin.status).toBe(200);
+      expect(inserts[1]).toMatchObject({ email: null, linkedin_url: 'https://www.linkedin.com/in/luis-perez' });
+    });
+
+    it('400 sin perfil de LinkedIn ni correo: no se podría contactar ni deduplicar', async () => {
+      const res = await post(validBody({ 'Correo Personal': '', urlLinkedin: '' }));
+      expect(res.status).toBe(400);
+      expect(res.body.fields).toContain('urlLinkedin');
+      expect(mockFromCalls).not.toHaveBeenCalled();
+      expect(inserts).toHaveLength(0);
+    });
+
+    it('400 con páginas de ofertas de LinkedIn y sin correo; no son candidatos', async () => {
+      for (const urlLinkedin of [
+        'https://co.linkedin.com/jobs/desarrollador-java-bogot%C3%A1-empleos',
+        'https://www.linkedin.com/company/acme',
+        'https://www.linkedin.com/in/',
+      ]) {
+        const res = await post(validBody({ 'Correo Personal': '', urlLinkedin }));
+        expect(res.status).toBe(400);
+      }
+      expect(inserts).toHaveLength(0);
     });
 
     it('404 si la empresa no existe', async () => {
@@ -201,13 +225,6 @@ describe('POST /api/n8n-webhook', () => {
       expect(updates).toHaveLength(0);
     });
 
-    it('sin LinkedIn ni correo, deduplica por (IdSolicitud, nombre)', async () => {
-      const body = validBody({ 'Correo Personal': '', urlLinkedin: '' });
-      await post(body);
-      const res = await post({ ...body, Nombre: 'ana garcía' });
-      expect(res.body.action).toBe('updated');
-      expect(inserts).toHaveLength(1);
-    });
   });
 
   describe('deduplicación', () => {
@@ -238,6 +255,21 @@ describe('POST /api/n8n-webhook', () => {
       for (const protectedKey of ['status', 'created_by', 'company_id', 'vacancy_id']) {
         expect(patch).not.toHaveProperty(protectedKey);
       }
+    });
+
+    it('el mismo perfil con otro subdominio, idioma o mayúsculas es el mismo candidato', async () => {
+      rows.push({
+        id: 'cand-co', company_id: COMPANY, full_name: 'Ana García', email: null,
+        linkedin_url: 'https://www.linkedin.com/in/ana-garcia', position: 'x',
+      });
+      for (const urlLinkedin of [
+        'https://co.linkedin.com/in/Ana-Garcia/en',
+        'https://www.linkedin.com/in/ana-garcia?trk=public',
+      ]) {
+        const res = await post(validBody({ 'Correo Personal': '', urlLinkedin }));
+        expect(res.body).toMatchObject({ action: 'updated', candidate_id: 'cand-co' });
+      }
+      expect(inserts).toHaveLength(0);
     });
 
     it('duplicado por correo (sin importar mayúsculas)', async () => {

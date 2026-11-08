@@ -108,6 +108,19 @@ describe('PATCH /api/account/profile', () => {
     expect(mockUpdateUserById).toHaveBeenCalledWith('u1', { email: 'nuevo@test.com', email_confirm: true });
   });
 
+  it('superAdmin (sin empresa) puede editar su nombre y foto', async () => {
+    const app = await buildApp({
+      user: { id: 'u1', email: 'a@test.com' },
+      profile: { id: 'u1', role: 'superAdmin' },
+    });
+    const res = await request(app)
+      .patch('/api/account/profile')
+      .send({ full_name: 'Admin Nuevo', role: 'empresa' });
+
+    expect(res.status).toBe(200);
+    expect(mockProfilesUpdate).toHaveBeenCalledWith({ full_name: 'Admin Nuevo' });
+  });
+
   it('devuelve 409 si el correo ya está en uso', async () => {
     mockUpdateUserById.mockResolvedValue({ error: { message: 'Email address already registered' } });
     const app = await buildApp({

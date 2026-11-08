@@ -6,6 +6,17 @@ import { getCorrelationId } from '../utils/tracing';
 import { AuthenticatedRequest } from '../middlewares/companyAuth';
 import * as n8nService from '../services/n8nService';
 import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
+import {
+  candidateObservations,
+  criteriaSchema,
+  fitSchema,
+  warnCount,
+  type CandidateObservation,
+  type Fit,
+  type SearchCriteria,
+} from '../services/candidateObservations';
+import { sanitizeCandidate, type PoolCandidate } from '../services/chatCandidate';
 
 const router = Router();
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
@@ -26,29 +37,34 @@ const MAX_SESSIONS_PER_USER = 5;
 const MAX_CONTEXT_MESSAGES = 5;
 
 const EXTERNAL_SEARCH_NOTICE =
-  '\n\n🔎 Estoy buscando perfiles nuevos en fuentes externas. Vuelve a consultar en unos minutos y los verás en tu base de candidatos.';
+  '\n\n🔎 Estoy buscando perfiles nuevos en fuentes externas. Te los mostraré aquí mismo cuando termine.';
+const partialSearchNotice = (found: number) =>
+  `\n\n🔎 Te muestro ${found === 1 ? 'el único perfil' : `los ${found} perfiles`} que ya tengo; sigo buscando más en fuentes externas y los verás aquí mismo.`;
+// Misma consulta repetida dentro de la ventana de n8n: no se lanza otra búsqueda.
+const SEARCH_ALREADY_RUN_NOTICE =
+  '\n\nYa busqué perfiles en fuentes externas para esta consulta hace poco; vuelve a consultar en unos minutos.';
 
-const SAFE_CANDIDATE_FIELDS = ['id', 'full_name', 'position', 'experience_years', 'expected_salary', 'location', 'source', 'status', 'profile_url', 'resume_url', 'skills'] as const;
+// Si la búsqueda interna devuelve menos de esto, se muestran los que hay y n8n
+// completa la búsqueda en fuentes externas.
+const MAX_RESULTS = 10;
 
-function sanitizeCandidate(c: Record<string, unknown>, reason?: string): Record<string, unknown> {
-  const safe = Object.fromEntries(SAFE_CANDIDATE_FIELDS.map((k) => [k, c[k]]));
-  if (reason) safe.match_reason = reason;
-  return safe;
-}
+// Respuesta esperada del LLM: solo criterios y relevancia; las observaciones
+// se calculan en código (candidateObservations).
+const llmResponseSchema = z.object({
+  message: z.string().optional(),
+  // false = pregunta general (saludo, ayuda): no hay nada que buscar afuera.
+  busqueda: z.boolean().optional(),
+  criteria: criteriaSchema.optional(),
+  results: z.array(z.object({
+    id: z.string(),
+    reason: z.string().optional(),
+    fit: fitSchema.optional(),
+  })).optional(),
+  candidate_ids: z.array(z.string()).optional(),
+});
 
-interface PoolCandidate {
-  id: string;
-  full_name: string;
-  position: string | null;
-  experience_years: number | null;
-  expected_salary: number | null;
-  location: string | null;
-  source: string;
-  status: string;
-  profile_url: string | null;
-  resume_url: string | null;
-  skills: string[];
-}
+/** `position` viene de scraping (no confiable): sin saltos de línea y acotado antes de ir al prompt. */
+const promptSafe = (s: string | null) => (s ?? '').replace(/[\r\n]+/g, ' ').slice(0, 120);
 
 /**
  * Base de candidatos de la empresa para el chat: une la tabla legada
@@ -267,7 +283,7 @@ router.post('/', chatLimiter, async (req: AuthenticatedRequest, res: Response): 
     // archivo de CV. resume_url/profile_url se añaden después, ya elegidos
     // los candidatos, para que el reclutador pueda abrirlos.
     const promptPool = pool.map(({ id, full_name, position, experience_years, expected_salary, location, source, status, skills }) => (
-      { id, full_name, position, experience_years, expected_salary, location, source, status, skills }
+      { id, full_name: promptSafe(full_name), position: promptSafe(position), experience_years, expected_salary, location, source, status, skills }
     ));
 
     const systemPrompt = `Eres un asistente experto en reclutamiento de talento para una empresa colombiana.
@@ -283,12 +299,17 @@ ${JSON.stringify(promptPool)}
 Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
 {
   "message": "<respuesta amigable en español explicando los resultados>",
+  "busqueda": <true si el usuario pide buscar candidatos; false si es un saludo o una pregunta general>,
+  "criteria": { "experience_min": <número>, "salary_max": <número COP>, "location": "<ciudad>" },
   "results": [
-    { "id": "<id>", "reason": "<una frase corta explicando por qué este candidato califica>" },
+    { "id": "<id>", "reason": "<una frase corta explicando por qué este candidato califica>", "fit": "full" | "partial" },
     ...
   ]
 }
-- Máximo 10 candidatos. results vacío si no hay coincidencias.
+- Máximo 10 candidatos. results vacío si no hay coincidencias de cargo o skills.
+- El criterio principal (cargo o skills) SÍ excluye. Experiencia, salario y ubicación NUNCA excluyen a un candidato por tener el dato vacío: inclúyelo igualmente.
+- "fit": "full" si cumple todo lo pedido con datos presentes; "partial" si faltan datos o no cumple algún criterio secundario.
+- "criteria": incluye SOLO lo que el usuario pidió explícitamente con números o ciudad; omite los campos no pedidos. "junior"/"senior" no son números: no los pongas en criteria, menciónalos en "reason".
 - Para preguntas generales (no búsqueda), responde normalmente con results: []
 - La razón debe ser específica: menciona el skill, años de experiencia, ubicación, etc. que matchea.`;
 
@@ -300,39 +321,60 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
 
     let responseMessage = '';
     let filteredCandidates: Record<string, unknown>[] = [];
-    let noResultsTriggered = false;
+    // false solo cuando el LLM dice que era una pregunta general (no hay nada que buscar afuera).
+    let isSearch = true;
 
     try {
       const gptResponse = await callLLM(messages);
       logger.info('GPT raw response', { correlationId: getCorrelationId(req), response: gptResponse.slice(0, 500) });
       const clean = gptResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(clean) as {
-        message?: string;
-        results?: { id: string; reason?: string }[];
-        candidate_ids?: string[];
-      };
+      // Si el JSON no cumple el esquema se lanza y se usa el fallback por palabras clave.
+      const parsed = llmResponseSchema.parse(JSON.parse(clean));
+      const criteria: SearchCriteria = parsed.criteria ?? {};
+      isSearch = parsed.busqueda !== false;
 
       responseMessage = parsed.message ?? 'Aquí están los resultados:';
 
-      const resultsMap = new Map<string, string>();
-      if (Array.isArray(parsed.results)) {
-        for (const r of parsed.results) resultsMap.set(r.id, r.reason ?? '');
-      } else if (Array.isArray(parsed.candidate_ids)) {
-        for (const id of parsed.candidate_ids) resultsMap.set(id, '');
+      const resultsMap = new Map<string, { reason: string; fit: Fit }>();
+      if (parsed.results) {
+        for (const r of parsed.results) resultsMap.set(r.id, { reason: r.reason ?? '', fit: r.fit ?? 'full' });
+      } else if (parsed.candidate_ids) {
+        for (const id of parsed.candidate_ids) resultsMap.set(id, { reason: '', fit: 'full' });
       }
 
       if (resultsMap.size > 0) {
-        filteredCandidates = pool
+        const ranked = pool
           .filter((c) => resultsMap.has(c.id))
-          .map((c) => sanitizeCandidate(c as unknown as Record<string, unknown>, resultsMap.get(c.id)));
-      } else {
-        noResultsTriggered = true;
-        n8nService.triggerNoSearchResults(companyId, userId, message.trim(), activeSessionId).catch((err) => {
-          logger.error('Error triggering n8n webhook', { error: String(err) });
+          .map((c) => {
+            const r = resultsMap.get(c.id)!;
+            const observations = candidateObservations(c, criteria);
+            // Un candidato con avisos de datos no puede ser "full" aunque el modelo lo diga.
+            const fit: Fit = warnCount(observations) > 0 ? 'partial' : r.fit;
+            return { c, reason: r.reason, observations, fit };
+          })
+          // Sort estable: sin avisos primero, luego por número de avisos ascendente.
+          .sort((a, b) => warnCount(a.observations) - warnCount(b.observations))
+          .slice(0, MAX_RESULTS);
+
+        filteredCandidates = ranked.map(({ c, reason, observations, fit }) =>
+          sanitizeCandidate(c as unknown as Record<string, unknown>, reason, { observations, fit })
+        );
+
+        logger.info('Chat resultados', {
+          correlationId: getCorrelationId(req),
+          total: ranked.length,
+          partial: ranked.filter((r) => r.fit === 'partial').length,
+          codes: [...new Set(ranked.flatMap((r) => r.observations.map((o) => o.code)))],
         });
-        if (n8nService.isN8nConfigured()) responseMessage += EXTERNAL_SEARCH_NOTICE;
       }
-    } catch {
+    } catch (err) {
+      // Sin este registro el fallback por palabras clave es invisible: el reclutador
+      // ve resultados pobres y nadie sabe que el LLM falló (clave, cuota, JSON inválido).
+      logger.warn('Chat: el LLM falló, se usa búsqueda por palabras clave', {
+        correlationId: getCorrelationId(req),
+        error: String(err).slice(0, 300),
+        poolSize: pool.length,
+      });
       const kw = message.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
       filteredCandidates = pool
         .filter((c) => kw.some((k) =>
@@ -341,19 +383,35 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
           String(c.full_name ?? '').toLowerCase().includes(k) ||
           c.skills.some((s) => s.toLowerCase().includes(k))
         ))
-        .slice(0, 10)
-        .map((c) => sanitizeCandidate(c as unknown as Record<string, unknown>));
+        .slice(0, MAX_RESULTS)
+        .map((c) => sanitizeCandidate(c as unknown as Record<string, unknown>, undefined, {
+          observations: candidateObservations(c),
+          fit: 'full',
+        }));
       responseMessage = filteredCandidates.length > 0
         ? `Encontré ${filteredCandidates.length} candidato(s) que podrían interesarte:`
         : 'No encontré candidatos que coincidan. Intenta con otros términos.';
+    }
 
-      if (filteredCandidates.length === 0) {
-        noResultsTriggered = true;
-        n8nService.triggerNoSearchResults(companyId, userId, message.trim(), activeSessionId).catch((err) => {
-          logger.error('Error triggering n8n webhook', { error: String(err) });
-        });
-        if (n8nService.isN8nConfigured()) responseMessage += EXTERNAL_SEARCH_NOTICE;
-      }
+    // Flujo: 1) búsqueda interna (arriba, LLM o palabras clave); 2) si salieron menos
+    // de MAX_RESULTS se devuelve lo encontrado y n8n completa la búsqueda en fuentes
+    // externas. n8n guarda los perfiles en `candidates` y avisa por /api/n8n-webhook/search-complete,
+    // que agrega un mensaje con los nuevos a esta misma sesión.
+    const found = filteredCandidates.length;
+    const searchFallback = isSearch && found < MAX_RESULTS;
+    let externalSearch = false;
+    if (searchFallback && n8nService.isN8nConfigured()) {
+      const started = await (found === 0
+        ? n8nService.triggerNoSearchResults(companyId, userId, message.trim(), activeSessionId)
+        : n8nService.triggerSearchShortage(companyId, userId, message.trim(), activeSessionId, found)
+      ).catch((err) => {
+        logger.error('Error triggering n8n webhook', { error: String(err) });
+        return false;
+      });
+      externalSearch = started;
+      responseMessage += started
+        ? (found === 0 ? EXTERNAL_SEARCH_NOTICE : partialSearchNotice(found))
+        : SEARCH_ALREADY_RUN_NOTICE;
     }
 
     await Promise.all([
@@ -388,13 +446,19 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
     ]);
     const count = (legacyCount ?? 0) + (selfRegisteredCount ?? 0);
 
-    if (count < 30 && !noResultsTriggered) {
+    if (count < 30 && !searchFallback) {
       n8nService.triggerCandidateShortage(companyId, count).catch((err) => {
         logger.error('Error triggering shortage webhook', { error: String(err) });
       });
     }
 
-    res.json({ message: responseMessage, candidates: filteredCandidates, session_id: activeSessionId });
+    res.json({
+      message: responseMessage,
+      candidates: filteredCandidates,
+      session_id: activeSessionId,
+      // true: n8n está buscando y avisará con un mensaje nuevo en esta sesión.
+      external_search: externalSearch,
+    });
   } catch (err) {
     logger.error('Chat error', { correlationId: getCorrelationId(req), error: String(err) });
     res.status(500).json({ error: 'Error interno del servidor' });

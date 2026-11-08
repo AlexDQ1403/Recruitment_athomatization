@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { correlationMiddleware } from './utils/tracing';
 import { errorHandler } from './middlewares/errorHandler';
-import { companyAuthMiddleware } from './middlewares/companyAuth';
+import { companyAuthMiddleware, AuthenticatedRequest } from './middlewares/companyAuth';
 import { requireRole, requireCompany } from './middlewares/requireRole';
 import { n8nSecret } from './middlewares/n8nSecret';
 import { config } from './config';
@@ -58,7 +58,14 @@ export const createApp = () => {
   app.use('/api/company/candidates', companyAuthMiddleware, requireRole('empresa'), requireCompany, companyCandidatesRouter);
   app.use('/api/reports', companyAuthMiddleware, requireRole('empresa'), requireCompany, reportsRouter);
   // Perfil propio de empresa/reclutador (foto + para empresa, nombre y correo).
-  app.use('/api/account', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, accountRouter);
+  // superAdmin no pertenece a una empresa, así que no pasa por requireCompany.
+  app.use(
+    '/api/account',
+    companyAuthMiddleware,
+    requireRole('empresa', 'recruiter', 'superAdmin'),
+    (req: AuthenticatedRequest, res, next) => (req.locals?.profile?.role === 'superAdmin' ? next() : requireCompany(req, res, next)),
+    accountRouter
+  );
 
   // Webhook entrante de n8n: límite de tasa + secreto compartido
   app.use('/api/n8n-webhook', n8nWebhookLimiter, n8nSecret, n8nWebhookRouter);

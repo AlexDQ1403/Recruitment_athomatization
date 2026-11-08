@@ -24,7 +24,7 @@ export const AccountProfileView = () => {
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState<{ full_name: string; email: string } | null>(null);
 
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading, error: loadError } = useQuery({
     queryKey: ['account-profile'],
     queryFn: () => accountService.getProfile(),
   });
@@ -33,7 +33,7 @@ export const AccountProfileView = () => {
     if (profile && !form) setForm({ full_name: profile.full_name ?? '', email: profile.email });
   }, [profile, form]);
 
-  const isEmpresa = profile?.role === 'empresa';
+  const isEmpresa = profile?.role === 'empresa' || profile?.role === 'superAdmin';
 
   const saveMutation = useMutation({
     mutationFn: (input: { full_name?: string; email?: string }) => accountService.updateProfile(input),
@@ -61,6 +61,10 @@ export const AccountProfileView = () => {
       if (fileRef.current) fileRef.current.value = '';
     }
   };
+
+  if (loadError) {
+    return <div className="form-error">{loadError instanceof Error ? loadError.message : 'No se pudo cargar tu perfil.'}</div>;
+  }
 
   if (isLoading || !profile || !form) {
     return <div style={{ color: 'var(--text-3)', fontSize: 13 }}>Cargando perfil...</div>;

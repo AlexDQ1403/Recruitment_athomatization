@@ -16,6 +16,7 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
 const ALLOWED_FIELDS: Record<string, ('full_name' | 'email' | 'avatar_url')[]> = {
   empresa: ['full_name', 'email', 'avatar_url'],
   recruiter: ['avatar_url'],
+  superAdmin: ['full_name', 'email', 'avatar_url'],
 };
 
 const updateSchema = z.object({

@@ -4,6 +4,12 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
+// profiles tiene RLS por usuario (013): con la clave anon la consulta no ve
+// ninguna fila. El token ya se valida con auth.getUser, así que el perfil se
+// lee con service role, acotado siempre a user.id.
+const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
 
 export interface AuthenticatedRequest extends Request {
   locals?: {
@@ -44,7 +50,7 @@ export const companyAuthMiddleware = async (
     }
 
     // 2. Obtener profile con role + company_id + suspended
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, role, full_name, company_id, suspended, avatar_url')
       .eq('id', user.id)

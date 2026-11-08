@@ -4,6 +4,7 @@ import crypto from 'crypto';
 
 export type N8nEventType =
   | 'no_search_results'
+  | 'search_shortage'
   | 'candidate_shortage'
   | 'low_confidence_results'
   | 'interview_request';
@@ -26,10 +27,10 @@ export interface N8nPayload {
 export async function callN8nOutboundWebhook(
   event: N8nEventType,
   payload: { company_id: string; recruiter_id?: string; [key: string]: unknown }
-): Promise<void> {
+): Promise<boolean> {
   if (!config.N8N_WEBHOOK_URL) {
     logger.warn('N8N_WEBHOOK_URL not configured, skipping webhook');
-    return;
+    return false;
   }
 
   const fullPayload: N8nPayload = {
@@ -58,8 +59,10 @@ export async function callN8nOutboundWebhook(
     }).catch((err) => {
       logger.error('N8n outbound webhook failed', { event, error: String(err) });
     });
+    return true;
   } catch (err) {
     logger.error('N8n webhook error', { event, error: String(err) });
+    return false;
   }
 }
 
@@ -87,22 +90,49 @@ export function resetN8nThrottles(): void {
 /**
  * Trigger para fallback de candidatos (sin resultados).
  * No repite la misma consulta de la misma empresa dentro de 10 min.
+ * Devuelve true solo si la petición salió hacia n8n; false si se omitió
+ * (repetida dentro de la ventana o n8n sin configurar): el chat no debe
+ * prometer entonces que llegarán candidatos.
  */
 export async function triggerNoSearchResults(
   companyId: string,
   recruiterId: string,
   query: string,
   sessionId: string
-): Promise<void> {
+): Promise<boolean> {
   const key = `${companyId}:${query.trim().toLowerCase()}`;
-  if (throttled(lastNoResults, key, NO_RESULTS_WINDOW_MS)) return;
-  await callN8nOutboundWebhook('no_search_results', {
+  if (throttled(lastNoResults, key, NO_RESULTS_WINDOW_MS)) return false;
+  return callN8nOutboundWebhook('no_search_results', {
     company_id: companyId,
     recruiter_id: recruiterId,
     query,
     // El workflow "Automated_Recruiter" clasifica `body.mensaje`.
     mensaje: query,
     session_id: sessionId,
+  });
+}
+
+/**
+ * Hubo resultados internos, pero menos de los pedidos: se muestran los que hay
+ * y n8n completa la búsqueda. Comparte la ventana de 10 min con
+ * `triggerNoSearchResults` (misma empresa y misma consulta).
+ */
+export async function triggerSearchShortage(
+  companyId: string,
+  recruiterId: string,
+  query: string,
+  sessionId: string,
+  foundCount: number
+): Promise<boolean> {
+  const key = `${companyId}:${query.trim().toLowerCase()}`;
+  if (throttled(lastNoResults, key, NO_RESULTS_WINDOW_MS)) return false;
+  return callN8nOutboundWebhook('search_shortage', {
+    company_id: companyId,
+    recruiter_id: recruiterId,
+    query,
+    mensaje: query,
+    session_id: sessionId,
+    found_count: foundCount,
   });
 }
 

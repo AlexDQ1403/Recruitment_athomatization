@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChatMessage, Candidate, SOURCE_LABELS } from '../../types';
+import { ChatMessage, Candidate, CandidateObservation, CandidateObservationCode, SOURCE_LABELS } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { chatService, ChatSession, MAX_SESSIONS } from '../../services/chatService';
 import { ConfirmModal } from '../ui/ConfirmModal';
@@ -11,6 +11,14 @@ const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
 const tempId = () => Math.random().toString(36).slice(2);
+
+// Búsqueda externa (n8n): el backend agrega un mensaje a la sesión cuando termina.
+// Mientras tanto se consulta la sesión cada SEARCH_POLL_MS, máximo SEARCH_POLL_MAX_MS.
+const SEARCH_DONE_PREFIX = 'Terminé la búsqueda';
+const SEARCH_POLL_MS = 8000;
+const SEARCH_POLL_MAX_MS = 3 * 60 * 1000;
+
+const isSearchDone = (m: ChatMessage) => m.role === 'assistant' && m.content.startsWith(SEARCH_DONE_PREFIX);
 
 export const ChatView = () => {
   const searchParams = useSearchParams();
@@ -23,6 +31,8 @@ export const ChatView = () => {
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null);
+  // Búsqueda externa en curso: sesión y avisos de "terminé" que ya existían al empezar.
+  const [pendingSearch, setPendingSearch] = useState<{ sessionId: string; knownDoneIds: string[] } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
@@ -61,7 +71,53 @@ export const ChatView = () => {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, pendingSearch]);
+
+  // Si el usuario cambia de sesión, deja de esperar la de la anterior
+  useEffect(() => {
+    setPendingSearch((prev) => (prev && prev.sessionId !== activeSessionId ? null : prev));
+  }, [activeSessionId]);
+
+  // Espera el aviso de n8n: cuando aparece un mensaje "Terminé la búsqueda…" nuevo, recarga la sesión
+  useEffect(() => {
+    if (!pendingSearch) return;
+    const { sessionId, knownDoneIds } = pendingSearch;
+    const startedAt = Date.now();
+    let stopped = false;
+
+    const stop = () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+
+    const timer = setInterval(async () => {
+      if (stopped) return;
+      if (Date.now() - startedAt > SEARCH_POLL_MAX_MS) {
+        stop();
+        setPendingSearch(null);
+        setMessages((prev) => [...prev, {
+          id: tempId(),
+          role: 'assistant',
+          content: 'La búsqueda externa está tardando más de lo normal. Vuelve a consultar en unos minutos.',
+          created_at: new Date().toISOString(),
+        }]);
+        return;
+      }
+      try {
+        const list = await chatService.getMessages(sessionId);
+        if (stopped) return;
+        if (list.some((m) => isSearchDone(m) && !knownDoneIds.includes(m.id))) {
+          stop();
+          setMessages(list);
+          setPendingSearch(null);
+        }
+      } catch {
+        // se reintenta en el siguiente ciclo
+      }
+    }, SEARCH_POLL_MS);
+
+    return stop;
+  }, [pendingSearch]);
 
   const handleNewSession = useCallback(async () => {
     if (sessions.length >= MAX_SESSIONS) {
@@ -142,6 +198,14 @@ export const ChatView = () => {
           candidates: body.candidates,
           created_at: new Date().toISOString(),
         }]);
+        // n8n está buscando: quedamos a la espera de su aviso en esta sesión
+        if (body.external_search && body.session_id) {
+          const sessionId = body.session_id as string;
+          chatService
+            .getMessages(sessionId)
+            .then((list) => setPendingSearch({ sessionId, knownDoneIds: list.filter(isSearchDone).map((m) => m.id) }))
+            .catch(() => null);
+        }
       }
     } catch {
       setMessages((prev) => [...prev, {
@@ -268,6 +332,13 @@ export const ChatView = () => {
                 </div>
               </div>
             )}
+            {pendingSearch && (
+              <div className="chat-message other" role="status" aria-live="polite">
+                <div className="bubble">
+                  <p style={{ fontSize: 13, color: 'var(--text-3)' }}>Buscando en fuentes externas…</p>
+                </div>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 
@@ -296,6 +367,31 @@ export const ChatView = () => {
       </div>
     </div>
   );
+};
+
+const MAX_OBSERVATION_TAGS = 3;
+
+const years = (n: number | string | undefined) => `${n} ${Number(n) === 1 ? 'año' : 'años'}`;
+const money = (n: number | string | undefined) => `$${Number(n).toLocaleString('es-CO')}`;
+
+// Único mapa de textos; los códigos desconocidos (mensajes viejos o nuevos) se ignoran.
+const OBSERVATION_LABELS: Record<CandidateObservationCode, (o: CandidateObservation) => string> = {
+  experience_missing: () => 'Experiencia no encontrada',
+  salary_missing: () => 'Salario no encontrado',
+  location_missing: () => 'Ubicación no encontrada',
+  experience_below: (o) => `Tiene ${years(o.found)}; pediste ${o.requested}`,
+  salary_above: (o) => `Aspira ${money(o.found)}; tu máximo ${money(o.requested)}`,
+  location_mismatch: (o) => `Está en ${o.found}; pediste ${o.requested}`,
+  unverified_profile: () => 'Perfil sin verificar',
+};
+
+const observationTags = (c: Candidate): { key: string; text: string; warn: boolean }[] => {
+  const tags: { key: string; text: string; warn: boolean }[] = [];
+  if (c.fit === 'partial') tags.push({ key: 'fit', text: 'Coincidencia parcial', warn: true });
+  const known = (c.observations ?? []).filter((o) => o.code in OBSERVATION_LABELS);
+  const ordered = [...known.filter((o) => o.severity === 'warn'), ...known.filter((o) => o.severity !== 'warn')];
+  for (const o of ordered) tags.push({ key: o.code, text: OBSERVATION_LABELS[o.code](o), warn: o.severity === 'warn' });
+  return tags.slice(0, MAX_OBSERVATION_TAGS);
 };
 
 const CandidateCards = ({ candidates }: { candidates: Candidate[] }) => (
@@ -335,6 +431,15 @@ const CandidateCards = ({ candidates }: { candidates: Candidate[] }) => (
           }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0, marginTop: 1 }}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             {c.match_reason}
+          </div>
+        )}
+        {observationTags(c).length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {observationTags(c).map((t) => (
+              <span key={t.key} className={`badge ${t.warn ? 'badge-pending' : ''}`} style={{ fontSize: 11 }}>
+                {t.text}
+              </span>
+            ))}
           </div>
         )}
       </div>

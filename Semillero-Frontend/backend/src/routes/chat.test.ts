@@ -37,10 +37,13 @@ vi.mock('../utils/tracing', () => ({
   getCorrelationId: () => 'test-correlation-id',
 }));
 
-const mockNoResults = vi.fn().mockResolvedValue(undefined);
+// true = la petición salió hacia n8n (false = repetida dentro de la ventana de 10 min)
+const mockNoResults = vi.fn().mockResolvedValue(true);
+const mockSearchShortage = vi.fn().mockResolvedValue(true);
 const mockShortage = vi.fn().mockResolvedValue(undefined);
 vi.mock('../services/n8nService', () => ({
   triggerNoSearchResults: (...args: unknown[]) => mockNoResults(...args),
+  triggerSearchShortage: (...args: unknown[]) => mockSearchShortage(...args),
   triggerCandidateShortage: (...args: unknown[]) => mockShortage(...args),
   isN8nConfigured: () => true,
 }));
@@ -160,6 +163,7 @@ describe('POST /api/chat', () => {
     expect(typeof res.body.message).toBe('string');
     expect(res.body.candidates).toHaveLength(1);
     expect(mockNoResults).not.toHaveBeenCalled();
+    expect(mockSearchShortage).toHaveBeenCalledTimes(1); // 1 < 10: n8n completa la búsqueda
   });
 
   it('no incluye email ni teléfono en la respuesta del chat', async () => {
@@ -193,36 +197,162 @@ describe('POST /api/chat', () => {
     expect(mockShortage).not.toHaveBeenCalled();
   });
 
-  it('con resultados no dispara no_search_results', async () => {
-    global.fetch = llmReply({ message: 'Encontré uno.', results: [{ id: 'c1', reason: 'React, 3 años' }] });
-    mockTables({
-      ...SESSION,
-      candidates: pool([
-        { id: 'c1', full_name: 'Ana García', position: 'React', source: 'internal', status: 'seguimiento' },
-      ], 50), // 50 ≥ 30: sin escasez
+  const internalDevs = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `c${i}`, full_name: `Dev ${i}`, position: 'React', source: 'internal', status: 'seguimiento',
+      experience_years: 3, expected_salary: 4000000, location: 'Bogotá',
+    }));
+
+  it('con 10 resultados no activa n8n y external_search es false', async () => {
+    global.fetch = llmReply({
+      message: 'Encontré 10.',
+      results: internalDevs(10).map((c) => ({ id: c.id, reason: 'React', fit: 'full' })),
     });
+    mockTables({ ...SESSION, candidates: pool(internalDevs(10), 50) }); // 50 ≥ 30: sin escasez
+
+    const res = await send(app, 'react');
+
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toHaveLength(10);
+    expect(res.body.external_search).toBe(false);
+    expect(res.body.message).not.toContain('fuentes externas');
+    expect(mockNoResults).not.toHaveBeenCalled();
+    expect(mockSearchShortage).not.toHaveBeenCalled();
+    expect(mockShortage).not.toHaveBeenCalled();
+  });
+
+  it('con menos de 10 resultados devuelve los encontrados Y activa n8n con la consulta', async () => {
+    global.fetch = llmReply({ message: 'Encontré uno.', results: [{ id: 'c0', reason: 'React, 3 años' }] });
+    mockTables({ ...SESSION, candidates: pool(internalDevs(1), 50) });
 
     const res = await send(app, 'react');
 
     expect(res.status).toBe(200);
     expect(res.body.candidates).toHaveLength(1);
-    expect(res.body.message).not.toContain('fuentes externas');
+    expect(res.body.external_search).toBe(true);
+    expect(res.body.message).toContain('Encontré uno.');
+    expect(res.body.message).toContain('el único perfil');
+    expect(res.body.message).toContain('fuentes externas');
+    expect(mockSearchShortage).toHaveBeenCalledWith('company-1', 'user-1', 'react', 'sess-1', 1);
     expect(mockNoResults).not.toHaveBeenCalled();
+    // el aviso genérico de escasez no se suma al de la búsqueda
     expect(mockShortage).not.toHaveBeenCalled();
   });
 
-  it('con resultados y pocos candidatos en la empresa dispara candidate_shortage', async () => {
-    global.fetch = llmReply({ message: 'Encontré uno.', results: [{ id: 'c1', reason: 'React' }] });
-    mockTables({
-      ...SESSION,
-      candidates: pool([
-        { id: 'c1', full_name: 'Ana García', position: 'React', source: 'internal', status: 'seguimiento' },
-      ], 8),
+  it('si n8n ya buscó esta consulta hace poco no promete resultados nuevos', async () => {
+    global.fetch = llmReply({ message: 'Encontré uno.', results: [{ id: 'c0' }] });
+    mockSearchShortage.mockResolvedValueOnce(false);
+    mockTables({ ...SESSION, candidates: pool(internalDevs(1), 50) });
+
+    const res = await send(app, 'react');
+
+    expect(res.body.external_search).toBe(false);
+    expect(res.body.message).toContain('hace poco');
+    expect(res.body.candidates).toHaveLength(1);
+  });
+
+  it('una pregunta general (busqueda:false) no activa n8n', async () => {
+    global.fetch = llmReply({ message: 'Hola, ¿qué perfil buscas?', busqueda: false, results: [] });
+    mockTables({ ...SESSION, candidates: pool(internalDevs(3), 50) });
+
+    const res = await send(app, 'hola');
+
+    expect(res.status).toBe(200);
+    expect(res.body.external_search).toBe(false);
+    expect(mockNoResults).not.toHaveBeenCalled();
+    expect(mockSearchShortage).not.toHaveBeenCalled();
+  });
+
+  describe('observaciones', () => {
+    const scraped = (id: string, extra: Record<string, unknown> = {}) => ({
+      id, full_name: `Dev ${id}`, position: 'Desarrollador Java', source: 'scraping', status: 'seguimiento',
+      experience_years: null, expected_salary: null, location: null, email: 'x@privado.com', phone: '3000000000', ...extra,
     });
+
+    it('sin experiencia + experience_min → experience_missing y unverified_profile', async () => {
+      global.fetch = llmReply({
+        message: 'Java', criteria: { experience_min: 3 },
+        results: [{ id: 'c1', reason: 'Java', fit: 'partial' }],
+      });
+      mockTables({ ...SESSION, candidates: pool([scraped('c1')], 50) });
+
+      const res = await send(app, 'desarrollador Java con 3 años');
+      const codes = res.body.candidates[0].observations.map((o: { code: string }) => o.code);
+
+      expect(res.status).toBe(200);
+      expect(codes).toEqual(['experience_missing', 'unverified_profile']);
+      expect(res.body.candidates[0].fit).toBe('partial');
+      expect(JSON.stringify(res.body)).not.toContain('x@privado.com');
+      expect(JSON.stringify(res.body)).not.toContain('3000000000');
+    });
+
+    it('1 año vs 3 pedidos → experience_below y va después de quien cumple', async () => {
+      global.fetch = llmReply({
+        message: 'ok', criteria: { experience_min: 3 },
+        results: [{ id: 'bajo', fit: 'partial' }, { id: 'ok', fit: 'full' }],
+      });
+      mockTables({
+        ...SESSION,
+        candidates: pool([
+          scraped('bajo', { source: 'internal', experience_years: 1 }),
+          scraped('ok', { source: 'internal', experience_years: 5 }),
+        ], 50),
+      });
+
+      const res = await send(app, 'java 3 años');
+
+      expect(res.body.candidates.map((c: { id: string }) => c.id)).toEqual(['ok', 'bajo']);
+      expect(res.body.candidates[1].observations[0]).toMatchObject({ code: 'experience_below', found: 1, requested: 3 });
+    });
+
+    it('sin criterios solo aparece unverified_profile', async () => {
+      global.fetch = llmReply({ message: 'ok', results: [{ id: 'c1', fit: 'full' }] });
+      mockTables({ ...SESSION, candidates: pool([scraped('c1')], 50) });
+
+      const res = await send(app, 'desarrollador java');
+
+      expect(res.body.candidates[0].observations).toEqual([{ code: 'unverified_profile', severity: 'info' }]);
+    });
+
+    it('resultados parciales (<10) → activa n8n con la consulta original, no el aviso genérico', async () => {
+      global.fetch = llmReply({
+        message: 'ok', criteria: { experience_min: 3 }, results: [{ id: 'c1', fit: 'partial' }],
+      });
+      mockTables({ ...SESSION, candidates: pool([scraped('c1')], 50) });
+
+      const res = await send(app, 'java 3 años');
+
+      expect(mockSearchShortage).toHaveBeenCalledWith('company-1', 'user-1', 'java 3 años', 'sess-1', 1);
+      expect(mockShortage).not.toHaveBeenCalled();
+      expect(mockNoResults).not.toHaveBeenCalled();
+      expect(res.body.external_search).toBe(true);
+    });
+
+    it('criteria inválido del LLM → fallback por palabras clave sin romper el contrato', async () => {
+      global.fetch = llmReply({
+        message: 'ok', criteria: { experience_min: 999 }, results: [{ id: 'c1' }],
+      });
+      mockTables({ ...SESSION, candidates: pool([scraped('c1')], 50) });
+
+      const res = await send(app, 'desarrollador java');
+
+      expect(res.status).toBe(200);
+      expect(res.body.candidates).toHaveLength(1);
+      expect(Array.isArray(res.body.candidates[0].observations)).toBe(true);
+    });
+  });
+
+  it('con 10 resultados pero pocos candidatos en la empresa dispara candidate_shortage', async () => {
+    global.fetch = llmReply({
+      message: 'Encontré 10.',
+      results: internalDevs(10).map((c) => ({ id: c.id, reason: 'React', fit: 'full' })),
+    });
+    mockTables({ ...SESSION, candidates: pool(internalDevs(10), 8) }); // 8 < 30
 
     await send(app, 'react');
 
     expect(mockShortage).toHaveBeenCalledTimes(1);
     expect(mockShortage.mock.calls[0][0]).toBe('company-1');
+    expect(mockSearchShortage).not.toHaveBeenCalled();
   });
 });

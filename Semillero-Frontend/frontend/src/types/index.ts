@@ -43,6 +43,22 @@ export interface User {
   company?: Company;
 }
 
+export type CandidateObservationCode =
+  | 'experience_missing'
+  | 'salary_missing'
+  | 'location_missing'
+  | 'experience_below'
+  | 'salary_above'
+  | 'location_mismatch'
+  | 'unverified_profile';
+
+export interface CandidateObservation {
+  code: CandidateObservationCode;
+  severity: 'warn' | 'info';
+  found?: number | string;
+  requested?: number | string;
+}
+
 export interface Candidate {
   id: string;
   company_id: string;
@@ -64,6 +80,8 @@ export interface Candidate {
   created_at: string;
   updated_at: string;
   match_reason?: string;
+  observations?: CandidateObservation[];
+  fit?: 'full' | 'partial';
   n8n_request_id?: string;
   n8n_search_date?: string;
 }

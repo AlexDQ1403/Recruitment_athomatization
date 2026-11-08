@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { getCorrelationId } from '../utils/tracing';
+import { candidateObservations } from '../services/candidateObservations';
+import { sanitizeCandidate } from '../services/chatCandidate';
 
 const router = Router();
 
@@ -30,12 +32,14 @@ const bodySchema = z.object({
       .trim()
       .max(500)
       .url()
-      .refine((u) => /^https?:\/\/([a-z0-9-]+\.)*linkedin\.com(\/|$)/i.test(u), 'Debe ser una URL de linkedin.com')
+      // Solo perfiles de persona: las páginas de ofertas (/jobs/...) no son candidatos.
+      .refine((u) => /^https?:\/\/([a-z0-9-]+\.)*linkedin\.com\/in\/[^/?#]+/i.test(u), 'Debe ser un perfil de linkedin.com/in/')
       .optional()
   ),
   'Especializacion/descripcion': z.preprocess(emptyToUndef, z.string().trim().max(500).optional()),
   Experiencia: optionalInt(80),
   Aspiracion: optionalInt(1_000_000_000),
+  Ubicacion: z.preprocess(emptyToUndef, z.string().trim().max(200).optional()),
   'Fecha de busqueda': z.preprocess(
     emptyToUndef,
     z
@@ -43,12 +47,20 @@ const bodySchema = z.object({
       .refine((v) => !Number.isNaN(new Date(v).getTime()), 'Fecha inválida')
       .optional()
   ),
+}).refine((b) => !!b.urlLinkedin || !!b['Correo Personal'], {
+  // Sin ninguno de los dos no hay forma de contactar ni de deduplicar al candidato.
+  message: 'Se requiere urlLinkedin o Correo Personal',
+  path: ['urlLinkedin'],
 });
 
-/** Normaliza una URL de LinkedIn para comparar: minúsculas, sin query/hash ni "/" final. */
+/**
+ * Forma canónica de un perfil: `https://www.linkedin.com/in/<slug>`. Ignora el
+ * subdominio de país (co., www.), el sufijo de idioma (/en), query, hash y mayúsculas,
+ * para que el mismo perfil siempre dé la misma clave de deduplicación.
+ */
 function normalizeLinkedin(url: string): string {
-  const u = new URL(url);
-  return `${u.protocol}//${u.host}${u.pathname}`.replace(/\/+$/, '').toLowerCase();
+  const slug = new URL(url).pathname.split('/').filter(Boolean)[1] ?? '';
+  return `https://www.linkedin.com/in/${slug.toLowerCase()}`;
 }
 
 type CandidateRow = Record<string, unknown> & { id: string };
@@ -92,7 +104,7 @@ const isEmpty = (v: unknown) => v === null || v === undefined || v === '';
 /** Solo rellena columnas vacías; nunca toca status, created_by, company_id ni vacancy_id. */
 async function fillEmptyFields(existing: CandidateRow, incoming: Record<string, unknown>): Promise<void> {
   const FILLABLE = [
-    'email', 'linkedin_url', 'position', 'experience_years', 'expected_salary',
+    'email', 'linkedin_url', 'position', 'experience_years', 'expected_salary', 'location',
     'n8n_request_id', 'n8n_search_date',
   ];
   const patch: Record<string, unknown> = {};
@@ -144,7 +156,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       position: body['Especializacion/descripcion'] ?? '',
       experience_years: body.Experiencia ?? null,
       expected_salary: body.Aspiracion ?? null,
-      location: null,
+      location: body.Ubicacion ?? null,
       source: 'scraping',
       status: 'seguimiento',
       n8n_request_id: body.IdSolicitud,
@@ -189,6 +201,94 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       keys: Object.keys(req.body ?? {}),
     });
     res.status(500).json({ error: 'Error al procesar webhook de n8n' });
+  }
+});
+
+const searchCompleteSchema = z.object({
+  company_id: z.string().uuid(),
+  session_id: z.string().uuid(),
+  // Ids que devolvió `POST /` para cada candidato guardado (insertado o ya existente).
+  candidate_ids: z.array(z.string().uuid()).max(10),
+});
+
+const CHAT_CANDIDATE_COLUMNS =
+  'id, full_name, position, experience_years, expected_salary, location, source, status, profile_url, resume_url';
+
+/**
+ * POST /n8n-webhook/search-complete
+ * n8n avisa que terminó la búsqueda externa de una consulta del chat: se agrega a
+ * la sesión del reclutador un mensaje con los candidatos encontrados. El frontend
+ * lo recoge al refrescar los mensajes de la sesión.
+ *
+ * Seguridad: autenticado por n8nSecret; la sesión debe pertenecer a `company_id`
+ * y los candidatos se leen siempre filtrados por esa empresa (un id de otra
+ * empresa simplemente no se devuelve). El texto del mensaje es fijo y los datos
+ * pasan por sanitizeCandidate: nunca salen email ni teléfono.
+ */
+router.post('/search-complete', async (req: Request, res: Response): Promise<void> => {
+  const correlationId = getCorrelationId(req);
+
+  try {
+    const parsed = searchCompleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const fields = [...new Set(parsed.error.issues.map((i) => i.path.join('.') || '(body)'))];
+      logger.warn('n8n search-complete: cuerpo inválido', { correlationId, fields });
+      res.status(400).json({ error: 'Cuerpo inválido', fields });
+      return;
+    }
+    const { company_id: companyId, session_id: sessionId, candidate_ids: ids } = parsed.data;
+
+    const { data: session } = await supabaseAdmin
+      .from('chat_sessions')
+      .select('id')
+      .eq('id', sessionId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (!session) {
+      logger.warn('n8n search-complete: sesión no encontrada para la empresa', { correlationId, companyId, sessionId });
+      res.status(404).json({ error: 'Sesión no encontrada' });
+      return;
+    }
+
+    let candidates: Record<string, unknown>[] = [];
+    if (ids.length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('candidates')
+        .select(CHAT_CANDIDATE_COLUMNS)
+        .eq('company_id', companyId)
+        .in('id', ids);
+      if (error) throw error;
+      candidates = (data ?? []).map((c) =>
+        sanitizeCandidate({ ...c, skills: [] }, undefined, {
+          observations: candidateObservations(c),
+          fit: 'partial',
+        })
+      );
+    }
+
+    const content = candidates.length > 0
+      ? `Terminé la búsqueda en fuentes externas: encontré ${candidates.length === 1 ? '1 perfil' : `${candidates.length} perfiles`} para tu consulta.`
+      : 'Terminé la búsqueda y no encontré perfiles nuevos para tu consulta.';
+
+    const { error: insertError } = await supabaseAdmin.from('chat_messages').insert({
+      session_id: sessionId,
+      role: 'assistant',
+      content,
+      candidates: candidates.length > 0 ? candidates : null,
+    });
+    if (insertError) throw insertError;
+
+    await supabaseAdmin
+      .from('chat_sessions')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    logger.info('n8n search-complete: mensaje agregado al chat', { correlationId, companyId, sessionId, found: candidates.length });
+    res.json({ success: true, found: candidates.length });
+  } catch (err) {
+    logger.error('n8n search-complete: error', { correlationId, error: String(err) });
+    res.status(500).json({ error: 'Error al procesar el aviso de n8n' });
   }
 });
 

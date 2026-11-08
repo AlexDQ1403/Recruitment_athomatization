@@ -34,7 +34,15 @@ const HISTORY_ITEM = {
   icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
 };
 
-// Reclutador (y superAdmin): conserva todo, incluido chat/historial.
+// Reclutador: chat, vacantes e historial. Sin "Candidatos".
+const RECRUITER_NAV = [
+  {
+    section: 'Principal',
+    items: [DASHBOARD_ITEM, CHAT_ITEM, VACANCIES_ITEM, HISTORY_ITEM],
+  },
+];
+
+// superAdmin: conserva todo, incluido Candidatos.
 const NAV = [
   {
     section: 'Principal',
@@ -43,12 +51,11 @@ const NAV = [
 ];
 
 // Empresa: sin chat ni historial de búsqueda — ver requireRole('recruiter')
-// en /api/chat (backend/src/app.ts). "Candidatos" es aquí el histórico de
-// procesos presentados por los reclutadores, no gestión operativa.
+// en /api/chat (backend/src/app.ts). Tampoco tiene "Candidatos".
 const EMPRESA_MAIN_NAV = [
   {
     section: 'Principal',
-    items: [DASHBOARD_ITEM, VACANCIES_ITEM, CANDIDATES_ITEM],
+    items: [DASHBOARD_ITEM, VACANCIES_ITEM],
   },
 ];
 
@@ -129,10 +136,10 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
       return [...EMPRESA_MAIN_NAV, ...EMPRESA_NAV, ...ACCOUNT_NAV];
     }
     if (user?.role === 'superAdmin') {
-      return [...NAV, ...SUPERADMIN_NAV];
+      return [...NAV, ...SUPERADMIN_NAV, ...ACCOUNT_NAV];
     }
     if (user?.role === 'recruiter') {
-      return [...NAV, ...ACCOUNT_NAV];
+      return [...RECRUITER_NAV, ...ACCOUNT_NAV];
     }
     return NAV;
   })();

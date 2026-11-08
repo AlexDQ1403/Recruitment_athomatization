@@ -65,6 +65,31 @@ describe('n8nService', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it('devuelve true si la petición salió y false si se omitió (sin URL o repetida)', async () => {
+    expect(await n8n.triggerNoSearchResults('co-1', 'u-1', 'dev', 's-1')).toBe(true);
+    expect(await n8n.triggerNoSearchResults('co-1', 'u-1', 'dev', 's-1')).toBe(false); // ventana de 10 min
+    cfg.N8N_WEBHOOK_URL = undefined;
+    expect(await n8n.triggerNoSearchResults('co-1', 'u-1', 'otra', 's-1')).toBe(false);
+  });
+
+  it('search_shortage lleva la consulta, la sesión y cuántos se encontraron', async () => {
+    expect(await n8n.triggerSearchShortage('co-1', 'u-1', 'dev python', 's-1', 3)).toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).toMatchObject({
+      event: 'search_shortage',
+      company_id: 'co-1',
+      session_id: 's-1',
+      mensaje: 'dev python',
+      found_count: 3,
+    });
+  });
+
+  it('search_shortage y no_search_results comparten la ventana: la misma consulta no se repite entre ellos', async () => {
+    expect(await n8n.triggerNoSearchResults('co-1', 'u-1', 'dev python', 's-1')).toBe(true);
+    expect(await n8n.triggerSearchShortage('co-1', 'u-1', 'dev python', 's-2', 2)).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('candidate_shortage se dispara como máximo una vez por hora por empresa', async () => {
     vi.useFakeTimers();
     try {
