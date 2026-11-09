@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "check:schema": "tsx --env-file=.env src/scripts/checkSchema.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

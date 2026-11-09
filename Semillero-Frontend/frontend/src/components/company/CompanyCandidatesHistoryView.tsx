@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { companyCandidateService } from '../../services/companyCandidateService';
-import { CompanyCandidateProcess } from '../../types';
+import { CompanyCandidateProcess, STATUS_LABELS, CandidateStatus } from '../../types';
+import { CompanyDecisionControl } from './CompanyDecisionControl';
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -14,9 +15,10 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 /**
- * "Candidatos" para Empresa: histórico de PROCESOS, no gestión de candidatos.
- * Cada fila es un candidato → reclutador → aprobación → estado, nunca
- * candidatos sin presentar (ver GET /api/company/candidates).
+ * "Candidatos aceptados" para Empresa: lista de lo que un reclutador APROBÓ.
+ * Cada fila es un candidato → reclutador → aprobación → estado. Un candidato
+ * rechazado o devuelto a seguimiento sale de esta lista (ver PATCH /api/candidates/:id/decision
+ * y GET /api/company/candidates).
  */
 export const CompanyCandidatesHistoryView = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -31,9 +33,17 @@ export const CompanyCandidatesHistoryView = () => {
   return (
     <div>
       <div className="page-header">
-        <h1>Candidatos</h1>
-        <p>Histórico de procesos de selección presentados por tus reclutadores</p>
+        <h1>Candidatos aceptados</h1>
+        <p>Candidatos que tus reclutadores aprobaron para tu empresa. Tú decides si contratarlos o descartarlos.</p>
       </div>
+
+      {data && (
+        <div style={{ display: 'flex', gap: 18, marginBottom: 18, fontSize: 13, color: 'var(--text-2)', flexWrap: 'wrap' }}>
+          <span><strong style={{ color: 'var(--yellow)' }}>{data.summary.pendiente}</strong> por decidir</span>
+          <span><strong style={{ color: 'var(--green)' }}>{data.summary.contratado}</strong> contratados</span>
+          <span><strong style={{ color: 'var(--red)' }}>{data.summary.descartado}</strong> descartados</span>
+        </div>
+      )}
 
       {isError && (
         <div style={{
@@ -41,7 +51,7 @@ export const CompanyCandidatesHistoryView = () => {
           borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 24,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
         }} role="alert">
-          <span style={{ fontSize: 13, color: 'var(--red)' }}>No se pudo cargar el histórico.</span>
+          <span style={{ fontSize: 13, color: 'var(--red)' }}>No se pudo cargar la lista de candidatos aceptados.</span>
           <button
             onClick={() => refetch()}
             style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500, padding: '4px 12px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)' }}
@@ -58,27 +68,28 @@ export const CompanyCandidatesHistoryView = () => {
               <th>Reclutador responsable</th>
               <th>Proceso / Oferta</th>
               <th>Presentado</th>
-              <th>Estado actual</th>
+              <th>Proceso</th>
+              <th>Tu decisión</th>
             </tr>
           </thead>
           <tbody>
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="skeleton-row">
-                    {Array.from({ length: 6 }).map((__, j) => <td key={j}><div className="skeleton" /></td>)}
+                    {Array.from({ length: 7 }).map((__, j) => <td key={j}><div className="skeleton" /></td>)}
                   </tr>
                 ))
               : processes.length === 0
               ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-3)', fontSize: 13 }}>
-                      Todavía no hay procesos presentados por tus reclutadores.
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-3)', fontSize: 13 }}>
+                      Todavía no hay candidatos aceptados. Aparecerán aquí cuando un reclutador los apruebe.
                     </td>
                   </tr>
                 )
               : processes.map((p) => (
                   <ProcessRow
-                    key={p.candidate.id}
+                    key={`${p.kind}-${p.candidate.id}`}
                     process={p}
                     expanded={expanded === p.candidate.id}
                     onToggle={() => setExpanded((cur) => (cur === p.candidate.id ? null : p.candidate.id))}
@@ -110,11 +121,12 @@ function ProcessRow({ process: p, expanded, onToggle }: {
         <td>{p.recruiter?.full_name ?? 'Sin asignar'}</td>
         <td>{p.vacancy?.title ?? '—'}</td>
         <td style={{ color: 'var(--text-3)', fontSize: 12 }}>{p.presented_at ? fmtDate(p.presented_at) : '—'}</td>
-        <td><span className={`badge ${STATUS_BADGE[p.status] ?? ''}`}>{p.status}</span></td>
+        <td><span className={`badge ${STATUS_BADGE[p.status] ?? ''}`}>{STATUS_LABELS[p.status as CandidateStatus] ?? p.status}</span></td>
+        <td><CompanyDecisionControl candidate={{ kind: p.kind, id: p.candidate.id, full_name: p.candidate.full_name }} decision={p.decision} /></td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={6} style={{ background: 'var(--surface-2)', padding: '14px 20px' }}>
+          <td colSpan={7} style={{ background: 'var(--surface-2)', padding: '14px 20px' }}>
             <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               {p.candidate.location && <span>Ubicación: {p.candidate.location}</span>}
               {p.candidate.experience_years !== null && <span>Experiencia: {p.candidate.experience_years} años</span>}

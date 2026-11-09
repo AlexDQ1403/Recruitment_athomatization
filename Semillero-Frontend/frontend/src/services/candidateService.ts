@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
-import { Candidate, CandidateStatus, CandidateNote, StatusHistoryEntry, PaginatedResponse } from '../types';
+import { Candidate, CandidateStatus, CandidateDecision, CandidateDecisionState, CandidateNote, StatusHistoryEntry, PaginatedResponse } from '../types';
+
+// El backend acepta hasta 100 ids por consulta
+const DECISION_LOOKUP_CHUNK = 100;
 
 export interface CandidateFilters {
   search?: string;
@@ -137,6 +140,52 @@ export const candidateService = {
     }
 
     return res.json();
+  },
+
+  /**
+   * Decisión del reclutador: aprobar (entra en la lista de aceptados de la
+   * empresa), dejar en seguimiento o rechazar. La autorización la valida el
+   * backend; el rechazo es terminal.
+   */
+  async decide(
+    id: string,
+    decision: CandidateDecision,
+    reason?: string
+  ): Promise<{ id: string; status: CandidateStatus; presented: boolean; unchanged?: boolean }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('No autorizado');
+
+    const res = await fetch(`/api/candidates/${id}/decision`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error ?? 'No se pudo aplicar la decisión');
+    }
+    return res.json();
+  },
+
+  /** Estado vigente de varios candidatos. Los ids que no existan en la empresa no aparecen en el resultado. */
+  async getDecisions(ids: string[]): Promise<Record<string, CandidateDecisionState>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return {};
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('No autorizado');
+
+    const result: Record<string, CandidateDecisionState> = {};
+    for (let i = 0; i < unique.length; i += DECISION_LOOKUP_CHUNK) {
+      const chunk = unique.slice(i, i + DECISION_LOOKUP_CHUNK);
+      const res = await fetch(`/api/candidates/decisions?ids=${chunk.join(',')}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error('No se pudo consultar el estado de los candidatos');
+      Object.assign(result, await res.json());
+    }
+    return result;
   },
 
   async delete(id: string): Promise<void> {

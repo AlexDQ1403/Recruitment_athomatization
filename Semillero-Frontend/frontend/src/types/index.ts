@@ -19,6 +19,15 @@ export const STATUS_LABELS: Record<CandidateStatus, string> = {
   'seguimiento': 'Seguimiento',
 };
 
+/** Decisión del reclutador sobre un candidato (ver specs/decisiones_candidato_design.md). */
+export type CandidateDecision = 'aprobar' | 'seguimiento' | 'rechazar';
+
+/** Estado vigente de un candidato: pipeline + si ya figura en la lista de aceptados de la empresa. */
+export interface CandidateDecisionState {
+  status: CandidateStatus;
+  presented: boolean;
+}
+
 export const SOURCE_LABELS: Record<CandidateSource, string> = {
   'internal': 'Interno',
   'scraping': 'Web Scraping',
@@ -128,6 +137,30 @@ export interface Toast {
 }
 
 export type VacancyStatus = 'active' | 'paused' | 'closed';
+
+/** Decisión de la empresa sobre un candidato que le presentó un reclutador (independiente del pipeline). */
+export type CompanyDecision = 'pendiente' | 'contratado' | 'descartado';
+
+export const COMPANY_DECISION_LABELS: Record<CompanyDecision, string> = {
+  pendiente: 'Por decidir',
+  contratado: 'Contratado',
+  descartado: 'Descartado',
+};
+
+/** Postulante de una vacante, con datos básicos. `kind` indica el origen (cuenta propia o ficha heredada). */
+export interface VacancyApplicant {
+  kind: 'profile' | 'legacy';
+  id: string;
+  full_name: string;
+  title: string | null;
+  location: string | null;
+  experience_years: number | null;
+  status: CandidateStatus;
+  /** Aprobado por un reclutador (lo único que ve la empresa). */
+  presented: boolean;
+  company_decision: CompanyDecision;
+  applied_at: string | null;
+}
 export type VacancyModality = 'presencial' | 'remoto' | 'híbrido';
 
 export interface Vacancy {
@@ -175,6 +208,10 @@ export interface StatusHistoryEntry {
  * sin aprobar — ver GET /api/company/candidates (migración 018).
  */
 export interface CompanyCandidateProcess {
+  /** Origen: candidato con cuenta propia o ficha heredada. Se usa para decidir sobre él. */
+  kind: 'profile' | 'legacy';
+  decision: CompanyDecision;
+  decided_at: string | null;
   candidate: {
     id: string;
     full_name: string;
@@ -191,5 +228,32 @@ export interface CompanyCandidateProcess {
     to_status: string;
     changed_at: string;
     changed_by_name: string | null;
+  }[];
+}
+
+/** Resumen del dashboard del reclutador (GET /api/dashboard/recruiter). */
+export interface RecruiterDashboard {
+  pipeline: Record<CandidateStatus, number>;
+  total: number;
+  /** Candidatos que el reclutador presentó a la empresa y siguen vigentes. */
+  approved: number;
+  /** Candidatos que la empresa contrató. */
+  hired: number;
+  vacancies: {
+    active: number;
+    paused: number;
+    closed: number;
+    applicants_active: number;
+    top: { id: string; title: string; applicants: number }[];
+  };
+  recent: {
+    kind: 'profile' | 'legacy';
+    id: string;
+    full_name: string;
+    title: string | null;
+    location: string | null;
+    status: CandidateStatus;
+    vacancy_title: string | null;
+    created_at: string;
   }[];
 }

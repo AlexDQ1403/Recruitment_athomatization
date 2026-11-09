@@ -6,8 +6,8 @@ import { Vacancy, VacancyStatus } from '../../types';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../ui/Toast';
 import { ConfirmModal } from '../ui/ConfirmModal';
-import Link from 'next/link';
 import { Icon } from '../ui/Icon';
+import { ApplicantsModal } from './ApplicantsModal';
 
 const STATUS_LABELS: Record<VacancyStatus, string> = {
   active: 'Activa', paused: 'Pausada', closed: 'Cerrada',
@@ -29,6 +29,7 @@ export const VacanciesView = () => {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Vacancy | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vacancy | null>(null);
+  const [viewingCandidates, setViewingCandidates] = useState<Vacancy | null>(null);
   const [statusFilter, setStatusFilter] = useState<VacancyStatus | ''>('active');
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -42,6 +43,7 @@ export const VacanciesView = () => {
     mutationFn: (d: CreateVacancyInput) => vacancyService.create(d),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vacancies'] });
+      queryClient.invalidateQueries({ queryKey: ['candidate-stats'] }); // dashboard: vacantes activas
       setShowForm(false);
       toast.success('Vacante creada');
     },
@@ -53,6 +55,7 @@ export const VacanciesView = () => {
       vacancyService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vacancies'] });
+      queryClient.invalidateQueries({ queryKey: ['candidate-stats'] });
       setEditing(null);
       toast.success('Vacante actualizada');
     },
@@ -63,6 +66,7 @@ export const VacanciesView = () => {
     mutationFn: (id: string) => vacancyService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vacancies'] });
+      queryClient.invalidateQueries({ queryKey: ['candidate-stats'] });
       toast.success('Vacante eliminada');
     },
     onError: () => toast.error('Error al eliminar'),
@@ -83,6 +87,13 @@ export const VacanciesView = () => {
           onConfirm={() => { deleteMutation.mutate(deleteTarget.id); setDeleteTarget(null); }}
           onCancel={() => setDeleteTarget(null)}
         />
+      )}
+
+      {viewingCandidates && (
+        <ApplicantsModal vacancy={viewingCandidates} onClose={() => {
+          setViewingCandidates(null);
+          queryClient.invalidateQueries({ queryKey: ['vacancies'] }); // refresca el contador de aplicantes
+        }} />
       )}
 
       {(showForm || editing) && (
@@ -163,6 +174,7 @@ export const VacanciesView = () => {
                 onEdit={() => setEditing(v)}
                 onDelete={() => setDeleteTarget(v)}
                 onCopyLink={() => copyLink(v.id)}
+                onViewCandidates={() => setViewingCandidates(v)}
                 onToggleStatus={() => updateMutation.mutate({
                   id: v.id,
                   data: { status: v.status === 'active' ? 'paused' : 'active' },
@@ -178,8 +190,9 @@ export const VacanciesView = () => {
 
 // ─── Card de vacante ─────────────────────────────────────────────────────────
 
-function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus }: {
+function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus, onViewCandidates }: {
   vacancy: Vacancy;
+  onViewCandidates: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onCopyLink: () => void;
@@ -253,12 +266,12 @@ function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus 
             onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
           </button>
-          <Link href={`/candidates?vacancy=${v.id}`} title="Ver candidatos"
-            style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 12, display: 'flex', alignItems: 'center' }}
+          <button onClick={onViewCandidates} title="Ver candidatos" aria-label="Ver candidatos de la vacante"
+            style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 12, display: 'flex', alignItems: 'center', transition: 'color 120ms' }}
             onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-text)')}
             onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-          </Link>
+          </button>
           <button onClick={onToggleStatus} title={v.status === 'active' ? 'Pausar' : 'Activar'} aria-label={v.status === 'active' ? 'Pausar vacante' : 'Activar vacante'}
             style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: v.status === 'active' ? 'var(--yellow)' : 'var(--green)', display: 'grid', placeItems: 'center' }}>
             <Icon name={v.status === 'active' ? 'pause' : 'play'} size={13} />
@@ -284,7 +297,6 @@ function VacancyForm({ initial, onSubmit, loading, error }: {
 }) {
   const [form, setForm] = useState<CreateVacancyInput>({
     title: initial?.title ?? '',
-    company: initial?.company ?? '',
     description: initial?.description ?? '',
     location: initial?.location ?? '',
     modality: initial?.modality ?? 'presencial',
@@ -317,10 +329,6 @@ function VacancyForm({ initial, onSubmit, loading, error }: {
         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
           <label>Título del cargo *</label>
           <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Desarrollador Frontend React" required />
-        </div>
-        <div className="form-group">
-          <label>Empresa / Cliente *</label>
-          <input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder="TechCorp S.A." required />
         </div>
         <div className="form-group">
           <label>Modalidad</label>

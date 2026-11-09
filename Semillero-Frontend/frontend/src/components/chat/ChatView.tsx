@@ -1,9 +1,10 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChatMessage, Candidate, CandidateObservation, CandidateObservationCode, SOURCE_LABELS } from '../../types';
+import { ChatMessage, Candidate, CandidateObservation, CandidateObservationCode, CandidateDecision, CandidateDecisionState, SOURCE_LABELS } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { chatService, ChatSession, MAX_SESSIONS } from '../../services/chatService';
+import { candidateService } from '../../services/candidateService';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { Icon } from '../ui/Icon';
 
@@ -32,6 +33,12 @@ export const ChatView = () => {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null);
   // Búsqueda externa en curso: sesión y avisos de "terminé" que ya existían al empezar.
+  // Estado vigente de cada candidato mostrado: undefined = cargando, null = no se puede decidir sobre él
+  const [decisions, setDecisions] = useState<Record<string, CandidateDecisionState | null>>({});
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<Candidate | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  const requestedDecisionIds = useRef(new Set<string>());
   const [pendingSearch, setPendingSearch] = useState<{ sessionId: string; knownDoneIds: string[] } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
@@ -68,6 +75,44 @@ export const ChatView = () => {
       .then(setMessages)
       .catch(() => setMessages([]));
   }, [activeSessionId]);
+
+  // Las tarjetas guardan una captura del candidato al momento del mensaje; el estado
+  // real (aprobado, seguimiento, rechazado) se consulta aparte para no mostrar acciones obsoletas.
+  useEffect(() => {
+    const ids = messages
+      .flatMap((m) => m.candidates ?? [])
+      .map((c) => c.id)
+      .filter((id) => !requestedDecisionIds.current.has(id));
+    if (ids.length === 0) return;
+    ids.forEach((id) => requestedDecisionIds.current.add(id));
+
+    candidateService
+      .getDecisions(ids)
+      .then((found) => {
+        setDecisions((prev) => {
+          const next = { ...prev };
+          for (const id of ids) next[id] = found[id] ?? null;
+          return next;
+        });
+      })
+      .catch(() => {
+        // se reintenta la próxima vez que cambien los mensajes
+        ids.forEach((id) => requestedDecisionIds.current.delete(id));
+      });
+  }, [messages]);
+
+  const applyDecision = useCallback(async (c: Candidate, decision: CandidateDecision) => {
+    setDecidingId(c.id);
+    setDecisionError(null);
+    try {
+      const result = await candidateService.decide(c.id, decision);
+      setDecisions((prev) => ({ ...prev, [c.id]: { status: result.status, presented: result.presented } }));
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : 'No se pudo aplicar la decisión');
+    } finally {
+      setDecidingId(null);
+    }
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -229,6 +274,14 @@ export const ChatView = () => {
 
   return (
     <div>
+      {rejectTarget && (
+        <ConfirmModal
+          message={`¿Rechazar a ${rejectTarget.full_name}? Es definitivo: no se podrá reactivar ni aprobar después.`}
+          confirmLabel="Rechazar"
+          onConfirm={() => { applyDecision(rejectTarget, 'rechazar'); setRejectTarget(null); }}
+          onCancel={() => setRejectTarget(null)}
+        />
+      )}
       {deleteTarget && (
         <ConfirmModal
           message={`¿Eliminar la búsqueda "${deleteTarget.name}"? Se perderán sus mensajes.`}
@@ -253,6 +306,10 @@ export const ChatView = () => {
           + Nueva búsqueda
         </button>
       </div>
+
+      {decisionError && (
+        <div className="form-error" style={{ marginBottom: 12 }} role="alert">{decisionError}</div>
+      )}
 
       {sessionError && (
         <div className="form-error" style={{ marginBottom: 12 }}>{sessionError}</div>
@@ -312,7 +369,13 @@ export const ChatView = () => {
                   </div>
                 </div>
                 {msg.candidates && msg.candidates.length > 0 && (
-                  <CandidateCards candidates={msg.candidates} />
+                  <CandidateCards
+                    candidates={msg.candidates}
+                    decisions={decisions}
+                    decidingId={decidingId}
+                    onDecide={applyDecision}
+                    onRequestReject={setRejectTarget}
+                  />
                 )}
               </div>
             ))}
@@ -394,7 +457,13 @@ const observationTags = (c: Candidate): { key: string; text: string; warn: boole
   return tags.slice(0, MAX_OBSERVATION_TAGS);
 };
 
-const CandidateCards = ({ candidates }: { candidates: Candidate[] }) => (
+const CandidateCards = ({ candidates, decisions, decidingId, onDecide, onRequestReject }: {
+  candidates: Candidate[];
+  decisions: Record<string, CandidateDecisionState | null>;
+  decidingId: string | null;
+  onDecide: (c: Candidate, decision: CandidateDecision) => void;
+  onRequestReject: (c: Candidate) => void;
+}) => (
   <div style={{ padding: '8px 0 8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
     {candidates.map((c) => (
       <div key={c.id} style={{
@@ -442,7 +511,76 @@ const CandidateCards = ({ candidates }: { candidates: Candidate[] }) => (
             ))}
           </div>
         )}
+        <DecisionBar
+          candidate={c}
+          state={decisions[c.id]}
+          busy={decidingId === c.id}
+          onDecide={onDecide}
+          onRequestReject={onRequestReject}
+        />
       </div>
     ))}
   </div>
 );
+
+const DECISION_BTN: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500,
+  padding: '5px 11px', borderRadius: 7, border: '1px solid var(--border)',
+  background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer',
+};
+
+/** Aprobar · Seguimiento · Rechazar. Sin estado conocido (cargando o candidato no gestionable) no muestra nada. */
+const DecisionBar = ({ candidate: c, state, busy, onDecide, onRequestReject }: {
+  candidate: Candidate;
+  state: CandidateDecisionState | null | undefined;
+  busy: boolean;
+  onDecide: (c: Candidate, decision: CandidateDecision) => void;
+  onRequestReject: (c: Candidate) => void;
+}) => {
+  if (!state) return null;
+
+  if (state.status === 'rechazado') {
+    return (
+      <div style={{ marginTop: 10 }}>
+        <span className="badge badge-rejected" style={{ fontSize: 11 }}>Rechazado</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10 }}>
+      {state.presented && <span className="badge badge-hired" style={{ fontSize: 11 }}>Aceptado</span>}
+      <span style={{ flex: 1 }} />
+      <button
+        type="button"
+        style={{ ...DECISION_BTN, ...(state.presented ? {} : { color: 'var(--green)', borderColor: 'color-mix(in srgb, var(--green) 40%, transparent)' }) }}
+        onClick={() => onDecide(c, 'aprobar')}
+        disabled={busy || state.presented}
+        aria-busy={busy}
+        title="Pasa a la lista de candidatos aceptados de la empresa"
+      >
+        <Icon name="check" size={13} /> Aprobar
+      </button>
+      <button
+        type="button"
+        style={DECISION_BTN}
+        onClick={() => onDecide(c, 'seguimiento')}
+        disabled={busy || (!state.presented && state.status === 'seguimiento')}
+        aria-busy={busy}
+        title="Lo sigue considerando sin descartarlo (sale de la lista de aceptados)"
+      >
+        <Icon name="clock" size={13} /> Seguimiento
+      </button>
+      <button
+        type="button"
+        style={{ ...DECISION_BTN, color: 'var(--red)', borderColor: 'color-mix(in srgb, var(--red) 40%, transparent)' }}
+        onClick={() => onRequestReject(c)}
+        disabled={busy}
+        aria-busy={busy}
+        title="Lo descarta definitivamente"
+      >
+        <Icon name="xCircle" size={13} /> Rechazar
+      </button>
+    </div>
+  );
+};

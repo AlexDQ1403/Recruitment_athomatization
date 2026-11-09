@@ -12,6 +12,9 @@ import chatRouter from './routes/chat';
 import n8nWebhookRouter from './routes/n8n-webhook';
 import recruiterRouter from './routes/recruiters';
 import candidatesRouter from './routes/candidates';
+import vacanciesRouter from './routes/vacancies';
+import vacancyApplicantsRouter from './routes/vacancy-applicants';
+import dashboardRouter from './routes/dashboard';
 import reportsRouter from './routes/reports';
 import registerRouter from './routes/register';
 import candidatePortalRouter from './routes/candidate-portal';
@@ -54,6 +57,12 @@ export const createApp = () => {
   app.use('/api/chat', companyAuthMiddleware, requireRole('recruiter'), requireCompany, chatRouter);
   app.use('/api/recruiters', companyAuthMiddleware, requireRole('empresa'), requireCompany, recruiterRouter);
   app.use('/api/candidates', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, candidatesRouter);
+  // Dashboard del reclutador: datos de su empresa, calculados en el servidor
+  app.use('/api/dashboard', companyAuthMiddleware, requireRole('recruiter'), requireCompany, dashboardRouter);
+  // Postulantes de una vacante y cambio de su estado (más específico: va antes)
+  app.use('/api/vacancies/:vacancyId/applicants', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, vacancyApplicantsRouter);
+  // Publicar vacantes: la empresa sale de la sesión (nunca del formulario)
+  app.use('/api/vacancies', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, vacanciesRouter);
   // Bandeja de la empresa: solo candidatos que un reclutador aprobó explícitamente.
   app.use('/api/company/candidates', companyAuthMiddleware, requireRole('empresa'), requireCompany, companyCandidatesRouter);
   app.use('/api/reports', companyAuthMiddleware, requireRole('empresa'), requireCompany, reportsRouter);

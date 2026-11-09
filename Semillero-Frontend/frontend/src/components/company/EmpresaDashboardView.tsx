@@ -1,15 +1,12 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 import { companyCandidateService } from '../../services/companyCandidateService';
 import { getStoredUser } from '../../lib/auth';
+import { COMPANY_DECISION_LABELS } from '../../types';
+import { DECISION_BADGE } from './CompanyDecisionControl';
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
-
-const STATUS_BADGE: Record<string, string> = {
-  seguimiento: 'badge-interviewed',
-  en_contacto: 'badge-pending',
-  rechazado: 'badge-rejected',
-};
 
 /**
  * Dashboard de Empresa: bandeja de candidatos preseleccionados por los
@@ -27,10 +24,8 @@ export const EmpresaDashboardView = () => {
 
   const processes = data?.candidates ?? [];
   const total = data?.total ?? 0;
-  const byStatus = processes.reduce<Record<string, number>>((acc, p) => {
-    acc[p.status] = (acc[p.status] ?? 0) + 1;
-    return acc;
-  }, {});
+  // Conteos de toda la bandeja (los entrega el backend), no solo de las filas que se muestran
+  const summary = data?.summary ?? { pendiente: 0, contratado: 0, descartado: 0 };
 
   return (
     <div>
@@ -61,13 +56,18 @@ export const EmpresaDashboardView = () => {
         </div>
         <div className="stat-card">
           <div className="stat-icon">⏳</div>
-          <div className="stat-value" style={{ color: '#fbbf24' }}>{byStatus.seguimiento ?? 0}</div>
-          <div className="stat-label">En seguimiento</div>
+          <div className="stat-value" style={{ color: 'var(--yellow)' }}>{summary.pendiente}</div>
+          <div className="stat-label">Por decidir</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">🎙️</div>
-          <div className="stat-value" style={{ color: '#4f6ef7' }}>{byStatus.en_contacto ?? 0}</div>
-          <div className="stat-label">En contacto</div>
+          <div className="stat-icon">🤝</div>
+          <div className="stat-value" style={{ color: 'var(--green)' }}>{summary.contratado}</div>
+          <div className="stat-label">Contratados</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">🚫</div>
+          <div className="stat-value" style={{ color: 'var(--red)' }}>{summary.descartado}</div>
+          <div className="stat-label">Descartados</div>
         </div>
       </div>
 
@@ -75,6 +75,9 @@ export const EmpresaDashboardView = () => {
         <h2 style={{ fontSize: '1rem', fontFamily: 'var(--font-body)', fontWeight: 600, marginBottom: 16 }}>
           Últimos candidatos presentados
         </h2>
+        <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '-8px 0 14px' }}>
+          Decide en <Link href="/candidates" style={{ color: 'var(--accent-text)' }}>Candidatos aceptados</Link> si contratarlos o descartarlos.
+        </p>
         <div className="candidate-table-wrapper">
           <table className="candidate-table">
             <thead>
@@ -82,7 +85,7 @@ export const EmpresaDashboardView = () => {
                 <th>Candidato</th>
                 <th>Cargo</th>
                 <th>Reclutador</th>
-                <th>Estado</th>
+                <th>Tu decisión</th>
                 <th>Presentado</th>
               </tr>
             </thead>
@@ -102,7 +105,7 @@ export const EmpresaDashboardView = () => {
                     </tr>
                   )
                 : processes.map((p) => (
-                    <tr key={p.candidate.id}>
+                    <tr key={`${p.kind}-${p.candidate.id}`}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span className="avatar">{p.candidate.full_name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}</span>
@@ -111,7 +114,7 @@ export const EmpresaDashboardView = () => {
                       </td>
                       <td>{p.candidate.position ?? '—'}</td>
                       <td>{p.recruiter?.full_name ?? '—'}</td>
-                      <td><span className={`badge ${STATUS_BADGE[p.status] ?? ''}`}>{p.status}</span></td>
+                      <td><span className={`badge ${DECISION_BADGE[p.decision]}`}>{COMPANY_DECISION_LABELS[p.decision]}</span></td>
                       <td style={{ color: 'var(--text-3)', fontSize: 12 }}>{p.presented_at ? fmtDate(p.presented_at) : '—'}</td>
                     </tr>
                   ))

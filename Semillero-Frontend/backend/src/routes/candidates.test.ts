@@ -20,6 +20,7 @@ vi.mock('../services/n8nService', () => ({
   triggerInterviewRequest: vi.fn(),
 }));
 
+const mockInsert = vi.fn();
 const mockUpsert = vi.fn();
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -37,8 +38,12 @@ vi.mock('@supabase/supabase-js', () => ({
       }
       if (table === 'company_candidates') {
         return {
-          upsert: mockUpsert.mockReturnThis(),
+          // La base real rechaza upsert sobre esta clave (índice único parcial): nunca debe usarse
+          upsert: mockUpsert,
+          insert: mockInsert.mockResolvedValue({ error: null }),
           select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
           single: vi.fn().mockResolvedValue({
             data: { id: 'bridge-1', presented_to_company: true, presented_at: '2026-01-01', presented_by: 'recruiter-1' },
             error: null,
@@ -75,7 +80,7 @@ describe('PATCH /api/candidates/:id/present', () => {
     });
     const res = await request(app).patch('/api/candidates/legacy-1/present');
     expect(res.status).toBe(403);
-    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it('permite a recruiter presentar el candidato y crea/actualiza la relación', async () => {
@@ -87,14 +92,14 @@ describe('PATCH /api/candidates/:id/present', () => {
     const res = await request(app).patch('/api/candidates/legacy-1/present');
     expect(res.status).toBe(200);
     expect(res.body.presented_to_company).toBe(true);
-    expect(mockUpsert).toHaveBeenCalledWith(
+    expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         company_id: 'company-1',
         legacy_candidate_id: 'legacy-1',
         presented_to_company: true,
         presented_by: 'recruiter-1',
-      }),
-      expect.objectContaining({ onConflict: 'company_id,legacy_candidate_id' })
+      })
     );
+    expect(mockUpsert).not.toHaveBeenCalled(); // el índice único es parcial: upsert da 42P10
   });
 });

@@ -1,11 +1,13 @@
 import { supabase } from '../lib/supabase';
-import { CompanyCandidateProcess } from '../types';
+import { CompanyCandidateProcess, CompanyDecision } from '../types';
 
-interface CompanyCandidatesResponse {
+export interface CompanyCandidatesResponse {
   candidates: CompanyCandidateProcess[];
   total: number;
   limit: number;
   offset: number;
+  /** Conteo de TODA la bandeja por decisión de la empresa (no solo de la página). */
+  summary: Record<CompanyDecision, number>;
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -32,5 +34,24 @@ export const companyCandidateService = {
       headers: await authHeaders(),
     });
     return handle<CompanyCandidatesResponse>(res, 'Error al cargar los candidatos presentados');
+  },
+
+  /**
+   * La empresa contrata o descarta a un candidato que le presentaron. Es definitivo:
+   * el backend responde 409 si ya había decidido otra cosa.
+   */
+  async decide(
+    candidate: Pick<CompanyCandidateProcess, 'kind'> & { id: string },
+    decision: 'contratar' | 'descartar'
+  ): Promise<{ decision: CompanyDecision; unchanged?: boolean }> {
+    const res = await fetch(
+      `/api/company/candidates/${candidate.kind}/${encodeURIComponent(candidate.id)}/decision`,
+      {
+        method: 'PATCH',
+        headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      }
+    );
+    return handle(res, 'No se pudo registrar la decisión');
   },
 };

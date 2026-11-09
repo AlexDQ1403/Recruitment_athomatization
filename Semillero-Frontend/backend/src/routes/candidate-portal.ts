@@ -456,15 +456,26 @@ router.post('/applications', async (req: AuthenticatedRequest, res: Response): P
     }
 
     // Postularse incorpora al candidato al pool de esa empresa
-    const { error: bridgeError } = await supabaseAdmin.from('company_candidates').upsert(
-      {
+    // Sin upsert: el índice único (company_id, candidate_profile_id) es PARCIAL y PostgREST
+    // responde 42P10, con lo que el candidato nunca entraba al pool de la empresa.
+    let bridgeError: { message?: string; code?: string } | null = null;
+    const { data: existingBridge, error: bridgeLookupError } = await supabaseAdmin
+      .from('company_candidates')
+      .select('id')
+      .eq('company_id', vacancy.company_id)
+      .eq('candidate_profile_id', profileId)
+      .maybeSingle();
+    bridgeError = bridgeLookupError;
+    if (!bridgeError && !existingBridge) {
+      const { error: insertError } = await supabaseAdmin.from('company_candidates').insert({
         company_id: vacancy.company_id,
         candidate_profile_id: profileId,
         status: 'seguimiento',
         source: 'applicant',
-      },
-      { onConflict: 'company_id,candidate_profile_id', ignoreDuplicates: true }
-    );
+      });
+      // 23505: otra petición lo creó entre la consulta y el insert; no es un error
+      if (insertError && insertError.code !== '23505') bridgeError = insertError;
+    }
 
     if (bridgeError) {
       // La postulación ya existe: no se revierte, solo se registra

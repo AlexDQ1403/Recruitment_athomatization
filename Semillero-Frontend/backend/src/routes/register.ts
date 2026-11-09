@@ -12,6 +12,29 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
 });
 
 // El registro es público: límite estricto para frenar altas automatizadas
+// Cliente con clave anon: reenviar la confirmación no requiere service role
+const supabaseAnon = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
+// El destino sale de la config del servidor, nunca del body de la petición
+const CONFIRM_REDIRECT = `${config.CORS_ORIGIN.replace(/\/+$/, '')}/login`;
+
+/**
+ * admin.createUser NO envía correos (ni con email_confirm:false), así que el
+ * correo de confirmación se dispara explícitamente con resend().
+ */
+async function sendConfirmationEmail(email: string): Promise<void> {
+  const { error } = await supabaseAnon.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: CONFIRM_REDIRECT },
+  });
+  if (error) {
+    throw new Error(`No se pudo enviar el correo de confirmación: ${error.message}`);
+  }
+}
+
 const registerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -81,7 +104,7 @@ router.post('/company', registerLimiter, async (req: Request, res: Response): Pr
       return;
     }
 
-    // email_confirm: false -> Supabase envía el correo de verificación
+    // email_confirm: false deja la cuenta sin confirmar; el correo se envía abajo con resend()
     const { data: created, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -119,6 +142,8 @@ router.post('/company', registerLimiter, async (req: Request, res: Response): Pr
     if (profileError) {
       throw new Error(`No se pudo crear el perfil: ${profileError.message}`);
     }
+
+    await sendConfirmationEmail(email);
 
     logger.info('Empresa registrada', { correlationId, companyId: company.id, email });
     res.status(201).json({ ...GENERIC_OK, company_id: company.id });
@@ -190,6 +215,8 @@ router.post('/candidate', registerLimiter, async (req: Request, res: Response): 
     if (candidateError) {
       throw new Error(`No se pudo crear la ficha: ${candidateError.message}`);
     }
+
+    await sendConfirmationEmail(email);
 
     logger.info('Candidato registrado', { correlationId, email });
     res.status(201).json(GENERIC_OK);
