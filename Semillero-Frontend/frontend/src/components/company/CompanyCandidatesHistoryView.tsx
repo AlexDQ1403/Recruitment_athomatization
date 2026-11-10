@@ -2,8 +2,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { companyCandidateService } from '../../services/companyCandidateService';
-import { CompanyCandidateProcess, STATUS_LABELS, CandidateStatus } from '../../types';
+import { Candidate, CompanyCandidateProcess, STATUS_LABELS, CandidateStatus } from '../../types';
 import { CompanyDecisionControl } from './CompanyDecisionControl';
+import { CandidateProfileModal } from '../chat/CandidateProfileModal';
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -22,6 +23,7 @@ const STATUS_BADGE: Record<string, string> = {
  */
 export const CompanyCandidatesHistoryView = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [profile, setProfile] = useState<CompanyCandidateProcess | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['company-candidates', 'history'],
@@ -32,15 +34,22 @@ export const CompanyCandidatesHistoryView = () => {
 
   return (
     <div>
+      {profile && (
+        <CandidateProfileModal
+          readOnly
+          candidate={{ id: profile.candidate.id, kind: profile.kind, full_name: profile.candidate.full_name, position: profile.candidate.position ?? '' } as Candidate}
+          onClose={() => setProfile(null)}
+        />
+      )}
       <div className="page-header">
         <h1>Candidatos aceptados</h1>
-        <p>Candidatos que tus reclutadores aprobaron para tu empresa. Tú decides si contratarlos o descartarlos.</p>
+        <p>Candidatos que tus reclutadores aprobaron para tu empresa. Tú decides quién pasa a la siguiente fase de tu proceso (entrevistas, pruebas) y quién no.</p>
       </div>
 
       {data && (
         <div style={{ display: 'flex', gap: 18, marginBottom: 18, fontSize: 13, color: 'var(--text-2)', flexWrap: 'wrap' }}>
           <span><strong style={{ color: 'var(--yellow)' }}>{data.summary.pendiente}</strong> por decidir</span>
-          <span><strong style={{ color: 'var(--green)' }}>{data.summary.contratado}</strong> contratados</span>
+          <span><strong style={{ color: 'var(--green)' }}>{data.summary.contratado}</strong> autorizados</span>
           <span><strong style={{ color: 'var(--red)' }}>{data.summary.descartado}</strong> descartados</span>
         </div>
       )}
@@ -93,6 +102,7 @@ export const CompanyCandidatesHistoryView = () => {
                     process={p}
                     expanded={expanded === p.candidate.id}
                     onToggle={() => setExpanded((cur) => (cur === p.candidate.id ? null : p.candidate.id))}
+                    onOpen={() => setProfile(p)}
                   />
                 ))
             }
@@ -103,11 +113,13 @@ export const CompanyCandidatesHistoryView = () => {
   );
 };
 
-function ProcessRow({ process: p, expanded, onToggle }: {
+function ProcessRow({ process: p, expanded, onToggle, onOpen }: {
   process: CompanyCandidateProcess;
   expanded: boolean;
   onToggle: () => void;
+  onOpen: () => void;
 }) {
+  const label = (s: string) => STATUS_LABELS[s as CandidateStatus] ?? s;
   return (
     <>
       <tr onClick={onToggle} style={{ cursor: 'pointer' }}>
@@ -115,6 +127,13 @@ function ProcessRow({ process: p, expanded, onToggle }: {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="avatar">{p.candidate.full_name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}</span>
             <span style={{ color: 'var(--text-1)', fontWeight: 500 }}>{p.candidate.full_name}</span>
+            <button
+              type="button"
+              className="result-link"
+              style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', fontSize: 12 }}
+              onClick={(e) => { e.stopPropagation(); onOpen(); }}
+              aria-label={`Ver perfil de ${p.candidate.full_name}`}
+            >Ver perfil</button>
           </div>
         </td>
         <td>{p.candidate.position ?? '—'}</td>
@@ -122,7 +141,7 @@ function ProcessRow({ process: p, expanded, onToggle }: {
         <td>{p.vacancy?.title ?? '—'}</td>
         <td style={{ color: 'var(--text-3)', fontSize: 12 }}>{p.presented_at ? fmtDate(p.presented_at) : '—'}</td>
         <td><span className={`badge ${STATUS_BADGE[p.status] ?? ''}`}>{STATUS_LABELS[p.status as CandidateStatus] ?? p.status}</span></td>
-        <td><CompanyDecisionControl candidate={{ kind: p.kind, id: p.candidate.id, full_name: p.candidate.full_name }} decision={p.decision} /></td>
+        <td onClick={(e) => e.stopPropagation()}><CompanyDecisionControl candidate={{ kind: p.kind, id: p.candidate.id, full_name: p.candidate.full_name }} decision={p.decision} /></td>
       </tr>
       {expanded && (
         <tr>
@@ -140,9 +159,9 @@ function ProcessRow({ process: p, expanded, onToggle }: {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {p.status_history.map((h, i) => (
                   <div key={i} style={{ fontSize: 12.5, color: 'var(--text-1)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {h.from_status && <span className={`badge ${STATUS_BADGE[h.from_status] ?? ''}`} style={{ fontSize: 11 }}>{h.from_status}</span>}
+                    {h.from_status && <span className={`badge ${STATUS_BADGE[h.from_status] ?? ''}`} style={{ fontSize: 11 }}>{label(h.from_status)}</span>}
                     {h.from_status && <span style={{ color: 'var(--text-3)' }}>→</span>}
-                    <span className={`badge ${STATUS_BADGE[h.to_status] ?? ''}`} style={{ fontSize: 11 }}>{h.to_status}</span>
+                    <span className={`badge ${STATUS_BADGE[h.to_status] ?? ''}`} style={{ fontSize: 11 }}>{label(h.to_status)}</span>
                     <span style={{ color: 'var(--text-3)' }}>
                       {h.changed_by_name && `por ${h.changed_by_name} · `}{fmtDateTime(h.changed_at)}
                     </span>

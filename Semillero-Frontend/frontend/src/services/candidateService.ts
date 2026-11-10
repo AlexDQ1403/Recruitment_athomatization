@@ -150,15 +150,17 @@ export const candidateService = {
   async decide(
     id: string,
     decision: CandidateDecision,
-    reason?: string
-  ): Promise<{ id: string; status: CandidateStatus; presented: boolean; unchanged?: boolean }> {
+    reason?: string,
+    /** Vacante del cargo: aprobar o dar seguimiento la exigen si el candidato no tiene una. */
+    vacancyId?: string
+  ): Promise<{ id: string; status: CandidateStatus; presented: boolean; vacancy_id?: string | null; unchanged?: boolean }> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('No autorizado');
 
     const res = await fetch(`/api/candidates/${id}/decision`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
+      body: JSON.stringify({ decision, ...(reason ? { reason } : {}), ...(vacancyId ? { vacancy_id: vacancyId } : {}) }),
     });
 
     if (!res.ok) {

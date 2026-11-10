@@ -215,7 +215,11 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
   }
 });
 
-const decisionSchema = z.object({ decision: z.enum(['contratar', 'descartar']) });
+// `reason`: por qué contrata o descarta. Le llega al reclutador (aprende qué buscar).
+const decisionSchema = z.object({
+  decision: z.enum(['contratar', 'descartar']),
+  reason: z.string().trim().max(500).optional(),
+});
 const idSchema = z.string().uuid();
 
 /**
@@ -274,13 +278,20 @@ router.patch('/:kind/:id/decision', async (req: AuthenticatedRequest, res: Respo
     }
 
     // Condicional: si otra petición decidió entre la consulta y la escritura, no se pisa
-    const { data: updated, error: updateError } = await supabaseAdmin
+    const fields = { company_decision: target, company_decided_at: new Date().toISOString(), company_decided_by: userId };
+    const write = (extra: Record<string, unknown>) => supabaseAdmin
       .from('company_candidates')
-      .update({ company_decision: target, company_decided_at: new Date().toISOString(), company_decided_by: userId })
+      .update({ ...fields, ...extra })
       .eq('id', bridge.id)
       .eq('company_id', companyId)
       .eq('company_decision', 'pendiente')
       .select('id');
+    const reason = parsed.data.reason || null;
+    let { data: updated, error: updateError } = await write(reason ? { company_decision_reason: reason } : {});
+    // Sin la migración 028 la decisión se guarda igual, sin el motivo
+    if (updateError && reason && ['PGRST204', '42703'].includes(String((updateError as { code?: string }).code))) {
+      ({ data: updated, error: updateError } = await write({}));
+    }
     if (updateError) throw updateError;
     if (!updated || updated.length === 0) {
       res.status(409).json({ error: 'Este candidato ya tiene una decisión' });

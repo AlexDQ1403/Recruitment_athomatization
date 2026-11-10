@@ -71,7 +71,7 @@ export const LoginForm = () => {
 
       setDone(true);
       // El destino lo decide el rol que acaba de leerse de la BD
-      router.push(user.role === 'candidato' ? '/candidate/profile' : '/dashboard');
+      router.push(user.role === 'candidato' ? '/candidate/dashboard' : '/dashboard');
     } catch (err) {
       const mapped = mapAuthError(err);
       setError(mapped);

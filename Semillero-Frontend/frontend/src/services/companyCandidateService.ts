@@ -37,19 +37,21 @@ export const companyCandidateService = {
   },
 
   /**
-   * La empresa contrata o descarta a un candidato que le presentaron. Es definitivo:
+   * La empresa autoriza para la siguiente fase (guardado como 'contratado') o descarta a un candidato que le presentaron. Es definitivo:
    * el backend responde 409 si ya había decidido otra cosa.
    */
   async decide(
     candidate: Pick<CompanyCandidateProcess, 'kind'> & { id: string },
-    decision: 'contratar' | 'descartar'
+    decision: 'contratar' | 'descartar',
+    /** Por qué: se le muestra al reclutador que lo presentó. */
+    reason?: string
   ): Promise<{ decision: CompanyDecision; unchanged?: boolean }> {
     const res = await fetch(
       `/api/company/candidates/${candidate.kind}/${encodeURIComponent(candidate.id)}/decision`,
       {
         method: 'PATCH',
         headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision }),
+        body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
       }
     );
     return handle(res, 'No se pudo registrar la decisión');

@@ -1,7 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { ChatMessage } from '../types';
 
-export const MAX_SESSIONS = 5;
+// Búsquedas que se listan en el chat (no es un tope para crear: ya no lo hay)
+const LIST_LIMIT = 100;
 
 export interface ChatSession {
   id: string;
@@ -12,13 +13,13 @@ export interface ChatSession {
 }
 
 export const chatService = {
-  /** Las 5 sesiones más recientes del usuario (el backend aplica el mismo tope). */
+  /** Búsquedas del usuario, más recientes primero. */
   async listSessions(): Promise<ChatSession[]> {
     const { data, error } = await supabase
       .from('chat_sessions')
       .select('id, name, company_id, created_at, updated_at')
       .order('updated_at', { ascending: false })
-      .limit(MAX_SESSIONS);
+      .limit(LIST_LIMIT);
     if (error) throw new Error(error.message);
     return (data ?? []) as ChatSession[];
   },

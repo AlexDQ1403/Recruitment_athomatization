@@ -27,6 +27,7 @@ type Row = Record<string, unknown>;
 let candidates: Row[] = [];
 let bridge: Row[] = [];
 let history: Row[] = [];
+let vacancies: Row[] = [];
 let failTable: string | null = null;
 let raceOnInsert = false;
 const upsertCalls: string[] = [];
@@ -38,7 +39,7 @@ function builder(table: string) {
   const filters: [string, unknown][] = [];
   let op: 'select' | 'update' | 'insert' | 'upsert' = 'select';
   let payload: Row = {};
-  const rowsOf = () => (table === 'candidates' ? candidates : table === 'company_candidates' ? bridge : history);
+  const rowsOf = () => (table === 'candidates' ? candidates : table === 'company_candidates' ? bridge : table === 'vacancies' ? vacancies : history);
 
   const run = (): { data: Row[] | null; error: { message: string; code?: string } | null } => {
     if (failTable === table && op !== 'select') return { data: null, error: { message: 'boom' } };
@@ -99,8 +100,12 @@ const C1 = '11111111-1111-4111-8111-111111111111';
 const C2 = '22222222-2222-4222-8222-222222222222';
 const FOREIGN = '33333333-3333-4333-8333-333333333333';
 
+const VAC = '44444444-4444-4444-8444-444444444444';
+const VAC2 = '55555555-5555-4555-8555-555555555555';
+
+// Por defecto el candidato ya está en una vacante: aprobar/seguimiento lo exigen
 const candidate = (id: string, over: Row = {}): Row => ({
-  id, company_id: CO, full_name: 'Ana', position: 'Dev', status: 'seguimiento', source: 'scraping',
+  id, company_id: CO, full_name: 'Ana', position: 'Dev', status: 'seguimiento', source: 'scraping', vacancy_id: VAC,
   email: 'ana@privado.com', phone: '3000000000', ...over,
 });
 
@@ -129,6 +134,10 @@ describe('decisiones del reclutador sobre un candidato', () => {
     candidates = [candidate(C1), candidate(FOREIGN, { company_id: OTHER_CO })];
     bridge = [];
     history = [];
+    vacancies = [
+      { id: VAC, company_id: CO, title: 'Contador', status: 'active' },
+      { id: VAC2, company_id: CO, title: 'Auxiliar', status: 'active' },
+    ];
     failTable = null;
     raceOnInsert = false;
     upsertCalls.length = 0;
@@ -165,7 +174,7 @@ describe('decisiones del reclutador sobre un candidato', () => {
       const res = await decide(C1, { decision: 'aprobar' });
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: C1, status: 'seguimiento', presented: true });
+      expect(res.body).toEqual({ id: C1, status: 'seguimiento', presented: true, vacancy_id: VAC });
       expect(bridge).toHaveLength(1);
       expect(bridge[0]).toMatchObject({
         company_id: CO, legacy_candidate_id: C1, presented_to_company: true, presented_by: 'rec-1',
@@ -202,7 +211,7 @@ describe('decisiones del reclutador sobre un candidato', () => {
       candidates = [candidate(C1, { status: 'en_contacto' })];
       const res = await decide(C1, { decision: 'aprobar' });
 
-      expect(res.body).toEqual({ id: C1, status: 'en_contacto', presented: true });
+      expect(res.body).toEqual({ id: C1, status: 'en_contacto', presented: true, vacancy_id: VAC });
       expect(candidates[0].status).toBe('en_contacto');
       expect(history).toHaveLength(0);
     });
@@ -226,7 +235,7 @@ describe('decisiones del reclutador sobre un candidato', () => {
       const res = await decide(C1, { decision: 'seguimiento' });
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: C1, status: 'seguimiento', presented: false });
+      expect(res.body).toEqual({ id: C1, status: 'seguimiento', presented: false, vacancy_id: VAC });
       expect(candidates[0].status).toBe('seguimiento');
       expect(bridge[0]).toMatchObject({ presented_to_company: false, status: 'seguimiento' });
       expect(history).toHaveLength(0); // el estado ya era seguimiento: no hay cambio que registrar
@@ -237,7 +246,7 @@ describe('decisiones del reclutador sobre un candidato', () => {
       bridge = [presentedRow(C1, { status: 'en_contacto' })];
       const res = await decide(C1, { decision: 'seguimiento', reason: 'Esperar al cierre de presupuesto' });
 
-      expect(res.body).toEqual({ id: C1, status: 'seguimiento', presented: false });
+      expect(res.body).toEqual({ id: C1, status: 'seguimiento', presented: false, vacancy_id: VAC });
       expect(bridge[0]).toMatchObject({ presented_to_company: false, status: 'seguimiento' });
       expect(history).toEqual([
         { candidate_id: C1, from_status: 'en_contacto', to_status: 'seguimiento', changed_by: 'rec-1', reason: 'Esperar al cierre de presupuesto' },
@@ -266,12 +275,51 @@ describe('decisiones del reclutador sobre un candidato', () => {
     });
   });
 
+  describe('vacante obligatoria para aprobar o dar seguimiento', () => {
+    it('sin vacante (ni enviada ni asignada) responde 409 y no cambia nada', async () => {
+      candidates = [candidate(C1, { vacancy_id: null })];
+      for (const decision of ['aprobar', 'seguimiento']) {
+        const res = await decide(C1, { decision });
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('vacancy_required');
+      }
+      expect(bridge).toHaveLength(0);
+      expect(history).toHaveLength(0);
+    });
+
+    it('con la vacante del cargo: la asigna y aprueba', async () => {
+      candidates = [candidate(C1, { vacancy_id: null })];
+      const res = await decide(C1, { decision: 'aprobar', vacancy_id: VAC2 });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ presented: true, vacancy_id: VAC2 });
+      expect(candidates[0].vacancy_id).toBe(VAC2);
+      expect(bridge[0]).toMatchObject({ legacy_candidate_id: C1, presented_to_company: true });
+    });
+
+    it('no lo mueve en silencio de otra vacante; vacante ajena o cerrada da 404', async () => {
+      const other = await decide(C1, { decision: 'seguimiento', vacancy_id: VAC2 });
+      expect(other.status).toBe(409);
+      expect(other.body.code).toBe('other_vacancy');
+      expect(candidates[0].vacancy_id).toBe(VAC);
+
+      vacancies.push({ id: '66666666-6666-4666-8666-666666666666', company_id: OTHER_CO, title: 'Ajena', status: 'active' });
+      expect((await decide(C1, { decision: 'aprobar', vacancy_id: '66666666-6666-4666-8666-666666666666' })).status).toBe(404);
+      vacancies[0].status = 'closed';
+      expect((await decide(C1, { decision: 'aprobar', vacancy_id: VAC })).status).toBe(404);
+    });
+
+    it('rechazar no exige vacante', async () => {
+      candidates = [candidate(C1, { vacancy_id: null })];
+      expect((await decide(C1, { decision: 'rechazar' })).status).toBe(200);
+    });
+  });
+
   describe('rechazar', () => {
     it('rechaza, registra el motivo y lo saca de la lista de aceptados', async () => {
       bridge = [presentedRow(C1)];
       const res = await decide(C1, { decision: 'rechazar', reason: 'No cumple experiencia' });
 
-      expect(res.body).toEqual({ id: C1, status: 'rechazado', presented: false });
+      expect(res.body).toEqual({ id: C1, status: 'rechazado', presented: false, vacancy_id: VAC });
       expect(candidates[0].status).toBe('rechazado');
       expect(bridge[0]).toMatchObject({ presented_to_company: false, status: 'rechazado' });
       expect(history[0]).toMatchObject({ from_status: 'seguimiento', to_status: 'rechazado', changed_by: 'rec-1', reason: 'No cumple experiencia' });
@@ -292,6 +340,21 @@ describe('decisiones del reclutador sobre un candidato', () => {
       expect(candidates[0].status).toBe('rechazado');
       expect(bridge).toHaveLength(0);
       expect(history).toHaveLength(0);
+    });
+
+    it('el cambio manual de estado (Kanban) sí reactiva un rechazo global anterior a seguimiento', async () => {
+      candidates = [candidate(C1, { status: 'rechazado' })];
+      bridge = [presentedRow(C1, { presented_to_company: false, status: 'rechazado' })];
+
+      const res = await request(app).patch(`/api/candidates/${C1}/status`).send({ status: 'seguimiento', reason: 'Reconsiderado' });
+
+      expect(res.status).toBe(200);
+      expect(candidates[0].status).toBe('seguimiento');
+      expect(bridge[0]).toMatchObject({ status: 'seguimiento', presented_to_company: false });
+      expect(history[0]).toMatchObject({ from_status: 'rechazado', to_status: 'seguimiento', reason: 'Reconsiderado' });
+      // Solo a seguimiento: no salta directo a en contacto
+      candidates[0].status = 'rechazado';
+      expect((await request(app).patch(`/api/candidates/${C1}/status`).send({ status: 'en_contacto' })).status).toBe(400);
     });
 
     it('rechazar a un rechazado que aún figura como aprobado limpia la lista sin duplicar historial', async () => {
@@ -401,6 +464,10 @@ describe('GET /api/candidates/decisions', () => {
     ];
     bridge = [presentedRow(C1)];
     history = [];
+    vacancies = [
+      { id: VAC, company_id: CO, title: 'Contador', status: 'active' },
+      { id: VAC2, company_id: CO, title: 'Auxiliar', status: 'active' },
+    ];
     failTable = null;
     app = await buildApp();
   });
@@ -409,8 +476,8 @@ describe('GET /api/candidates/decisions', () => {
     const res = await lookup(`${C1},${C2},${FOREIGN}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      [C1]: { status: 'seguimiento', presented: true },
-      [C2]: { status: 'en_contacto', presented: false },
+      [C1]: { status: 'seguimiento', presented: true, vacancy_id: VAC },
+      [C2]: { status: 'en_contacto', presented: false, vacancy_id: VAC },
     });
   });
 

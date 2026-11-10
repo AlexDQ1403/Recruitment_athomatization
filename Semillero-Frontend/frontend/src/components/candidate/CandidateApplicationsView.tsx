@@ -1,18 +1,17 @@
 'use client';
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { candidatePortalService, VacancySummary } from '../../services/candidatePortalService';
-import { APPLICATION_STATUS_LABELS, ApplicationStatus } from '../../types';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ApplicationStage, candidatePortalService, ExternalApplication, MyApplication, VacancyMatch,
+} from '../../services/candidatePortalService';
 import { ToastContainer } from '../ui/Toast';
 import { useToast } from '../../hooks/useToast';
 import { Icon, IconName } from '../ui/Icon';
-
-const STATUS_CLASS: Record<ApplicationStatus, string> = {
-  enviada: 'badge-pending',
-  en_revision: 'badge-interviewed',
-  descartada: 'badge-rejected',
-  contactado: 'badge-hired',
-};
+import { MatchBadge, SkillsFit } from './MatchBadge';
+import { ApplyModal } from './ApplyModal';
+import { ExternalJobsTab } from './ExternalJobsTab';
+import { AddExternalApplication, ExternalApplicationCard } from './ExternalApplicationCard';
 
 const formatSalary = (min: number | null, max: number | null) => {
   if (!min && !max) return null;
@@ -20,173 +19,338 @@ const formatSalary = (min: number | null, max: number | null) => {
   if (min && max) return `${fmt(min)} – ${fmt(max)}`;
   return fmt((min ?? max)!);
 };
+const daysAgo = (iso: string) => {
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  return d <= 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`;
+};
+const daysLeft = (deadline: string | null) => {
+  if (!deadline) return null;
+  const d = Math.ceil((new Date(`${deadline.slice(0, 10)}T23:59:59-05:00`).getTime() - Date.now()) / 86400000);
+  return d < 0 ? null : d === 0 ? 'cierra hoy' : d === 1 ? 'cierra mañana' : `cierra en ${d} días`;
+};
+const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+/** Qué significa cada etapa para el candidato y qué hacer. */
+const STAGES: Record<ApplicationStage, { label: string; step: number; hint: string; tone: string }> = {
+  enviada: { label: 'Enviada', step: 0, tone: 'badge-pending', hint: 'La empresa aún no revisa tu postulación.' },
+  en_revision: { label: 'En revisión', step: 1, tone: 'badge-interviewed', hint: 'Un reclutador está revisando tu perfil.' },
+  contactado: { label: 'Te contactaron', step: 1, tone: 'badge-interviewed', hint: 'Un reclutador te contactó: revisa tu correo y WhatsApp.' },
+  preseleccionado: { label: 'Preseleccionado', step: 2, tone: 'badge-interviewed', hint: 'Tu perfil fue presentado a la empresa y está decidiendo.' },
+  siguiente_fase: { label: 'Siguiente fase', step: 3, tone: 'badge-hired', hint: 'La empresa te autorizó para la siguiente fase: te contactará para entrevistas o pruebas.' },
+  no_continua: { label: 'No continúa', step: -1, tone: 'badge-rejected', hint: 'Esta vez no sigues en el proceso. Usa los consejos de HV en tus próximas postulaciones.' },
+};
+const STEPS = ['Enviada', 'En revisión', 'Preseleccionado', 'Siguiente fase'];
+
+/** Vacante abierta en el modal de ajuste y postulación. */
+type Selected = {
+  vacancy: { id: string; title: string; company: { name: string } };
+  match: VacancyMatch;
+  applied: boolean;
+  external?: { jobId: string; url: string; sourceLabel: string };
+};
+
+type AppFilter = 'activas' | 'siguiente' | 'finalizadas' | 'todas';
+/** Postulación de la plataforma o de otro sitio, en una sola lista. */
+type AnyApp = { kind: 'interna'; app: MyApplication } | { kind: 'externa'; app: ExternalApplication };
+const isClosed = (a: MyApplication) => a.stage === 'no_continua' || (a.stage !== 'siguiente_fase' && a.vacancy.status !== 'active');
+const groupOf = (x: AnyApp): Exclude<AppFilter, 'todas'> => {
+  if (x.kind === 'externa') return x.app.status === 'oferta' ? 'siguiente' : x.app.status === 'no_seleccionado' ? 'finalizadas' : 'activas';
+  return x.app.stage === 'siguiente_fase' ? 'siguiente' : isClosed(x.app) ? 'finalizadas' : 'activas';
+};
+const appliedAt = (x: AnyApp) => (x.kind === 'externa' ? x.app.applied_at : x.app.created_at);
+const scoreOf = (x: AnyApp) => (x.kind === 'externa' ? x.app.match_score ?? -1 : x.app.match.score);
+
+/**
+ * Portal del candidato: vacantes ordenadas por ajuste a su perfil (con el
+ * porcentaje y por qué), consejos para ajustar la HV a cada vacante antes de
+ * postularse, y control de sus postulaciones (etapa, notas propias, filtros).
+ */
 export const CandidateApplicationsView = () => {
-  const [tab, setTab] = useState<'open' | 'mine'>('open');
-  const queryClient = useQueryClient();
+  const [tab, setTab] = useState<'recommended' | 'external' | 'mine'>('recommended');
+  const [adding, setAdding] = useState(false);
+  const [selected, setSelected] = useState<Selected | null>(null);
+  const [query, setQuery] = useState('');
+  const [onlyFit, setOnlyFit] = useState(false);
+  const [filter, setFilter] = useState<AppFilter>('activas');
+  const [sort, setSort] = useState<'recent' | 'match'>('recent');
   const toast = useToast();
 
-  const { data: applications = [], isLoading: loadingApps } = useQuery({
-    queryKey: ['my-applications'],
-    queryFn: () => candidatePortalService.listApplications(),
-  });
+  const recs = useQuery({ queryKey: ['recommendations'], queryFn: () => candidatePortalService.recommendations() });
+  const apps = useQuery({ queryKey: ['my-applications'], queryFn: () => candidatePortalService.listApplications() });
 
-  const { data: vacancies = [], isLoading: loadingVacancies } = useQuery({
-    queryKey: ['open-vacancies'],
-    queryFn: () => candidatePortalService.listVacancies(),
-  });
+  const external = useQuery({ queryKey: ['external-applications'], queryFn: () => candidatePortalService.listExternalApplications() });
 
-  const applyMutation = useMutation({
-    mutationFn: (vacancyId: string) => candidatePortalService.apply(vacancyId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-applications'] });
-      toast.success('Postulación enviada');
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al postularte'),
-  });
+  const all = useMemo<AnyApp[]>(() => [
+    ...(apps.data?.applications ?? []).map((app) => ({ kind: 'interna' as const, app })),
+    ...(external.data?.applications ?? []).map((app) => ({ kind: 'externa' as const, app })),
+  ], [apps.data, external.data]);
+  const counts = useMemo(() => {
+    const c = { activas: 0, siguiente: 0, finalizadas: 0, todas: all.length };
+    for (const a of all) c[groupOf(a)]++;
+    return c;
+  }, [all]);
 
-  const appliedIds = new Set(applications.map((a) => a.vacancy?.id));
+  const vacancies = useMemo(() => {
+    const q = fold(query.trim());
+    return (recs.data?.vacancies ?? [])
+      .filter((v) => !onlyFit || v.match.score >= 50)
+      .filter((v) => !q || fold(`${v.title} ${v.company.name} ${v.location ?? ''} ${(v.skills ?? []).join(' ')}`).includes(q));
+  }, [recs.data, query, onlyFit]);
+
+  const shownApps = useMemo(() => all
+    .filter((a) => filter === 'todas' || groupOf(a) === filter)
+    .sort((a, b) => (sort === 'match' ? scoreOf(b) - scoreOf(a) : appliedAt(b).localeCompare(appliedAt(a)))),
+  [all, filter, sort]);
+
+  const strength = recs.data?.profile_strength;
 
   return (
     <>
       <ToastContainer toasts={toast.toasts} onRemove={toast.remove} />
+      {selected && (
+        <ApplyModal
+          vacancy={selected.vacancy}
+          match={selected.match}
+          applied={selected.applied}
+          external={selected.external}
+          onClose={() => setSelected(null)}
+          onApplied={() => {
+            toast.success(selected.external
+              ? 'Postulación registrada. Actualiza su estado en "Mis postulaciones" cuando te respondan.'
+              : 'Postulación enviada. Síguela en "Mis postulaciones".');
+            setSelected(null);
+          }}
+        />
+      )}
 
       <div className="page-header">
         <h1>Vacantes y postulaciones</h1>
-        <p>Explora las ofertas abiertas y sigue el estado de tus procesos</p>
+        <p>Las vacantes que más se ajustan a tu perfil, aquí y en otros sitios, y el estado de cada proceso</p>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button
-          className={tab === 'open' ? 'btn-primary' : 'btn-secondary-sm'}
-          style={tab === 'open' ? { width: 'auto', padding: '6px 14px', fontSize: 12.5 } : undefined}
-          onClick={() => setTab('open')}
-        >
-          Vacantes abiertas
+      <div className="cp-tabs" role="tablist" style={{ marginBottom: 18 }}>
+        <button type="button" role="tab" aria-selected={tab === 'recommended'} className={`cp-tab${tab === 'recommended' ? ' active' : ''}`} onClick={() => setTab('recommended')}>
+          Recomendadas para ti
         </button>
-        <button
-          className={tab === 'mine' ? 'btn-primary' : 'btn-secondary-sm'}
-          style={tab === 'mine' ? { width: 'auto', padding: '6px 14px', fontSize: 12.5 } : undefined}
-          onClick={() => setTab('mine')}
-        >
-          Mis postulaciones ({applications.length})
+        <button type="button" role="tab" aria-selected={tab === 'external'} className={`cp-tab${tab === 'external' ? ' active' : ''}`} onClick={() => setTab('external')}>
+          Otros sitios web
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'mine'} className={`cp-tab${tab === 'mine' ? ' active' : ''}`} onClick={() => setTab('mine')}>
+          Mis postulaciones ({all.length})
         </button>
       </div>
 
-      {tab === 'open' ? (
-        loadingVacancies ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="skeleton" style={{ height: 90, marginBottom: 10 }} />
-          ))
-        ) : vacancies.length === 0 ? (
-          <EmptyState
-            icon="clipboard"
-            title="No hay vacantes abiertas"
-            hint="Vuelve más tarde: las empresas publican nuevas ofertas con frecuencia."
-          />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {vacancies.map((v) => (
-              <VacancyCard
-                key={v.id}
-                vacancy={v}
-                applied={appliedIds.has(v.id)}
-                onApply={() => applyMutation.mutate(v.id)}
-                applying={applyMutation.isPending}
-              />
-            ))}
+      {tab === 'recommended' ? (
+        <>
+          {strength && (!recs.data?.has_cv || strength.missing.length > 0) && (
+            <div className="cand-strength" role="note">
+              <div>
+                <strong>{!recs.data?.has_cv ? 'Sube tu hoja de vida para recomendaciones más precisas' : `Tu perfil está ${Math.round((strength.filled / strength.total) * 100)} % completo`}</strong>
+                <span>
+                  {strength.missing.length > 0
+                    ? `El porcentaje de cada vacante se calcula con tu perfil. Te falta: ${strength.missing.join(', ').toLowerCase()}.`
+                    : 'La IA llena tu perfil a partir de la HV y tú revisas antes de guardar.'}
+                </span>
+              </div>
+              <Link href="/candidate/profile" className="btn-save">{!recs.data?.has_cv ? 'Subir mi HV' : 'Completar perfil'}</Link>
+            </div>
+          )}
+
+          <div className="cand-toolbar">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por cargo, empresa, ciudad o habilidad"
+              aria-label="Buscar vacantes"
+            />
+            <label className="cand-check">
+              <input type="checkbox" checked={onlyFit} onChange={(e) => setOnlyFit(e.target.checked)} />
+              Solo afines (50 % o más)
+            </label>
           </div>
-        )
-      ) : loadingApps ? (
-        Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="skeleton" style={{ height: 60, marginBottom: 10 }} />
-        ))
-      ) : applications.length === 0 ? (
-        <EmptyState
-          icon="mail"
-          title="Aún no te has postulado"
-          hint="Revisa las vacantes abiertas y envía tu primera postulación."
+
+          {recs.isError && <p className="form-error">{recs.error instanceof Error ? recs.error.message : 'Error al cargar vacantes'}</p>}
+          {recs.isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 110, marginBottom: 10 }} />)
+          ) : vacancies.length === 0 ? (
+            <EmptyState
+              icon="clipboard"
+              title={recs.data?.vacancies.length ? 'Ninguna vacante coincide con el filtro' : 'No hay vacantes abiertas'}
+              hint={recs.data?.vacancies.length ? 'Quita el filtro o prueba con otra palabra.' : 'Vuelve más tarde: las empresas publican nuevas ofertas con frecuencia.'}
+            />
+          ) : (
+            <div className="cand-list">
+              {vacancies.map((v) => (
+                <article key={v.id} className="cand-card">
+                  <div className="cand-card-main">
+                    <div className="cand-card-head">
+                      <h2>{v.title}</h2>
+                      <MatchBadge score={v.match.score} />
+                    </div>
+                    <p className="cand-meta">
+                      {v.company.name}{v.location ? ` · ${v.location}` : ''}{v.modality ? ` · ${v.modality}` : ''}
+                      {formatSalary(v.salary_min, v.salary_max) && ` · ${formatSalary(v.salary_min, v.salary_max)}`}
+                      {daysLeft(v.deadline) && ` · ${daysLeft(v.deadline)}`}
+                    </p>
+                    <SkillsFit match={v.match} />
+                  </div>
+                  <div className="cand-card-actions">
+                    {v.applied ? (
+                      <>
+                        <span className="badge badge-interviewed">Ya postulado</span>
+                        <button type="button" className="btn-secondary-sm" onClick={() => setSelected({ vacancy: v, match: v.match, applied: true })}>Consejos de HV</button>
+                      </>
+                    ) : (
+                      <button type="button" className="btn-save" onClick={() => setSelected({ vacancy: v, match: v.match, applied: false })}>
+                        Ver ajuste y postularme
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      ) : tab === 'external' ? (
+        <ExternalJobsTab
+          onSelect={(j) => setSelected({
+            vacancy: { id: j.id, title: j.title, company: { name: j.company ?? j.source_label } },
+            match: j.match,
+            applied: false,
+            external: { jobId: j.id, url: j.url, sourceLabel: j.source_label },
+          })}
         />
       ) : (
-        <div className="candidate-table-wrapper">
-          <table className="candidate-table">
-            <thead>
-              <tr>
-                <th>Vacante</th>
-                <th>Empresa</th>
-                <th>Enviada</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {applications.map((a) => (
-                <tr key={a.id} className="table-row">
-                  <td>{a.vacancy?.title ?? '—'}</td>
-                  <td>{a.company?.name ?? '—'}</td>
-                  <td style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-                    {new Date(a.created_at).toLocaleDateString('es-CO')}
-                  </td>
-                  <td>
-                    <span className={`badge ${STATUS_CLASS[a.status] ?? 'badge-pending'}`}>
-                      {APPLICATION_STATUS_LABELS[a.status] ?? a.status}
-                    </span>
-                  </td>
-                </tr>
+        <>
+          <div className="cand-toolbar">
+            <div className="report-range" role="group" aria-label="Filtrar postulaciones" style={{ marginBottom: 0 }}>
+              {([['activas', 'En proceso'], ['siguiente', 'Siguiente fase'], ['finalizadas', 'Finalizadas'], ['todas', 'Todas']] as [AppFilter, string][]).map(([k, label]) => (
+                <button key={k} type="button" aria-pressed={filter === k} className={`report-chip${filter === k ? ' active' : ''}`} onClick={() => setFilter(k)}>
+                  {label} ({counts[k]})
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+            <label className="cand-sort">
+              Ordenar
+              <select value={sort} onChange={(e) => setSort(e.target.value as 'recent' | 'match')}>
+                <option value="recent">Más recientes</option>
+                <option value="match">Mayor ajuste</option>
+              </select>
+            </label>
+          </div>
+
+          {external.data?.enabled === false ? (
+            <p className="cp-note">Registrar postulaciones de otros sitios estará disponible cuando se aplique una actualización pendiente de la base de datos.</p>
+          ) : adding ? (
+            <AddExternalApplication onDone={() => setAdding(false)} onError={(m) => toast.error(m)} />
+          ) : (
+            <button type="button" className="result-link ext-add-toggle" onClick={() => setAdding(true)}>+ Registrar una postulación que hice en otro sitio</button>
+          )}
+
+          {apps.isError && <p className="form-error">{apps.error instanceof Error ? apps.error.message : 'Error al cargar postulaciones'}</p>}
+          {apps.isLoading || external.isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 120, marginBottom: 10 }} />)
+          ) : all.length === 0 ? (
+            <EmptyState icon="mail" title="Aún no te has postulado" hint="En «Recomendadas para ti» y «Otros sitios web» están las vacantes que más se ajustan a tu perfil." />
+          ) : shownApps.length === 0 ? (
+            <p className="dash-empty">No tienes postulaciones en este grupo.</p>
+          ) : (
+            <div className="cand-list">
+              {shownApps.map((x) => x.kind === 'externa' ? (
+                <ExternalApplicationCard key={`e-${x.app.id}`} application={x.app} onError={(m) => toast.error(m)} />
+              ) : (
+                <ApplicationCard
+                  key={x.app.id}
+                  application={x.app}
+                  notesEnabled={apps.data?.notes_enabled !== false}
+                  onAdvice={() => setSelected({ vacancy: { ...x.app.vacancy, company: x.app.company }, match: x.app.match, applied: true })}
+                  onError={(m) => toast.error(m)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </>
   );
 };
 
-const VacancyCard = ({
-  vacancy,
-  applied,
-  onApply,
-  applying,
-}: {
-  vacancy: VacancySummary;
-  applied: boolean;
-  onApply: () => void;
-  applying: boolean;
+const ApplicationCard = ({ application: a, notesEnabled, onAdvice, onError }: {
+  application: MyApplication;
+  notesEnabled: boolean;
+  onAdvice: () => void;
+  onError: (message: string) => void;
 }) => {
-  const salary = formatSalary(vacancy.salary_min, vacancy.salary_max);
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [note, setNote] = useState(a.note ?? '');
+  const stage = STAGES[a.stage];
+  const closedVacancy = a.vacancy.status !== 'active' && a.stage !== 'siguiente_fase' && a.stage !== 'no_continua';
+
+  const save = useMutation({
+    mutationFn: () => candidatePortalService.updateApplicationNote(a.id, note.trim() || null),
+    onSuccess: () => {
+      setEditing(false);
+      queryClient.invalidateQueries({ queryKey: ['my-applications'] });
+    },
+    onError: (err) => onError(err instanceof Error ? err.message : 'No se pudo guardar la nota'),
+  });
 
   return (
-    <div style={{
-      background: 'var(--surface)', border: '1px solid var(--border)',
-      borderRadius: 'var(--radius-lg)', padding: '16px 18px',
-      display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start',
-    }}>
-      <div>
-        <p style={{ fontWeight: 600, color: 'var(--text-1)', marginBottom: 4 }}>{vacancy.title}</p>
-        <p style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 6 }}>
-          {vacancy.company?.name}
-          {vacancy.location ? ` · ${vacancy.location}` : ''}
-          {vacancy.modality ? ` · ${vacancy.modality}` : ''}
+    <article className="cand-card app-card">
+      <div className="cand-card-main">
+        <div className="cand-card-head">
+          <h2>{a.vacancy.title}</h2>
+          <span className={`badge ${stage.tone}`}>{stage.label}</span>
+        </div>
+        <p className="cand-meta">
+          {a.company.name}{a.vacancy.location ? ` · ${a.vacancy.location}` : ''} · te postulaste {daysAgo(a.created_at)}
+          {' · '}<MatchBadge score={a.match.score} />
         </p>
-        {salary && (
-          <p style={{ fontSize: 12, color: 'var(--text-3)' }}>{salary}</p>
-        )}
-        {vacancy.skills && vacancy.skills.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-            {vacancy.skills.slice(0, 6).map((s) => (
-              <span key={s} className="badge badge-pending" style={{ fontSize: 11 }}>{s}</span>
+
+        {a.stage === 'no_continua' ? null : (
+          <ol className="app-steps" aria-label={`Etapa: ${stage.label}`}>
+            {STEPS.map((label, i) => (
+              <li key={label} className={i < stage.step ? 'done' : i === stage.step ? 'current' : ''}>
+                {i === stage.step && a.stage === 'contactado' ? 'Te contactaron' : label}
+              </li>
             ))}
+          </ol>
+        )}
+        <p className="app-hint">{closedVacancy ? 'La empresa cerró esta vacante.' : stage.hint}</p>
+
+        {notesEnabled && (editing ? (
+          <div className="app-note-edit">
+            <label className="sr-only" htmlFor={`note-${a.id}`}>Mi nota</label>
+            <textarea
+              id={`note-${a.id}`}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+              maxLength={1000}
+              placeholder="p. ej. Entrevista el martes 10 a. m. con Laura; llevar portafolio"
+              autoFocus
+            />
+            <div className="cp-actions">
+              <button type="button" className="btn-secondary-sm" onClick={() => { setNote(a.note ?? ''); setEditing(false); }}>Cancelar</button>
+              <button type="button" className="btn-save" onClick={() => save.mutate()} disabled={save.isPending}>Guardar nota</button>
+            </div>
           </div>
+        ) : a.note ? (
+          <p className="app-note">
+            <span>Mi nota:</span> {a.note}{' '}
+            <button type="button" className="result-link" onClick={() => setEditing(true)}>Editar</button>
+          </p>
+        ) : null)}
+      </div>
+      <div className="cand-card-actions">
+        <button type="button" className="btn-secondary-sm" onClick={onAdvice}>Consejos de HV</button>
+        {notesEnabled && !editing && !a.note && (
+          <button type="button" className="btn-secondary-sm" onClick={() => setEditing(true)}>Agregar nota</button>
         )}
       </div>
-      <button
-        className={applied ? 'btn-secondary-sm' : 'btn-primary'}
-        style={applied ? undefined : { width: 'auto', padding: '8px 16px', fontSize: 13 }}
-        onClick={onApply}
-        disabled={applied || applying}
-      >
-        {applied ? 'Ya postulado' : applying ? 'Enviando...' : 'Postularme'}
-      </button>
-    </div>
+    </article>
   );
 };
 

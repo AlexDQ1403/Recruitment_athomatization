@@ -54,7 +54,7 @@ type Result = { data?: unknown; error?: unknown; count?: number };
 function chain(result: Result) {
   const res = { error: null, ...result };
   const c: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'order', 'limit', 'not', 'in', 'insert', 'update']) {
+  for (const m of ['select', 'eq', 'or', 'order', 'limit', 'not', 'in', 'insert', 'update']) {
     c[m] = vi.fn(() => c);
   }
   c.single = vi.fn(() => Promise.resolve(res));
@@ -94,6 +94,9 @@ const fakeAuth: express.RequestHandler = async (req, res, next) => {
 const buildApp = async () => {
   const app = express();
   app.use(express.json());
+  // Módulo nuevo en cada prueba: el limitador de 20 req/min del chat vive en el módulo
+  // y, compartido, hacía fallar con 429 las pruebas a partir de la número 21.
+  vi.resetModules();
   const { default: chatRouter } = await import('./chat');
   app.use('/api/chat', fakeAuth, chatRouter);
   return app;
@@ -164,6 +167,168 @@ describe('POST /api/chat', () => {
     expect(res.body.candidates).toHaveLength(1);
     expect(mockNoResults).not.toHaveBeenCalled();
     expect(mockSearchShortage).toHaveBeenCalledTimes(1); // 1 < 10: n8n completa la búsqueda
+  });
+
+  it('fallback: "contador" encuentra "Contadora Pública" (sin tildes y por raíz) y marca kind', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('network error'));
+    mockTables({
+      ...SESSION,
+      candidates: pool([
+        { id: 'c1', full_name: 'Laura Ríos', position: 'Contadora Pública', location: 'Cali', source: 'scraping', status: 'seguimiento' },
+        { id: 'c2', full_name: 'Pedro Gil', position: 'Desarrollador Java', location: 'Cali', source: 'scraping', status: 'seguimiento' },
+      ]),
+    });
+
+    const res = await send(app, 'Necesito un contador');
+
+    expect(res.status).toBe(200);
+    expect(res.body.candidates.map((c: { id: string }) => c.id)).toEqual(['c1']);
+    expect(res.body.candidates[0].kind).toBe('legacy');
+  });
+
+  it('preselecciona en la base por los términos del mensaje (no 150 filas cualquiera)', async () => {
+    global.fetch = llmReply({ message: 'ok', results: [] });
+    const chains: Record<string, unknown>[] = [];
+    mockFrom.mockImplementation((table: string) => {
+      const c = chain(table === 'chat_sessions' ? SESSION.chat_sessions : { data: [] });
+      if (table === 'candidates') chains.push(c);
+      return c;
+    });
+
+    await send(app, 'Busco contador con experiencia en Bogotá');
+
+    const orCalls = chains.flatMap((c) => (c.or as ReturnType<typeof vi.fn>).mock.calls.map((args) => args[0] as string));
+    expect(orCalls).toHaveLength(1);
+    expect(orCalls[0]).toContain('position.ilike.%contad%');
+    expect(orCalls[0]).toContain('headline.ilike.%contad%');
+    expect(orCalls[0]).not.toContain('experiencia');
+  });
+
+  it('afinidad: combina el puntaje de cargo del LLM con los criterios y ordena de mayor a menor', async () => {
+    global.fetch = llmReply({
+      message: 'ok',
+      criteria: { location: 'Bogotá' },
+      results: [
+        { id: 'c1', reason: 'cargo relacionado', fit: 'partial', score: 40 },
+        { id: 'c2', reason: 'mismo cargo', fit: 'full', score: 95 },
+      ],
+    });
+    mockTables({
+      ...SESSION,
+      candidates: pool([
+        { id: 'c1', full_name: 'Uno', position: 'Auxiliar administrativo', location: 'Bogotá', source: 'internal', status: 'seguimiento' },
+        { id: 'c2', full_name: 'Dos', position: 'Contador', location: 'Bogotá', source: 'internal', status: 'seguimiento' },
+      ]),
+    });
+
+    const res = await send(app, 'contador en Bogotá');
+
+    expect(res.status).toBe(200);
+    expect(res.body.candidates.map((c: { id: string }) => c.id)).toEqual(['c2', 'c1']);
+    // (95·50 + 100·15) / 65 = 96 ; (40·50 + 100·15) / 65 = 54
+    expect(res.body.candidates.map((c: { affinity: number }) => c.affinity)).toEqual([96, 54]);
+    expect(res.body.candidates[0].affinity_parts.map((p: { factor: string }) => p.factor)).toEqual(['cargo', 'ubicacion']);
+  });
+
+  describe('rechazos', () => {
+    const rows = [
+      { id: 'c1', full_name: 'Laura', position: 'Contadora Pública', location: 'Bogotá', source: 'scraping', status: 'seguimiento' },
+      { id: 'c2', full_name: 'Pedro', position: 'Contador', location: 'Bogotá', source: 'scraping', status: 'seguimiento' },
+      { id: 'c3', full_name: 'Descartada', position: 'Contador', location: 'Bogotá', source: 'internal', status: 'rechazado' },
+    ];
+    // c1 fue rechazada como "contador público"
+    const rejections = [{
+      id: 'r1', legacy_candidate_id: 'c1', candidate_profile_id: null, role_label: 'Contador público',
+      role_key: 'contad publi', vacancy_id: null, reason: 'Sin NIIF', created_at: '2026-11-10T00:00:00Z',
+    }];
+
+    const promptOf = (fetchMock: ReturnType<typeof vi.fn>) =>
+      JSON.parse(fetchMock.mock.calls[0][1].body).messages[0].content as string;
+
+    it('si el mensaje nombra el puesto rechazado, ni siquiera llega al LLM; el descartado global tampoco', async () => {
+      const fetchMock = llmReply({ message: 'ok', cargo: 'contador público', results: [{ id: 'c2' }] });
+      global.fetch = fetchMock;
+      mockTables({ ...SESSION, candidates: pool(rows), candidate_rejections: { data: rejections } });
+
+      const res = await send(app, 'Busco contador público');
+
+      expect(res.body.candidates.map((c: { id: string }) => c.id)).toEqual(['c2']);
+      expect(promptOf(fetchMock)).not.toContain('"c1"');
+      expect(promptOf(fetchMock)).not.toContain('"c3"');
+    });
+
+    it('con el cargo que entendió el LLM se excluye aunque el mensaje lo dijera distinto', async () => {
+      // "contador" (cargo del LLM) ≈ "contador público" (puesto rechazado)
+      global.fetch = llmReply({ message: 'ok', cargo: 'contador', results: [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }] });
+      mockTables({ ...SESSION, candidates: pool(rows), candidate_rejections: { data: rejections } });
+
+      const res = await send(app, 'Busco contador en Bogotá');
+
+      expect(res.body.candidates.map((c: { id: string }) => c.id)).toEqual(['c2']);
+      expect(res.body.candidates[0].matched_role).toBe('contador');
+    });
+
+    it('para otro puesto sí aparece, con la nota de para qué se rechazó', async () => {
+      global.fetch = llmReply({ message: 'ok', cargo: 'auditor', results: [{ id: 'c1' }] });
+      mockTables({ ...SESSION, candidates: pool(rows), candidate_rejections: { data: rejections } });
+
+      const res = await send(app, 'Busco auditor');
+
+      expect(res.body.candidates.map((c: { id: string }) => c.id)).toEqual(['c1']);
+      expect(res.body.candidates[0].rejected_for).toEqual([{ role: 'Contador público', reason: 'Sin NIIF' }]);
+    });
+  });
+
+  it('registra en el historial toda búsqueda, aunque no encuentre nada en la base', async () => {
+    global.fetch = llmReply({ message: 'No encontré a nadie.', busqueda: true, results: [] });
+    const inserts: Record<string, unknown>[] = [];
+    mockFrom.mockImplementation((table: string) => {
+      const c = chain(table === 'chat_sessions' ? SESSION.chat_sessions : { data: [] });
+      if (table === 'search_history') (c.insert as ReturnType<typeof vi.fn>).mockImplementation((p: Record<string, unknown>) => { inserts.push(p); return c; });
+      return c;
+    });
+
+    await send(app, 'Busco auxiliar de enfermería en Medellín');
+
+    expect(inserts).toEqual([expect.objectContaining({ query: 'Busco auxiliar de enfermería en Medellín', candidates_found: 0 })]);
+  });
+
+  it('seguimiento: el modelo recibe qué candidatos se mostraron y no se busca afuera', async () => {
+    const fetchMock = llmReply({ message: 'De esos, solo Ana menciona Next.js.', busqueda: false, cargo: 'desarrollador frontend', results: [{ id: 'c1' }] });
+    global.fetch = fetchMock;
+    mockTables({
+      ...SESSION,
+      chat_messages: { data: [{ role: 'assistant', content: 'Encontré 2 perfiles.', candidates: [{ id: 'c1' }, { id: 'c2' }] }] },
+      candidates: pool([
+        { id: 'c1', full_name: 'Ana', position: 'Desarrolladora frontend', summary: 'React y Next.js', source: 'scraping', status: 'seguimiento' },
+        { id: 'c2', full_name: 'Juan', position: 'Desarrollador frontend', summary: 'Angular', source: 'scraping', status: 'seguimiento' },
+      ]),
+    });
+
+    const res = await send(app, 'De esos, ¿cuáles tienen Next.js?');
+
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body).messages;
+    expect(sent.some((m: { content: string }) => m.content.includes('[Candidatos mostrados: c1, c2]'))).toBe(true);
+    // El extracto llega al modelo (ahí está "Next.js")
+    expect(sent[0].content).toContain('React y Next.js');
+    expect(res.body.candidates.map((c: { id: string }) => c.id)).toEqual(['c1']);
+    expect(res.body.external_search).toBe(false);
+    expect(mockSearchShortage).not.toHaveBeenCalled();
+    expect(mockNoResults).not.toHaveBeenCalled();
+  });
+
+  it('REGRESIÓN: nulls del modelo en criterios o resultados no tumban la búsqueda inteligente', async () => {
+    global.fetch = llmReply({
+      message: 'Encontré a Ana.', busqueda: true, cargo: 'asesor comercial',
+      criteria: { experience_min: null, salary_max: null, location: 'Cali' },
+      results: [{ id: 'c1', reason: null, fit: null, score: null }],
+    });
+    mockTables({ ...SESSION, candidates: pool([{ id: 'c1', full_name: 'Ana', position: 'Asesora comercial', location: 'Cali', source: 'internal', status: 'seguimiento' }]) });
+
+    const res = await send(app, 'Asesor comercial para venta de seguros en Cali');
+
+    expect(res.body.message).toContain('Encontré a Ana.');
+    expect(res.body.candidates[0]).toMatchObject({ id: 'c1', matched_role: 'asesor comercial' });
   });
 
   it('no incluye email ni teléfono en la respuesta del chat', async () => {

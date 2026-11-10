@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { AuthenticatedRequest } from '../middlewares/companyAuth';
+import { loadInsightsData } from '../services/insightsData';
+import { computeCompanyReport } from '../services/companyReport';
 
 const router = Router();
 const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
@@ -31,8 +33,10 @@ interface RecruiterGroup {
 /**
  * GET /api/reports/daily-contacted?days=1
  *
- * Candidatos que pasaron a 'en_contacto' en el periodo, agrupados por el
- * reclutador que hizo el cambio. Lo consume n8n para el envío diario por
+ * Candidatos contactados en el periodo, agrupados por el reclutador: los que
+ * pasaron a 'en_contacto' y los que se contactaron de verdad por WhatsApp,
+ * correo o LinkedIn desde la plataforma (migración 025). Antes solo contaba lo
+ * primero y el reporte salía vacío aunque el equipo estuviera contactando. Lo consume n8n para el envío diario por
  * correo, y la página /reports para verlo en la aplicación.
  *
  * Se apoya en candidate_status_history —no en candidates.updated_at— porque
@@ -89,13 +93,38 @@ router.get(
         return;
       }
 
-      if (!history || history.length === 0) {
+      // 2b. Contactos reales desde la plataforma (si la tabla aún no existe, solo el historial)
+      const { data: contactRows, error: contactsError } = await supabaseAdmin
+        .from('candidate_contact_log')
+        .select('legacy_candidate_id, recruiter_id, channel, created_at')
+        .eq('company_id', companyId)
+        .gte('created_at', since)
+        .not('legacy_candidate_id', 'is', null);
+      if (contactsError) logger.warn('Reporte: sin registro de contactos (¿migración 025?)', { error: contactsError.message });
+
+      const CHANNEL: Record<string, string> = { whatsapp: 'WhatsApp', email: 'correo', linkedin: 'LinkedIn' };
+      // Un candidato por reclutador: el contacto más reciente
+      const seen = new Set<string>();
+      const entries = [
+        ...(history ?? []).map((h) => ({ ...h })),
+        ...(contactRows ?? []).map((c) => ({
+          candidate_id: c.legacy_candidate_id as string,
+          changed_by: c.recruiter_id as string | null,
+          changed_at: c.created_at as string,
+          reason: `Contactado por ${CHANNEL[c.channel as string] ?? c.channel}`,
+        })),
+      ]
+        .sort((a, b) => String(b.changed_at).localeCompare(String(a.changed_at)))
+        .filter((e) => candidateById.has(e.candidate_id))
+        .filter((e) => !seen.has(`${e.changed_by}:${e.candidate_id}`) && seen.add(`${e.changed_by}:${e.candidate_id}`));
+
+      if (entries.length === 0) {
         res.json({ period_days: days, since, total: 0, recruiters: [] });
         return;
       }
 
       // 3. Nombres de los reclutadores implicados
-      const recruiterIds = [...new Set(history.map((h) => h.changed_by).filter(Boolean))];
+      const recruiterIds = [...new Set(entries.map((h) => h.changed_by).filter(Boolean))];
       const { data: recruiters } = recruiterIds.length
         ? await supabaseAdmin
             .from('profiles')
@@ -108,7 +137,7 @@ router.get(
       // 4. Agrupar por reclutador
       const groups = new Map<string, RecruiterGroup>();
 
-      for (const entry of history) {
+      for (const entry of entries) {
         const candidate = candidateById.get(entry.candidate_id);
         if (!candidate) continue;
 
@@ -141,14 +170,14 @@ router.get(
       logger.info('Reporte de contactados generado', {
         companyId,
         days,
-        total: history.length,
+        total: entries.length,
         recruiters: result.length,
       });
 
       res.json({
         period_days: days,
         since,
-        total: history.length,
+        total: entries.length,
         recruiters: result,
       });
     } catch (err) {
@@ -157,5 +186,52 @@ router.get(
     }
   }
 );
+
+/** Fecha 'YYYY-MM-DD' en hora de Colombia (UTC-5, sin horario de verano). */
+const bogota = (day: string, end: boolean) => new Date(`${day}T${end ? '23:59:59.999' : '00:00:00.000'}-05:00`);
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_RANGE_DAYS = 366;
+
+/**
+ * GET /api/reports/results?from=YYYY-MM-DD&to=YYYY-MM-DD
+ *
+ * Reporte de resultados para gerencia: por vacante, motivos de descarte y
+ * rendimiento por reclutador en el rango (ver services/companyReport.ts).
+ * Sin fechas: últimos 30 días.
+ */
+router.get('/results', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const companyId = req.locals?.companyId;
+  if (!companyId) {
+    res.status(403).json({ error: 'Tu usuario no está asociado a una empresa' });
+    return;
+  }
+  const today = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const toDay = typeof req.query.to === 'string' && req.query.to ? req.query.to : today;
+  const fromDay = typeof req.query.from === 'string' && req.query.from
+    ? req.query.from
+    : new Date(bogota(toDay, false).getTime() - 29 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  if (!DAY_RE.test(fromDay) || !DAY_RE.test(toDay)) {
+    res.status(400).json({ error: 'Las fechas deben tener el formato AAAA-MM-DD' });
+    return;
+  }
+  const from = bogota(fromDay, false);
+  const to = bogota(toDay, true);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+    res.status(400).json({ error: 'El rango de fechas no es válido' });
+    return;
+  }
+  if ((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000) > MAX_RANGE_DAYS) {
+    res.status(400).json({ error: 'El rango máximo es de un año' });
+    return;
+  }
+  try {
+    const data = await loadInsightsData(supabaseAdmin, companyId, (what, error) =>
+      logger.warn(`Reporte de resultados: sin ${what} (¿migración pendiente?)`, { companyId, error: error instanceof Error ? error.message : JSON.stringify(error) }));
+    res.json(computeCompanyReport(data, { from, to }));
+  } catch (err) {
+    logger.error('Error armando el reporte de resultados', { companyId, error: err instanceof Error ? err.message : JSON.stringify(err) });
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
 
 export default router;

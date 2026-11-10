@@ -1,21 +1,19 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { candidatePortalService, MyProfile } from '../../services/candidatePortalService';
 import { ToastContainer } from '../ui/Toast';
 import { useToast } from '../../hooks/useToast';
-import { ConfirmModal } from '../ui/ConfirmModal';
 import { CandidateExperienceSection } from './CandidateExperienceSection';
 import { CandidateEducationSection } from './CandidateEducationSection';
 import { CandidateSkillsSection } from './CandidateSkillsSection';
 import { CandidateSearchPreferencesSection } from './CandidateSearchPreferencesSection';
+import { CvImport } from './CvImport';
 
 export const CandidateProfileView = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<Partial<MyProfile> | null>(null);
-  const [confirmDeleteCv, setConfirmDeleteCv] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['my-profile'],
@@ -30,25 +28,6 @@ export const CandidateProfileView = () => {
       toast.success('Perfil actualizado');
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al guardar'),
-  });
-
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => candidatePortalService.uploadCv(file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-profile'] });
-      toast.success('CV subido correctamente');
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al subir el CV'),
-  });
-
-  const deleteCvMutation = useMutation({
-    mutationFn: () => candidatePortalService.deleteCv(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-profile'] });
-      setConfirmDeleteCv(false);
-      toast.success('CV eliminado');
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al eliminar el CV'),
   });
 
   if (isLoading) {
@@ -85,19 +64,12 @@ export const CandidateProfileView = () => {
   return (
     <>
       <ToastContainer toasts={toast.toasts} onRemove={toast.remove} />
-      {confirmDeleteCv && (
-        <ConfirmModal
-          message="¿Eliminar tu hoja de vida actual? Los reclutadores ya no podrán abrirla."
-          confirmLabel={deleteCvMutation.isPending ? 'Eliminando...' : 'Eliminar'}
-          onConfirm={() => deleteCvMutation.mutate()}
-          onCancel={() => setConfirmDeleteCv(false)}
-        />
-      )}
-
       <div className="page-header">
         <h1>Mi perfil</h1>
-        <p>Los datos que las empresas verán cuando te encuentren</p>
+        <p>Los datos que las empresas verán cuando te encuentren, y con los que te recomendamos vacantes</p>
       </div>
+
+      <CvImport profile={profile} onMessage={(kind, text) => (kind === 'success' ? toast.success(text) : toast.error(text))} />
 
       <form onSubmit={handleSave} style={{ maxWidth: 620 }}>
         <div className="form-group">
@@ -200,53 +172,6 @@ export const CandidateProfileView = () => {
             value={current.linkedin_url ?? ''}
             onChange={set('linkedin_url')}
             placeholder="https://linkedin.com/in/tu-perfil"
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Hoja de vida</label>
-          <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: -4, marginBottom: 8 }}>
-            El archivo es solo para que el reclutador lo abra — no reemplaza los campos de este
-            perfil ni tu perfil de búsqueda; esos se usan para que te encuentren.
-          </p>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn-secondary-sm"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploadMutation.isPending}
-            >
-              {uploadMutation.isPending ? 'Subiendo...' : current.cv_url ? 'Reemplazar CV' : 'Subir CV'}
-            </button>
-            {current.cv_url && (
-              <>
-                <a href={current.cv_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5 }}>
-                  Ver CV actual
-                </a>
-                <button
-                  type="button"
-                  className="btn-danger-sm"
-                  style={{ width: 'auto', padding: '4px 10px', fontSize: 12 }}
-                  onClick={() => setConfirmDeleteCv(true)}
-                >
-                  Eliminar
-                </button>
-              </>
-            )}
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
-              PDF, DOC o DOCX · máx. 5 MB
-            </span>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".pdf,.doc,.docx"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) uploadMutation.mutate(file);
-              e.target.value = '';
-            }}
           />
         </div>
 

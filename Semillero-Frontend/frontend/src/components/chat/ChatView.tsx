@@ -1,12 +1,20 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChatMessage, Candidate, CandidateObservation, CandidateObservationCode, CandidateDecision, CandidateDecisionState, SOURCE_LABELS } from '../../types';
+import { ChatMessage, Candidate, CandidateRejection, ContactChannel, Vacancy, CandidateObservation, CandidateObservationCode, CandidateDecision, CandidateDecisionState, SOURCE_LABELS } from '../../types';
 import { supabase } from '../../lib/supabase';
-import { chatService, ChatSession, MAX_SESSIONS } from '../../services/chatService';
+import { chatService, ChatSession } from '../../services/chatService';
 import { candidateService } from '../../services/candidateService';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { Icon } from '../ui/Icon';
+import { CandidateProfileModal, ProfileTab } from './CandidateProfileModal';
+import { AffinityBadge } from './AffinityBadge';
+import { DecisionBar } from './DecisionBar';
+import { RejectForRoleModal } from './RejectForRoleModal';
+import { VacancySuggestion } from './VacancySuggestion';
+import { roleFromQuery, isSearchAnswer, isFollowUp } from '../../lib/searchRole';
+import { vacancyService } from '../../services/vacancyService';
+import { candidateProfileService } from '../../services/candidateProfileService';
 
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
@@ -23,6 +31,7 @@ const isSearchDone = (m: ChatMessage) => m.role === 'assistant' && m.content.sta
 
 export const ChatView = () => {
   const searchParams = useSearchParams();
+  const focusMessageId = useRef<string | null>(searchParams.get('m'));
   const [token, setToken] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -36,11 +45,49 @@ export const ChatView = () => {
   // Estado vigente de cada candidato mostrado: undefined = cargando, null = no se puede decidir sobre él
   const [decisions, setDecisions] = useState<Record<string, CandidateDecisionState | null>>({});
   const [decidingId, setDecidingId] = useState<string | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<Candidate | null>(null);
+  // Rechazo por puesto: a quién y con qué puesto sugerido; y los rechazados en esta visita
+  const [rejectTarget, setRejectTarget] = useState<{ candidate: Candidate; suggestedRole: string } | null>(null);
+  const [rejectedHere, setRejectedHere] = useState<Record<string, CandidateRejection>>({});
+  const requestReject = useCallback((candidate: Candidate, suggestedRole: string) => setRejectTarget({ candidate, suggestedRole }), []);
+  // Relación chat ↔ vacantes: tras contactar, dar seguimiento, aprobar o rechazar a alguien
+  // de una respuesta, se propone crear (o ver) la vacante de ese cargo.
+  const [actedOn, setActedOn] = useState<string[]>([]);
+  // Candidatos concretos trabajados: se asocian a la vacante que se cree o exista para la búsqueda
+  const [actedCandidates, setActedCandidates] = useState<string[]>([]);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
+  // Vacante activa de cada cargo buscado (undefined = consultando, null = no existe).
+  // Aprobar y dar seguimiento la exigen: sin vacante esos botones quedan deshabilitados.
+  const [vacancyByRole, setVacancyByRole] = useState<Record<string, Pick<Vacancy, 'id' | 'title'> | null>>({});
+  const requestedRoles = useRef(new Set<string>());
+  const markActed = useCallback((candidateId: string) => {
+    const msg = messages.find((m) => m.candidates?.some((c) => c.id === candidateId));
+    if (msg) setActedOn((prev) => (prev.includes(msg.id) ? prev : [...prev, msg.id]));
+    setActedCandidates((prev) => (prev.includes(candidateId) ? prev : [...prev, candidateId]));
+  }, [messages]);
+  const undoReject = useCallback(async (c: Candidate) => {
+    const rejection = rejectedHere[c.id];
+    if (!rejection) return;
+    try {
+      await candidateProfileService.undoReject(rejection.kind, c.id, rejection.id);
+      setRejectedHere((prev) => {
+        const next = { ...prev };
+        delete next[c.id];
+        return next;
+      });
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : 'No se pudo deshacer el rechazo');
+    }
+  }, [rejectedHere]);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const requestedDecisionIds = useRef(new Set<string>());
   const [pendingSearch, setPendingSearch] = useState<{ sessionId: string; knownDoneIds: string[] } | null>(null);
+  // Perfil completo abierto desde una tarjeta, y a quién se le escribió en esta visita
+  const [profileTarget, setProfileTarget] = useState<{ candidate: Candidate; tab: ProfileTab } | null>(null);
+  const [contacted, setContacted] = useState<Record<string, ContactChannel>>({});
+  const openProfile = useCallback((candidate: Candidate, tab: ProfileTab) => setProfileTarget({ candidate, tab }), []);
+  const closeProfile = useCallback(() => setProfileTarget(null), []);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -58,7 +105,10 @@ export const ChatView = () => {
       .listSessions()
       .then((list) => {
         setSessions(list);
-        if (list.length > 0) setActiveSessionId(list[0].id);
+        // Desde el historial: /chat?session=…&m=… abre esa búsqueda (aunque sea antigua)
+        const fromHistory = searchParams.get('session');
+        if (fromHistory) setActiveSessionId(fromHistory);
+        else if (list.length > 0) setActiveSessionId(list[0].id);
       })
       .catch((err) => setSessionError(err instanceof Error ? err.message : 'Error al cargar sesiones'))
       .finally(() => setLoadingSessions(false));
@@ -101,20 +151,29 @@ export const ChatView = () => {
       });
   }, [messages]);
 
-  const applyDecision = useCallback(async (c: Candidate, decision: CandidateDecision) => {
+  const applyDecision = useCallback(async (c: Candidate, decision: CandidateDecision, vacancyId?: string) => {
     setDecidingId(c.id);
     setDecisionError(null);
     try {
-      const result = await candidateService.decide(c.id, decision);
-      setDecisions((prev) => ({ ...prev, [c.id]: { status: result.status, presented: result.presented } }));
+      const result = await candidateService.decide(c.id, decision, undefined, vacancyId);
+      setDecisions((prev) => ({ ...prev, [c.id]: { status: result.status, presented: result.presented, vacancy_id: result.vacancy_id ?? vacancyId ?? null } }));
+      markActed(c.id);
     } catch (err) {
       setDecisionError(err instanceof Error ? err.message : 'No se pudo aplicar la decisión');
     } finally {
       setDecidingId(null);
     }
-  }, []);
+  }, [markActed]);
 
   useEffect(() => {
+    // Si se llegó desde el historial, se muestra ese mensaje en vez de ir al final
+    const target = focusMessageId.current && document.getElementById(`msg-${focusMessageId.current}`);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      target.classList.add('turn-focus');
+      focusMessageId.current = null;
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, pendingSearch]);
 
@@ -165,10 +224,6 @@ export const ChatView = () => {
   }, [pendingSearch]);
 
   const handleNewSession = useCallback(async () => {
-    if (sessions.length >= MAX_SESSIONS) {
-      setSessionError(`Máximo ${MAX_SESSIONS} búsquedas guardadas. Elimina una para crear otra.`);
-      return;
-    }
     try {
       const created = await chatService.createSession();
       setSessions((prev) => [created, ...prev]);
@@ -232,10 +287,9 @@ export const ChatView = () => {
         }]);
       } else {
         // El backend pudo crear la sesión: adoptamos su id
-        if (body.session_id && body.session_id !== activeSessionId) {
-          setActiveSessionId(body.session_id);
-          chatService.listSessions().then(setSessions).catch(() => null);
-        }
+        if (body.session_id && body.session_id !== activeSessionId) setActiveSessionId(body.session_id);
+        // Siempre: la primera búsqueda le da nombre a la sesión ("Contadora pública · Bogotá")
+        chatService.listSessions().then(setSessions).catch(() => null);
         setMessages((prev) => [...prev, {
           id: tempId(),
           role: 'assistant',
@@ -272,14 +326,54 @@ export const ChatView = () => {
     }
   };
 
+  // El campo crece con el texto hasta su alto máximo (definido en CSS)
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
+  const pickExample = (text: string) => {
+    setInput(text);
+    inputRef.current?.focus();
+  };
+
+  // La sugerencia de vacante va siempre en la última respuesta de búsqueda (y en las
+  // anteriores donde el reclutador ya trabajó con algún candidato)
+  const lastSearchAnswerId = [...messages].reverse().find(isSearchAnswer)?.id;
+
+  // Consulta (una vez por cargo) si existe la vacante de cada búsqueda con candidatos
+  useEffect(() => {
+    messages.forEach((m, i) => {
+      if (!m.candidates?.length) return;
+      const query = messages.slice(0, i).reverse().find((x) => x.role === 'user')?.content ?? '';
+      const role = roleOfAnswer(m, query);
+      if (!role || requestedRoles.current.has(role)) return;
+      requestedRoles.current.add(role);
+      vacancyService.match(role)
+        .then((v) => setVacancyByRole((prev) => ({ ...prev, [role]: v })))
+        .catch(() => {
+          requestedRoles.current.delete(role); // se reintenta en el próximo cambio
+          setVacancyByRole((prev) => ({ ...prev, [role]: null }));
+        });
+    });
+  }, [messages]);
+
+  const activeSession = sessions.find((s) => s.id === activeSessionId);
+
   return (
-    <div>
+    <div className="search-page">
       {rejectTarget && (
-        <ConfirmModal
-          message={`¿Rechazar a ${rejectTarget.full_name}? Es definitivo: no se podrá reactivar ni aprobar después.`}
-          confirmLabel="Rechazar"
-          onConfirm={() => { applyDecision(rejectTarget, 'rechazar'); setRejectTarget(null); }}
-          onCancel={() => setRejectTarget(null)}
+        <RejectForRoleModal
+          candidate={rejectTarget.candidate}
+          suggestedRole={rejectTarget.suggestedRole}
+          onClose={() => setRejectTarget(null)}
+          onRejected={(rejection) => {
+            setRejectedHere((prev) => ({ ...prev, [rejectTarget.candidate.id]: rejection }));
+            markActed(rejectTarget.candidate.id);
+            setRejectTarget(null);
+          }}
         />
       )}
       {deleteTarget && (
@@ -290,147 +384,215 @@ export const ChatView = () => {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
-
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1>Búsqueda por chat</h1>
-          <p>Pide candidatos en lenguaje natural — el sistema los busca automáticamente</p>
-        </div>
-        <button
-          className="btn-primary"
-          style={{ width: 'auto', padding: '10px 20px' }}
-          onClick={handleNewSession}
-          disabled={loadingSessions || sessions.length >= MAX_SESSIONS}
-          title={sessions.length >= MAX_SESSIONS ? `Máximo ${MAX_SESSIONS} búsquedas` : undefined}
-        >
-          + Nueva búsqueda
-        </button>
-      </div>
-
-      {decisionError && (
-        <div className="form-error" style={{ marginBottom: 12 }} role="alert">{decisionError}</div>
+      {profileTarget && (
+        <CandidateProfileModal
+          key={profileTarget.candidate.id}
+          candidate={profileTarget.candidate}
+          initialTab={profileTarget.tab}
+          onClose={closeProfile}
+          onContacted={(id, contact) => {
+            setContacted((prev) => ({ ...prev, [id]: contact.channel }));
+            markActed(id);
+          }}
+          onRejectionUndone={(id) => setRejectedHere((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          })}
+        />
       )}
 
-      {sessionError && (
-        <div className="form-error" style={{ marginBottom: 12 }}>{sessionError}</div>
-      )}
+      <h1 className="sr-only">Búsqueda de candidatos</h1>
 
-      <div className="chat-layout">
-        <aside className="chat-sessions" aria-label="Búsquedas guardadas">
-          <p className="nav-section-label">
-            Búsquedas ({sessions.length}/{MAX_SESSIONS})
-          </p>
-          {loadingSessions ? (
-            <div className="skeleton" style={{ height: 32, marginBottom: 8 }} />
-          ) : sessions.length === 0 ? (
-            <p style={{ fontSize: 12.5, color: 'var(--text-3)', padding: '4px 2px' }}>
-              Escribe abajo para empezar
-            </p>
-          ) : (
-            sessions.map((s) => (
-              <div
-                key={s.id}
-                className={`session-item${s.id === activeSessionId ? ' active' : ''}`}
-              >
-                <button
-                  className="session-name"
-                  onClick={() => setActiveSessionId(s.id)}
-                  title={s.name}
-                >
-                  {s.name}
-                </button>
-                <button
-                  className="btn-danger-sm"
-                  onClick={() => setDeleteTarget(s)}
-                  aria-label={`Eliminar ${s.name}`}
-                  title="Eliminar"
-                >×</button>
-              </div>
-            ))
-          )}
+      <div className="search-workspace">
+        <aside className="search-rail" aria-label="Búsquedas guardadas">
+          <div className="search-rail-head">
+            <span>Búsquedas</span>
+            <span className="search-rail-count">{sessions.length}</span>
+          </div>
+          <button
+            type="button"
+            className="search-new"
+            onClick={handleNewSession}
+            disabled={loadingSessions}
+          >
+            <Icon name="plus" size={14} /> Nueva búsqueda
+          </button>
+
+          <div className="search-rail-list">
+            {loadingSessions ? (
+              [0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 30, margin: '4px 0' }} />)
+            ) : sessions.length === 0 ? (
+              <p className="search-rail-empty">Tus búsquedas aparecerán aquí.</p>
+            ) : (
+              sessions.map((s) => (
+                <div key={s.id} className={`search-rail-item${s.id === activeSessionId ? ' active' : ''}`}>
+                  <button
+                    type="button"
+                    className="search-rail-name"
+                    onClick={() => setActiveSessionId(s.id)}
+                    aria-current={s.id === activeSessionId ? 'true' : undefined}
+                    title={s.name}
+                  >
+                    <span>{s.name}</span>
+                    <time dateTime={s.updated_at}>{formatDay(s.updated_at)}</time>
+                  </button>
+                  <button
+                    type="button"
+                    className="search-rail-delete"
+                    onClick={() => setDeleteTarget(s)}
+                    aria-label={`Eliminar ${s.name}`}
+                    title="Eliminar búsqueda"
+                  >
+                    <Icon name="trash" size={14} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </aside>
 
-        <div className="chat-room">
-          <div className="chat-messages">
-            {messages.length === 0 && !loading && (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-3)' }}>
-                <span className="empty-icon"><Icon name="search" size={22} /></span>
-                <p style={{ fontSize: 15, marginBottom: 6, color: 'var(--text-2)' }}>Empieza una búsqueda</p>
-                <p style={{ fontSize: 13 }}>Ej: &quot;Necesito un desarrollador Python con 3 años de experiencia en Bogotá&quot;</p>
-              </div>
+        <section className="search-thread" aria-label="Conversación">
+          <header className="search-thread-head">
+            <p className="search-thread-title">{activeSession?.name ?? 'Búsqueda nueva'}</p>
+            {(decisionError || sessionError) && (
+              <p className="search-thread-error" role="alert">{decisionError ?? sessionError}</p>
             )}
+          </header>
 
-            {messages.map((msg) => (
-              <div key={msg.id}>
-                <div className={`chat-message ${msg.role === 'user' ? 'own' : 'other'}`}>
-                  <div className="bubble">
-                    <p style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</p>
-                    <span className="timestamp">{formatTime(msg.created_at)}</span>
-                  </div>
-                </div>
-                {msg.candidates && msg.candidates.length > 0 && (
-                  <CandidateCards
-                    candidates={msg.candidates}
-                    decisions={decisions}
-                    decidingId={decidingId}
-                    onDecide={applyDecision}
-                    onRequestReject={setRejectTarget}
-                  />
-                )}
-              </div>
-            ))}
+          <div className="search-log">
+            {messages.length === 0 && !loading && <EmptyThread onPick={pickExample} />}
 
-            {loading && (
-              <div className="chat-message other">
-                <div className="bubble">
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 0' }}>
-                    {[0, 1, 2].map((i) => (
-                      <span key={i} style={{
-                        width: 6, height: 6, borderRadius: '50%',
-                        background: 'var(--text-3)',
-                        animation: `dotRise .9s ${i * 0.15}s infinite`,
-                      }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-            {pendingSearch && (
-              <div className="chat-message other" role="status" aria-live="polite">
-                <div className="bubble">
-                  <p style={{ fontSize: 13, color: 'var(--text-3)' }}>Buscando en fuentes externas…</p>
-                </div>
-              </div>
-            )}
+            {messages.map((msg, i) => {
+              // La consulta que originó esta respuesta
+              const query = messages.slice(0, i).reverse().find((m) => m.role === 'user')?.content ?? '';
+              const role = roleOfAnswer(msg, query);
+              // Una pregunta sobre resultados ya mostrados ("de esos…") no es un cargo nuevo
+              const suggestion = query && !isFollowUp(query) && isSearchAnswer(msg) && !dismissedSuggestions.includes(msg.id)
+                && (actedOn.includes(msg.id) || msg.id === lastSearchAnswerId)
+                ? (actedOn.includes(msg.id) ? 'accion' : msg.candidates?.length ? 'busqueda' : 'sin-resultados')
+                : null;
+              return (
+                <article key={msg.id} id={`msg-${msg.id}`} className={`turn ${msg.role === 'user' ? 'turn-query' : 'turn-answer'}`}>
+                  <p className="turn-meta">
+                    {msg.role === 'user' ? 'Tú' : 'Kmella'} · <time dateTime={msg.created_at}>{formatTime(msg.created_at)}</time>
+                  </p>
+                  <p className="turn-text">{msg.content}</p>
+                  {msg.candidates && msg.candidates.length > 0 && (
+                    <CandidateResults
+                      candidates={msg.candidates}
+                      decisions={decisions}
+                      decidingId={decidingId}
+                      onDecide={applyDecision}
+                      vacancy={vacancyByRole[role]}
+                      onRequestReject={requestReject}
+                      onUndoReject={undoReject}
+                      rejectedHere={rejectedHere}
+                      // Sin cargo detectado (mensajes viejos), el puesto sugerido es la consulta que originó la respuesta
+                      query={query}
+                      onOpenProfile={openProfile}
+                      contacted={contacted}
+                    />
+                  )}
+                  {suggestion && (
+                    <VacancySuggestion
+                      role={role}
+                      query={query}
+                      reason={suggestion}
+                      onCreated={(v) => setVacancyByRole((prev) => ({ ...prev, [role]: v }))}
+                      related={(msg.candidates ?? []).filter((c) => actedCandidates.includes(c.id) && !rejectedHere[c.id])}
+                      onDismiss={() => setDismissedSuggestions((prev) => [...prev, msg.id])}
+                    />
+                  )}
+                </article>
+              );
+            })}
+
+            {loading && <Working text="Buscando en la base de candidatos…" />}
+            {pendingSearch && <Working text="Buscando en fuentes externas. Los resultados aparecerán aquí al terminar; puede tardar un par de minutos." />}
             <div ref={bottomRef} />
           </div>
 
-          <div className="chat-input-area">
+          <form
+            className="search-composer"
+            onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
+          >
+            <label htmlFor="search-input" className="sr-only">Describe el perfil que buscas</label>
             <textarea
+              id="search-input"
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder='Ej: "Busca un ingeniero de sistemas con experiencia en React en Medellín"'
+              placeholder="Cargo, ciudad, años de experiencia, salario máximo…"
               rows={1}
+              maxLength={MAX_MESSAGE_LENGTH}
               disabled={loading}
             />
-            <button
-              type="button"
-              onClick={sendMessage}
-              disabled={loading || !input.trim()}
-              aria-label="Enviar"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            </button>
-          </div>
-        </div>
+            <div className="search-composer-bar">
+              <span className="search-composer-hint">
+                <kbd>Enter</kbd> busca · <kbd>Shift</kbd>+<kbd>Enter</kbd> nueva línea
+              </span>
+              {input.length > MAX_MESSAGE_LENGTH * 0.8 && (
+                <span className="search-composer-count">{input.length}/{MAX_MESSAGE_LENGTH}</span>
+              )}
+              <button type="submit" className="btn-save" disabled={loading || !input.trim()}>
+                Buscar
+              </button>
+            </div>
+          </form>
+        </section>
       </div>
     </div>
   );
 };
+
+/** Respuesta final sin candidatos ("No encontré…", "Terminé la búsqueda y no encontré…"). */
+/** Cargo de una respuesta: el que entendió la IA, o el aproximado de la consulta. */
+const roleOfAnswer = (msg: ChatMessage, query: string) =>
+  msg.candidates?.find((c) => c.matched_role)?.matched_role || roleFromQuery(query);
+
+// Mismo tope que valida el backend en /api/chat
+const MAX_MESSAGE_LENGTH = 1000;
+
+const formatDay = (iso: string) => {
+  const d = new Date(iso);
+  return d.toDateString() === new Date().toDateString()
+    ? formatTime(iso)
+    : d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+};
+
+const EXAMPLES = [
+  'Desarrollador backend con Python, 3 años de experiencia, en Bogotá',
+  'Auxiliar contable en Medellín con salario hasta 2.500.000',
+  'Diseñador UX con portafolio, remoto',
+];
+
+const EmptyThread = ({ onPick }: { onPick: (text: string) => void }) => (
+  <div className="search-empty">
+    <p className="search-empty-title">Describe el perfil que necesitas</p>
+    <p className="search-empty-text">
+      Escríbelo como se lo pedirías a un colega. Entre más concreto (cargo, ciudad, experiencia, salario),
+      más preciso el filtro. Si en la base no hay suficientes, se busca también en fuentes externas.
+    </p>
+    <p className="search-empty-label">Por ejemplo</p>
+    <ul className="search-examples">
+      {EXAMPLES.map((ex) => (
+        <li key={ex}>
+          <button type="button" onClick={() => onPick(ex)}>{ex}</button>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+const Working = ({ text }: { text: string }) => (
+  <div className="turn turn-answer" role="status">
+    <p className="turn-meta">Kmella</p>
+    <p className="turn-text turn-working">{text}</p>
+    <span className="search-progress" aria-hidden="true" />
+  </div>
+);
 
 const MAX_OBSERVATION_TAGS = 3;
 
@@ -457,130 +619,111 @@ const observationTags = (c: Candidate): { key: string; text: string; warn: boole
   return tags.slice(0, MAX_OBSERVATION_TAGS);
 };
 
-const CandidateCards = ({ candidates, decisions, decidingId, onDecide, onRequestReject }: {
+const CONTACTED_LABELS: Record<ContactChannel, string> = {
+  whatsapp: 'Le escribiste por WhatsApp',
+  email: 'Le escribiste por correo',
+  linkedin: 'Le escribiste por LinkedIn',
+};
+
+const CandidateResults = ({ candidates, decisions, decidingId, onDecide, vacancy, onRequestReject, onUndoReject, rejectedHere, query, onOpenProfile, contacted }: {
   candidates: Candidate[];
   decisions: Record<string, CandidateDecisionState | null>;
   decidingId: string | null;
-  onDecide: (c: Candidate, decision: CandidateDecision) => void;
-  onRequestReject: (c: Candidate) => void;
+  onDecide: (c: Candidate, decision: CandidateDecision, vacancyId?: string) => void;
+  /** Vacante del cargo de esta búsqueda (undefined = consultando, null = no existe). */
+  vacancy: Pick<Vacancy, 'id' | 'title'> | null | undefined;
+  onRequestReject: (c: Candidate, suggestedRole: string) => void;
+  onUndoReject: (c: Candidate) => void;
+  rejectedHere: Record<string, CandidateRejection>;
+  query: string;
+  onOpenProfile: (c: Candidate, tab: ProfileTab) => void;
+  contacted: Record<string, ContactChannel>;
 }) => (
-  <div style={{ padding: '8px 0 8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-    {candidates.map((c) => (
-      <div key={c.id} style={{
-        background: 'var(--surface-2)', border: '1px solid var(--border)',
-        borderRadius: 10, padding: '12px 16px',
-      }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'flex-start', marginBottom: c.match_reason ? 8 : 0 }}>
-          <div>
-            <p style={{ fontWeight: 600, color: 'var(--text-1)', marginBottom: 4 }}>{c.full_name}</p>
-            <p style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
-              {c.position}{c.location ? ` · ${c.location}` : ''}{c.experience_years ? ` · ${c.experience_years} años exp.` : ''}
-            </p>
-            {c.expected_salary && (
-              <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
-                Salario esperado: ${c.expected_salary.toLocaleString('es-CO')}
+  <div className="results">
+    <p className="results-count">
+      {candidates.length} {candidates.length === 1 ? 'candidato' : 'candidatos'}
+    </p>
+    {/* Una sola vez, no en cada tarjeta: sin vacante del cargo no se aprueba ni se da seguimiento */}
+    {vacancy === null && candidates.some((c) => !decisions[c.id]?.vacancy_id) && (
+      <p className="results-note">
+        Para aprobar o dar seguimiento, primero crea la vacante de este cargo (te la propongo al final de la lista).
+      </p>
+    )}
+    <ol className="results-list">
+      {candidates.map((c) => {
+        const tags = observationTags(c);
+        const facts = [
+          c.location,
+          c.experience_years ? years(c.experience_years) : null,
+          c.expected_salary ? `aspira a ${money(c.expected_salary)}` : null,
+        ].filter(Boolean);
+        return (
+          <li key={c.id} className="result">
+            <div className="result-main">
+              <div>
+                <p className="result-name">
+                  <button type="button" className="result-name-btn" onClick={() => onOpenProfile(c, 'perfil')}>
+                    {c.full_name}
+                  </button>
+                </p>
+                <p className="result-role">{c.position || c.headline}</p>
+              </div>
+              <span className="result-source">{SOURCE_LABELS[c.source] ?? c.source}</span>
+            </div>
+            {facts.length > 0 && <p className="result-facts">{facts.join(' · ')}</p>}
+            {typeof c.affinity === 'number' && <AffinityBadge score={c.affinity} parts={c.affinity_parts} />}
+            {c.match_reason && <p className="result-reason">{c.match_reason}</p>}
+            {tags.length > 0 && (
+              <ul className="result-flags">
+                {tags.map((t) => <li key={t.key} className={t.warn ? 'warn' : undefined}>{t.text}</li>)}
+              </ul>
+            )}
+            {c.rejected_for && c.rejected_for.length > 0 && (
+              <p className="result-rejected-before">
+                Rechazado antes para: {c.rejected_for.map((r) => (r.reason ? `${r.role} (${r.reason})` : r.role)).join(' · ')}
               </p>
             )}
-          </div>
-          <span className={`badge ${c.source === 'internal' ? 'badge-hired' : 'badge-pending'}`} style={{ fontSize: 11 }}>
-            {SOURCE_LABELS[c.source] ?? c.source}
-          </span>
-        </div>
-        {c.resume_url && (
-          <a href={c.resume_url} target="_blank" rel="noopener noreferrer"
-            style={{ fontSize: 11.5, color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: c.match_reason ? 8 : 0 }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Ver hoja de vida
-          </a>
-        )}
-        {c.match_reason && (
-          <div style={{
-            fontSize: 11.5, color: 'var(--accent-text)', background: 'var(--accent-glow)',
-            borderRadius: 6, padding: '5px 10px', display: 'flex', alignItems: 'flex-start', gap: 6,
-          }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0, marginTop: 1 }}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            {c.match_reason}
-          </div>
-        )}
-        {observationTags(c).length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-            {observationTags(c).map((t) => (
-              <span key={t.key} className={`badge ${t.warn ? 'badge-pending' : ''}`} style={{ fontSize: 11 }}>
-                {t.text}
-              </span>
-            ))}
-          </div>
-        )}
-        <DecisionBar
-          candidate={c}
-          state={decisions[c.id]}
-          busy={decidingId === c.id}
-          onDecide={onDecide}
-          onRequestReject={onRequestReject}
-        />
-      </div>
-    ))}
+            {rejectedHere[c.id] && (
+              <p className="result-rejected-now" role="status">
+                Rechazado para «{rejectedHere[c.id].role_label}». No volverá a salir en búsquedas de ese puesto.
+                <button type="button" onClick={() => onUndoReject(c)}>Deshacer</button>
+              </p>
+            )}
+            <div className="result-foot">
+              <button type="button" className="result-contact" onClick={() => onOpenProfile(c, 'contactar')}>
+                <Icon name="phone" size={13} /> Contactar
+              </button>
+              <button type="button" className="result-link" onClick={() => onOpenProfile(c, 'perfil')}>
+                Ver perfil completo
+              </button>
+              {contacted[c.id] && (
+                <span className="result-contacted"><Icon name="check" size={12} /> {CONTACTED_LABELS[contacted[c.id]]}</span>
+              )}
+              {!rejectedHere[c.id] && (
+                <DecisionBar
+                  candidate={c}
+                  state={decisions[c.id]}
+                  vacancy={vacancy}
+                  busy={decidingId === c.id}
+                  onDecide={onDecide}
+                />
+              )}
+              {!rejectedHere[c.id] && decisions[c.id]?.status !== 'rechazado' && (
+                <button
+                  type="button"
+                  className="result-reject"
+                  // El cargo, no la frase completa ("Necesito una contadora en Bogotá…" → "contadora"):
+                  // la clave del rechazo con "bogota" o "niif" no reconocería el mismo puesto después
+                  onClick={() => onRequestReject(c, c.matched_role || roleFromQuery(query))}
+                  title="Lo descarta para este puesto; sigue disponible para otros"
+                >
+                  Rechazar para este puesto
+                </button>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   </div>
 );
-
-const DECISION_BTN: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500,
-  padding: '5px 11px', borderRadius: 7, border: '1px solid var(--border)',
-  background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer',
-};
-
-/** Aprobar · Seguimiento · Rechazar. Sin estado conocido (cargando o candidato no gestionable) no muestra nada. */
-const DecisionBar = ({ candidate: c, state, busy, onDecide, onRequestReject }: {
-  candidate: Candidate;
-  state: CandidateDecisionState | null | undefined;
-  busy: boolean;
-  onDecide: (c: Candidate, decision: CandidateDecision) => void;
-  onRequestReject: (c: Candidate) => void;
-}) => {
-  if (!state) return null;
-
-  if (state.status === 'rechazado') {
-    return (
-      <div style={{ marginTop: 10 }}>
-        <span className="badge badge-rejected" style={{ fontSize: 11 }}>Rechazado</span>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10 }}>
-      {state.presented && <span className="badge badge-hired" style={{ fontSize: 11 }}>Aceptado</span>}
-      <span style={{ flex: 1 }} />
-      <button
-        type="button"
-        style={{ ...DECISION_BTN, ...(state.presented ? {} : { color: 'var(--green)', borderColor: 'color-mix(in srgb, var(--green) 40%, transparent)' }) }}
-        onClick={() => onDecide(c, 'aprobar')}
-        disabled={busy || state.presented}
-        aria-busy={busy}
-        title="Pasa a la lista de candidatos aceptados de la empresa"
-      >
-        <Icon name="check" size={13} /> Aprobar
-      </button>
-      <button
-        type="button"
-        style={DECISION_BTN}
-        onClick={() => onDecide(c, 'seguimiento')}
-        disabled={busy || (!state.presented && state.status === 'seguimiento')}
-        aria-busy={busy}
-        title="Lo sigue considerando sin descartarlo (sale de la lista de aceptados)"
-      >
-        <Icon name="clock" size={13} /> Seguimiento
-      </button>
-      <button
-        type="button"
-        style={{ ...DECISION_BTN, color: 'var(--red)', borderColor: 'color-mix(in srgb, var(--red) 40%, transparent)' }}
-        onClick={() => onRequestReject(c)}
-        disabled={busy}
-        aria-busy={busy}
-        title="Lo descarta definitivamente"
-      >
-        <Icon name="xCircle" size={13} /> Rechazar
-      </button>
-    </div>
-  );
-};

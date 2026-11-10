@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "check:schema": "tsx --env-file=.env src/scripts/checkSchema.ts",
+    "seed:test-accounts": "tsx --env-file=.env src/scripts/seedTestAccounts.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -17,6 +18,8 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
     "helmet": "^7.1.0",
+    "mammoth": "^1.8.0",
+    "unpdf": "^0.12.1",
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0",
     "zod": "^3.23.8"

@@ -110,6 +110,10 @@ const CANDIDATO_NAV = [
     section: 'Mi cuenta',
     items: [
       {
+        href: '/candidate/dashboard', label: 'Mi búsqueda',
+        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>,
+      },
+      {
         href: '/candidate/profile', label: 'Mi perfil',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
       },
@@ -195,13 +199,22 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-avatar" aria-hidden="true">{initials}</div>
-          <div className="user-info">
-            <p className="user-name">{user?.full_name ?? 'Usuario'}</p>
-            <p className="user-role">
-              {ROLE_LABEL[user?.role ?? ''] ?? 'Reclutador'}
-            </p>
-          </div>
+          <Link
+            href={user?.role === 'candidato' ? '/candidate/profile' : '/profile'}
+            className="sidebar-user"
+            onClick={onClose}
+            title="Ver mi perfil"
+          >
+            <span className="user-avatar" aria-hidden="true">
+              {user?.avatar_url ? <img src={user.avatar_url} alt="" /> : initials}
+            </span>
+            <span className="user-info">
+              <span className="user-name">{user?.full_name ?? 'Usuario'}</span>
+              <span className="user-role">
+                {ROLE_LABEL[user?.role ?? ''] ?? 'Reclutador'}
+              </span>
+            </span>
+          </Link>
           <ThemeButton />
           <button
             onClick={onLogout}

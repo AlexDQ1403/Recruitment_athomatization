@@ -61,7 +61,7 @@ describe('PATCH /api/account/profile', () => {
     mockUpdateUserById.mockResolvedValue({ error: null });
   });
 
-  it('recruiter no puede cambiar full_name ni email (whitelist ignora esos campos)', async () => {
+  it('recruiter no puede cambiar su correo (whitelist ignora el campo)', async () => {
     const app = await buildApp({
       user: { id: 'u1', email: 'r@test.com' },
       profile: { id: 'u1', role: 'recruiter', company_id: 'company-1' },
@@ -69,10 +69,52 @@ describe('PATCH /api/account/profile', () => {
     });
     const res = await request(app)
       .patch('/api/account/profile')
-      .send({ full_name: 'Nombre Nuevo', email: 'otro@test.com' });
+      .send({ email: 'otro@test.com' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Nada que actualizar');
+    expect(mockProfilesUpdate).not.toHaveBeenCalled();
+    expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+
+  it('recruiter edita sus datos personales; el correo del body se descarta', async () => {
+    const app = await buildApp({
+      user: { id: 'u1', email: 'r@test.com' },
+      profile: { id: 'u1', role: 'recruiter', company_id: 'company-1' },
+      companyId: 'company-1',
+    });
+    const res = await request(app)
+      .patch('/api/account/profile')
+      .send({ full_name: 'Nombre Nuevo', phone: '+57 300 123 4567', job_title: 'Reclutadora TI', email: 'otro@test.com' });
+
+    expect(res.status).toBe(200);
+    expect(mockProfilesUpdate).toHaveBeenCalledWith({
+      full_name: 'Nombre Nuevo', phone: '+57 300 123 4567', job_title: 'Reclutadora TI',
+    });
+    expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+
+  it('teléfono vacío se guarda como null', async () => {
+    const app = await buildApp({
+      user: { id: 'u1', email: 'r@test.com' },
+      profile: { id: 'u1', role: 'recruiter', company_id: 'company-1' },
+      companyId: 'company-1',
+    });
+    const res = await request(app).patch('/api/account/profile').send({ phone: '' });
+
+    expect(res.status).toBe(200);
+    expect(mockProfilesUpdate).toHaveBeenCalledWith({ phone: null });
+  });
+
+  it('rechaza un teléfono con letras', async () => {
+    const app = await buildApp({
+      user: { id: 'u1', email: 'r@test.com' },
+      profile: { id: 'u1', role: 'recruiter', company_id: 'company-1' },
+      companyId: 'company-1',
+    });
+    const res = await request(app).patch('/api/account/profile').send({ phone: 'llámame' });
+
+    expect(res.status).toBe(400);
     expect(mockProfilesUpdate).not.toHaveBeenCalled();
   });
 
@@ -147,5 +189,31 @@ describe('PATCH /api/account/profile', () => {
 
     expect(res.status).toBe(400);
     expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/account/company', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('el reclutador no puede editar la ficha de la empresa', async () => {
+    const app = await buildApp({
+      user: { id: 'u1', email: 'r@test.com' },
+      profile: { id: 'u1', role: 'recruiter', company_id: 'company-1' },
+      companyId: 'company-1',
+    });
+    const res = await request(app).patch('/api/account/company').send({ name: 'Otra' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('rechaza un sitio web sin protocolo', async () => {
+    const app = await buildApp({
+      user: { id: 'u1', email: 'e@test.com' },
+      profile: { id: 'u1', role: 'empresa', company_id: 'company-1' },
+      companyId: 'company-1',
+    });
+    const res = await request(app).patch('/api/account/company').send({ website: 'kmella.co' });
+
+    expect(res.status).toBe(400);
   });
 });

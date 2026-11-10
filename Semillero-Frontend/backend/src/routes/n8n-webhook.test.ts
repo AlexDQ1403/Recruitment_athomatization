@@ -217,6 +217,29 @@ describe('POST /api/n8n-webhook', () => {
       expect(JSON.stringify(res.body)).not.toContain('example.com');
     });
 
+    it('guarda teléfono normalizado, titular y extracto de LinkedIn', async () => {
+      const res = await post(validBody({
+        'Especializacion/descripcion': '',
+        Telefono: '(+57) 300-123-4567',
+        Titular: 'Contadora Pública | NIIF | Impuestos',
+        Resumen: 'Contadora con 6 años en auditoría y revisoría fiscal.',
+      }));
+      expect(res.status).toBe(200);
+      expect(inserts[0]).toMatchObject({
+        phone: '+573001234567',
+        headline: 'Contadora Pública | NIIF | Impuestos',
+        summary: 'Contadora con 6 años en auditoría y revisoría fiscal.',
+        // Sin especialización, el titular sirve de cargo (si no, el chat no lo encuentra)
+        position: 'Contadora Pública | NIIF | Impuestos',
+      });
+    });
+
+    it('un teléfono inutilizable se descarta sin rechazar al candidato', async () => {
+      const res = await post(validBody({ Telefono: 'no disponible' }));
+      expect(res.status).toBe(200);
+      expect(inserts[0]).toMatchObject({ phone: null, headline: null, summary: null });
+    });
+
     it('dos personas distintas con la misma IdSolicitud se conservan ambas', async () => {
       await post(validBody({ Nombre: 'Ana García', 'Correo Personal': 'ana@x.com', urlLinkedin: '' }));
       const res = await post(validBody({ Nombre: 'Luis Pérez', 'Correo Personal': 'luis@x.com', urlLinkedin: '' }));
@@ -309,5 +332,14 @@ describe('POST /api/n8n-webhook', () => {
       expect(res.status).toBe(500);
       expect(res.body).toEqual({ error: 'Error al procesar webhook de n8n' });
     });
+  });
+});
+
+describe('tidyName', () => {
+  it('normaliza nombres que llegan todo en minúsculas o mayúsculas; respeta los que ya vienen bien', async () => {
+    const { tidyName } = await import('./n8n-webhook');
+    expect(tidyName('ana jackeline piñeros giraldo')).toBe('Ana Jackeline Piñeros Giraldo');
+    expect(tidyName('JUAN  PÉREZ')).toBe('Juan Pérez');
+    expect(tidyName('María de la Torre')).toBe('María de la Torre');
   });
 });

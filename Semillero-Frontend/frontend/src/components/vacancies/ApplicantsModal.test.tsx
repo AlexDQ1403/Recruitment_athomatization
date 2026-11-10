@@ -79,20 +79,19 @@ describe('ApplicantsModal (Ver candidatos)', () => {
 
     await userEvent.click(group.getByRole('button', { name: 'Rechazar' }));
     expect(setApplicantStatus).not.toHaveBeenCalled();
-    expect(screen.getByText(/¿Rechazar a Ana Pérez\?/)).toBeTruthy();
+    // Deja claro que vale solo para esta vacante
+    expect(screen.getByText(/¿Rechazar a Ana Pérez para .*\? Solo para esta vacante/)).toBeTruthy();
 
-    // El modal de confirmación se pinta antes que la lista: su botón es el primer "Rechazar"
-    const [confirm] = screen.getAllByRole('button', { name: 'Rechazar' });
-    expect(confirm.closest('[role="dialog"]')).toBeNull(); // es el de ConfirmModal, no el de la fila
-    await userEvent.click(confirm);
+    await userEvent.click(screen.getByRole('button', { name: 'Rechazar para esta vacante' }));
     await waitFor(() => expect(setApplicantStatus).toHaveBeenCalledWith('v1', ana, 'rechazado'));
   });
 
-  it('un candidato rechazado no ofrece botones (es terminal)', async () => {
+  it('un candidato rechazado solo ofrece reconsiderar (vuelve a seguimiento en esta vacante)', async () => {
     renderModal();
     await screen.findByText('Carlos Ruiz');
     expect(screen.queryByRole('group', { name: /Carlos Ruiz/ })).toBeNull();
-    expect(screen.getByText(/no se puede reactivar/i)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Reconsiderar' }));
+    await waitFor(() => expect(setApplicantStatus).toHaveBeenCalledWith('v1', carlos, 'seguimiento'));
   });
 
   it('vacante sin candidatos: mensaje vacío', async () => {
@@ -152,7 +151,7 @@ describe('ApplicantsModal (Ver candidatos)', () => {
       applicants.mockResolvedValue({ items: [{ ...ana, presented: true, company_decision: 'contratado' }], total: 1 });
       renderModal();
 
-      expect(await screen.findByText(/Empresa: contratado/)).toBeTruthy();
+      expect(await screen.findByText(/Empresa: autorizado/)).toBeTruthy();
       expect(screen.getByText('La empresa ya decidió')).toBeTruthy();
       expect(screen.queryByRole('group', { name: /Ana Pérez/ })).toBeNull();
     });
@@ -171,7 +170,7 @@ describe('ApplicantsModal (Ver candidatos)', () => {
   describe('vista de la empresa', () => {
     const approvedAna = { ...ana, presented: true };
 
-    it('no ofrece Aprobar ni el pipeline del reclutador: solo Contratar y Descartar', async () => {
+    it('no ofrece Aprobar ni el pipeline del reclutador: solo Autorizar y Descartar', async () => {
       role = 'empresa';
       applicants.mockResolvedValue({ items: [approvedAna], total: 1 });
       renderModal();
@@ -180,7 +179,7 @@ describe('ApplicantsModal (Ver candidatos)', () => {
       expect(screen.queryByRole('button', { name: 'Aprobar' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'En contacto' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Rechazar' })).toBeNull();
-      expect(screen.getByRole('button', { name: 'Contratar' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Autorizar' })).toBeTruthy();
       expect(screen.getByRole('button', { name: 'Descartar' })).toBeTruthy();
     });
 
@@ -189,14 +188,13 @@ describe('ApplicantsModal (Ver candidatos)', () => {
       applicants.mockResolvedValue({ items: [approvedAna], total: 1 });
       renderModal();
 
-      await userEvent.click(await screen.findByRole('button', { name: 'Contratar' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Autorizar' }));
       expect(decide).not.toHaveBeenCalled();
-      expect(screen.getByText(/¿Contratar a Ana Pérez\?/)).toBeTruthy();
+      expect(screen.getByText(/¿Autorizar a Ana Pérez para la siguiente fase\?/)).toBeTruthy();
 
-      const [confirm] = screen.getAllByRole('button', { name: 'Contratar' });
-      await userEvent.click(confirm);
+      await userEvent.click(within(screen.getByRole('dialog', { name: 'Confirmar autorización' })).getByRole('button', { name: 'Autorizar' }));
 
-      await waitFor(() => expect(decide).toHaveBeenCalledWith({ kind: 'profile', id: 'cp-1', full_name: 'Ana Pérez' }, 'contratar'));
+      await waitFor(() => expect(decide).toHaveBeenCalledWith({ kind: 'profile', id: 'cp-1', full_name: 'Ana Pérez' }, 'contratar', undefined));
     });
 
     it('una decisión ya tomada se muestra como insignia, sin botones', async () => {
@@ -205,7 +203,7 @@ describe('ApplicantsModal (Ver candidatos)', () => {
       renderModal();
 
       expect(await screen.findByText('Descartado')).toBeTruthy();
-      expect(screen.queryByRole('button', { name: 'Contratar' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Autorizar' })).toBeNull();
     });
 
     it('sin candidatos aprobados explica que los aprueba el reclutador', async () => {

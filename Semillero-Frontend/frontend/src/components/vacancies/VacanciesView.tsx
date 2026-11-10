@@ -8,6 +8,7 @@ import { ToastContainer } from '../ui/Toast';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { Icon } from '../ui/Icon';
 import { ApplicantsModal } from './ApplicantsModal';
+import { VacancyForm } from './VacancyForm';
 
 const STATUS_LABELS: Record<VacancyStatus, string> = {
   active: 'Activa', paused: 'Pausada', closed: 'Cerrada',
@@ -284,117 +285,5 @@ function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus,
         </div>
       </div>
     </div>
-  );
-}
-
-// ─── Formulario de vacante ───────────────────────────────────────────────────
-
-function VacancyForm({ initial, onSubmit, loading, error }: {
-  initial?: Vacancy;
-  onSubmit: (d: CreateVacancyInput) => void;
-  loading: boolean;
-  error: string | null;
-}) {
-  const [form, setForm] = useState<CreateVacancyInput>({
-    title: initial?.title ?? '',
-    description: initial?.description ?? '',
-    location: initial?.location ?? '',
-    modality: initial?.modality ?? 'presencial',
-    salary_min: initial?.salary_min,
-    salary_max: initial?.salary_max,
-    experience_years_min: initial?.experience_years_min ?? 0,
-    skills: initial?.skills ?? [],
-    deadline: initial?.deadline ?? '',
-  });
-  const [skillInput, setSkillInput] = useState('');
-
-  const set = (k: keyof CreateVacancyInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value || undefined }));
-
-  const addSkill = () => {
-    const s = skillInput.trim();
-    if (s && !form.skills?.includes(s)) {
-      setForm((f) => ({ ...f, skills: [...(f.skills ?? []), s] }));
-    }
-    setSkillInput('');
-  };
-
-  const removeSkill = (s: string) => setForm((f) => ({ ...f, skills: f.skills?.filter((x) => x !== s) }));
-
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {error && <div className="form-error">{error}</div>}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label>Título del cargo *</label>
-          <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Desarrollador Frontend React" required />
-        </div>
-        <div className="form-group">
-          <label>Modalidad</label>
-          <select value={form.modality} onChange={(e) => setForm((f) => ({ ...f, modality: e.target.value as CreateVacancyInput['modality'] }))}>
-            <option value="presencial">Presencial</option>
-            <option value="remoto">Remoto</option>
-            <option value="híbrido">Híbrido</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Ciudad / Ubicación</label>
-          <input value={form.location ?? ''} onChange={set('location')} placeholder="Bogotá, Colombia" />
-        </div>
-        <div className="form-group">
-          <label>Experiencia mínima (años)</label>
-          <input type="number" min={0} value={form.experience_years_min ?? ''} onChange={(e) => setForm((f) => ({ ...f, experience_years_min: e.target.value ? Number(e.target.value) : 0 }))} placeholder="2" />
-        </div>
-        <div className="form-group">
-          <label>Salario mínimo (COP)</label>
-          <input type="number" min={0} value={form.salary_min ?? ''} onChange={(e) => setForm((f) => ({ ...f, salary_min: e.target.value ? Number(e.target.value) : undefined }))} placeholder="3000000" />
-        </div>
-        <div className="form-group">
-          <label>Salario máximo (COP)</label>
-          <input type="number" min={0} value={form.salary_max ?? ''} onChange={(e) => setForm((f) => ({ ...f, salary_max: e.target.value ? Number(e.target.value) : undefined }))} placeholder="6000000" />
-        </div>
-        <div className="form-group">
-          <label>Fecha límite</label>
-          <input type="date" value={form.deadline ?? ''} onChange={set('deadline')} />
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label>Descripción del cargo</label>
-        <textarea value={form.description ?? ''} onChange={set('description')} placeholder="Describe las responsabilidades, requisitos y beneficios del cargo..." rows={4} style={{ resize: 'vertical' }} />
-      </div>
-
-      <div className="form-group">
-        <label>Skills / Tecnologías</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input value={skillInput} onChange={(e) => setSkillInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
-            placeholder="React, Node.js, Python..." style={{ flex: 1 }} />
-          <button type="button" onClick={addSkill}
-            style={{ padding: '9px 14px', borderRadius: 'var(--radius)', background: 'var(--surface-3)', border: '1px solid var(--border)', color: 'var(--text-2)', fontSize: 13, whiteSpace: 'nowrap' }}>
-            + Agregar
-          </button>
-        </div>
-        {form.skills && form.skills.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
-            {form.skills.map((s) => (
-              <span key={s} style={{
-                fontSize: 11.5, padding: '3px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 5,
-                background: 'var(--surface-3)', border: '1px solid var(--border-2)', color: 'var(--text-2)',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                {s}
-                <button type="button" onClick={() => removeSkill(s)} style={{ color: 'var(--text-3)', lineHeight: 1 }}>×</button>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '11px' }}>
-        {loading ? 'Guardando...' : initial ? 'Guardar cambios' : 'Crear vacante'}
-      </button>
-    </form>
   );
 }

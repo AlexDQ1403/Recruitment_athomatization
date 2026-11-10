@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { companyCandidateService } from '../../services/companyCandidateService';
 import { COMPANY_DECISION_LABELS, CompanyDecision } from '../../types';
-import { ConfirmModal } from '../ui/ConfirmModal';
 
 export const DECISION_BADGE: Record<CompanyDecision, string> = {
   pendiente: 'badge-pending',
@@ -23,12 +22,15 @@ export function CompanyDecisionControl({ candidate, decision }: {
 }) {
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<'contratar' | 'descartar' | null>(null);
+  const [reason, setReason] = useState('');
 
   const mutation = useMutation({
-    mutationFn: (d: 'contratar' | 'descartar') => companyCandidateService.decide(candidate, d),
+    mutationFn: (d: 'contratar' | 'descartar') => companyCandidateService.decide(candidate, d, reason.trim() || undefined),
     onSettled: () => {
       setPending(null);
+      setReason('');
       queryClient.invalidateQueries({ queryKey: ['company-candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['company-dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['vacancy-applicants'] });
       queryClient.invalidateQueries({ queryKey: ['candidate-stats'] });
     },
@@ -42,20 +44,45 @@ export function CompanyDecisionControl({ candidate, decision }: {
   return (
     <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
       {pending && (
-        <ConfirmModal
-          message={hire
-            ? `¿Contratar a ${candidate.full_name}? Esta decisión es definitiva.`
-            : `¿Descartar a ${candidate.full_name}? Esta decisión es definitiva.`}
-          confirmLabel={hire ? 'Contratar' : 'Descartar'}
-          danger={!hire}
-          onConfirm={() => mutation.mutate(pending)}
-          onCancel={() => setPending(null)}
-        />
+        <div className="modal-overlay" onClick={() => setPending(null)}>
+          <form
+            className="modal reject-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={hire ? 'Confirmar autorización' : 'Confirmar descarte'}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => { e.preventDefault(); mutation.mutate(pending); }}
+          >
+            <h2>{hire ? `¿Autorizar a ${candidate.full_name} para la siguiente fase?` : `¿Descartar a ${candidate.full_name}?`}</h2>
+            <p className="reject-help">
+              {hire
+                ? 'Pasa a tu proceso interno (entrevistas, pruebas, exámenes). Verás su teléfono y correo para continuar con él.'
+                : 'No seguirá en tu proceso para esta vacante.'}
+              {' '}La decisión es definitiva y el reclutador que lo presentó la verá con tu comentario.
+            </p>
+            <label className="cp-field">
+              <span>{hire ? 'Comentario (opcional)' : 'Motivo (opcional, pero le ayuda al reclutador a buscar mejor)'}</span>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder={hire ? 'p. ej. Agendar prueba técnica la próxima semana' : 'p. ej. No tiene el nivel de inglés que necesitamos'}
+              />
+            </label>
+            <div className="cp-actions">
+              <button type="button" className="btn-secondary-sm" onClick={() => setPending(null)}>Cancelar</button>
+              <button type="submit" className={`btn-save${hire ? '' : ' reject-confirm'}`} disabled={mutation.isPending}>
+                {hire ? 'Autorizar' : 'Descartar'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
       <div role="group" aria-label={`Decisión sobre ${candidate.full_name}`} style={{ display: 'flex', gap: 6 }}>
         <button type="button" disabled={mutation.isPending} onClick={() => setPending('contratar')}
           style={{ ...BTN, color: 'var(--green)', border: '1px solid color-mix(in srgb, var(--green) 40%, transparent)' }}>
-          Contratar
+          Autorizar
         </button>
         <button type="button" disabled={mutation.isPending} onClick={() => setPending('descartar')}
           style={{ ...BTN, color: 'var(--red)', border: '1px solid color-mix(in srgb, var(--red) 35%, transparent)' }}>

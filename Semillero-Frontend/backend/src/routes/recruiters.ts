@@ -6,7 +6,9 @@ import { AuthenticatedRequest } from '../middlewares/companyAuth';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
-const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
+// Todo con service role y acotado a la empresa del token: `profiles` tiene RLS por
+// usuario (migración 013) y con la clave anon la lista salía SIEMPRE vacía, y editar,
+// suspender o eliminar respondían "Reclutador no encontrado".
 const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
@@ -111,7 +113,7 @@ router.get(
       const limit = parseInt(req.query.limit as string) || 50;
       const offset = parseInt(req.query.offset as string) || 0;
 
-      const { data, error, count } = await supabase
+      const { data, error, count } = await supabaseAdmin
         .from('profiles')
         .select(
           'id, email, full_name, role, suspended, last_login, created_at',
@@ -150,13 +152,14 @@ router.patch(
       const { full_name, suspended } = req.body;
 
       // Validar que pertenece a la empresa
-      const { data: recruiter, error: checkError } = await supabase
+      const { data: recruiter, error: checkError } = await supabaseAdmin
         .from('profiles')
         .select('id, company_id, role')
         .eq('id', recruiterId)
         .single();
 
-      if (checkError || !recruiter || recruiter.company_id !== companyId) {
+      // Solo reclutadores de la empresa (no la cuenta de empresa ni otros roles)
+      if (checkError || !recruiter || recruiter.company_id !== companyId || recruiter.role !== 'recruiter') {
         res.status(403).json({ error: 'Reclutador no encontrado' });
         return;
       }
@@ -215,13 +218,13 @@ router.delete(
       }
 
       // Validar que pertenece
-      const { data: recruiter } = await supabase
+      const { data: recruiter } = await supabaseAdmin
         .from('profiles')
-        .select('company_id')
+        .select('company_id, role')
         .eq('id', recruiterId)
         .single();
 
-      if (!recruiter || recruiter.company_id !== companyId) {
+      if (!recruiter || recruiter.company_id !== companyId || recruiter.role !== 'recruiter') {
         res.status(403).json({ error: 'No encontrado' });
         return;
       }

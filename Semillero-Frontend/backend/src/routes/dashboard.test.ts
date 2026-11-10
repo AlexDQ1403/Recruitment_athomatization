@@ -15,7 +15,7 @@ vi.mock('../utils/tracing', () => ({
 }));
 
 type Row = Record<string, unknown>;
-type Tables = 'vacancies' | 'applications' | 'candidate_profiles' | 'profiles' | 'candidates' | 'company_candidates';
+type Tables = 'vacancies' | 'applications' | 'candidate_profiles' | 'profiles' | 'candidates' | 'company_candidates' | 'candidate_contact_log' | 'candidate_rejections';
 let db: Record<Tables, Row[]>;
 let failTable: { table: Tables; error: { code: string; message: string } } | null = null;
 
@@ -53,10 +53,9 @@ vi.mock('@supabase/supabase-js', () => ({
 
 const CO = 'co-1';
 const OTHER = 'co-2';
-const V1 = 'v-1'; // activa
-const V2 = 'v-2'; // activa
-const V3 = 'v-3'; // pausada
-const VX = 'v-x'; // otra empresa
+const V1 = '11111111-1111-4111-8111-111111111111'; // activa
+const V2 = '22222222-2222-4222-8222-222222222222'; // activa
+const VX = '99999999-9999-4999-8999-999999999999'; // otra empresa
 
 const buildApp = async (role = 'recruiter', companyId: string | null = CO) => {
   const app = express();
@@ -69,6 +68,8 @@ const buildApp = async (role = 'recruiter', companyId: string | null = CO) => {
   return app;
 };
 
+const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+
 describe('GET /api/dashboard/recruiter', () => {
   let app: express.Express;
 
@@ -77,128 +78,93 @@ describe('GET /api/dashboard/recruiter', () => {
     failTable = null;
     db = {
       vacancies: [
-        { id: V1, company_id: CO, title: 'Python', status: 'active' },
-        { id: V2, company_id: CO, title: 'QA', status: 'active' },
-        { id: V3, company_id: CO, title: 'Antigua', status: 'paused' },
-        { id: VX, company_id: OTHER, title: 'Ajena', status: 'active' },
+        { id: V1, company_id: CO, title: 'Contador público', status: 'active', created_at: daysAgo(20), deadline: null },
+        { id: V2, company_id: CO, title: 'Enfermera', status: 'active', created_at: daysAgo(10), deadline: null },
+        { id: VX, company_id: OTHER, title: 'Ajena', status: 'active', created_at: daysAgo(10), deadline: null },
       ],
       candidates: [
-        { id: 'l1', company_id: CO, full_name: 'Carlos', position: 'Dev', location: 'Cali', status: 'seguimiento', vacancy_id: V1, created_at: '2026-03-01T00:00:00Z', email: 'secreto@x.com' },
-        { id: 'l2', company_id: CO, full_name: 'Dora', position: 'Dev', status: 'rechazado', vacancy_id: null, created_at: '2026-02-01T00:00:00Z' },
-        { id: 'l3', company_id: OTHER, full_name: 'Ajeno', position: 'X', status: 'seguimiento', vacancy_id: VX, created_at: '2026-04-01T00:00:00Z' },
-      ],
-      candidate_profiles: [
-        { id: 'cp1', profile_id: 'acc1', professional_title: 'Ingeniera de Datos', position: 'datos', location: 'Bogotá' },
-        { id: 'cp2', profile_id: 'acc2', professional_title: null, position: 'QA Senior', location: null },
-      ],
-      profiles: [{ id: 'acc1', full_name: 'Ana Pérez' }, { id: 'acc2', full_name: 'Luis Gómez' }],
-      applications: [
-        { company_id: CO, vacancy_id: V1, candidate_profile_id: 'cp1', created_at: '2026-03-05T00:00:00Z' },
-        { company_id: CO, vacancy_id: V2, candidate_profile_id: 'cp2', created_at: '2026-03-04T00:00:00Z' },
-        { company_id: OTHER, vacancy_id: VX, candidate_profile_id: 'cp1', created_at: '2026-04-05T00:00:00Z' },
+        { id: 'l1', company_id: CO, full_name: 'Laura', position: 'Contadora', source: 'scraping', status: 'seguimiento', vacancy_id: V1, created_at: daysAgo(10), email: 'laura@privado.com', phone: '3001234567', expected_salary: 9 },
+        { id: 'l2', company_id: CO, full_name: 'Pedro', position: 'Contador', source: 'internal', status: 'en_contacto', vacancy_id: V1, created_at: daysAgo(60) },
+        { id: 'lx', company_id: OTHER, full_name: 'De otra empresa', position: 'X', source: 'scraping', status: 'seguimiento', vacancy_id: VX, created_at: daysAgo(1) },
       ],
       company_candidates: [
-        // Ana con cuenta: en contacto y aprobada para la empresa. Luis (cp2) NO tiene fila.
-        { id: 'cc1', company_id: CO, candidate_profile_id: 'cp1', status: 'en_contacto', presented_to_company: true },
-        { id: 'cc2', company_id: CO, legacy_candidate_id: 'l2', status: 'rechazado', presented_to_company: true },
-        { id: 'cc3', company_id: OTHER, candidate_profile_id: 'cp1', status: 'seguimiento', presented_to_company: true },
+        { company_id: CO, legacy_candidate_id: 'l2', candidate_profile_id: null, status: 'en_contacto', source: 'internal', presented_to_company: true, presented_at: daysAgo(7), company_decision: 'pendiente', created_at: daysAgo(60) },
       ],
+      applications: [
+        { company_id: CO, candidate_profile_id: 'p1', vacancy_id: V2, status: 'enviada', created_at: daysAgo(2) },
+      ],
+      candidate_profiles: [{ id: 'p1', profile_id: 'acc-1', professional_title: 'Enfermera jefe', position: null }],
+      profiles: [{ id: 'acc-1', full_name: 'Mario' }],
+      candidate_contact_log: [
+        { company_id: CO, legacy_candidate_id: 'l1', candidate_profile_id: null, created_at: daysAgo(4) },
+        { company_id: OTHER, legacy_candidate_id: 'lx', candidate_profile_id: null, created_at: daysAgo(9) },
+      ],
+      candidate_rejections: [],
     };
     app = await buildApp();
   });
 
-  it('cuenta fichas heredadas Y candidatos con cuenta en el pipeline (antes solo veía las heredadas)', async () => {
-    const res = await request(app).get('/api/dashboard/recruiter');
+  const get = (query = '') => request(app).get(`/api/dashboard/recruiter${query}`);
 
+  it('arma embudo, qué hacer hoy, vacantes y orígenes con los contactos reales', async () => {
+    const res = await get('?period=all');
     expect(res.status).toBe(200);
-    // seguimiento: Carlos (heredado) + Luis (con cuenta, sin fila en company_candidates)
-    // en_contacto: Ana · rechazado: Dora
-    expect(res.body.pipeline).toEqual({ seguimiento: 2, en_contacto: 1, rechazado: 1 });
-    expect(res.body.total).toBe(4);
+    expect(res.body.funnel).toEqual({ candidates: 3, contacted: 2, approved: 1, hired: 0, rejected: 0 });
+    expect(res.body.actions.follow_up.items.map((i: { id: string }) => i.id)).toEqual(['l1']);
+    expect(res.body.actions.new_applicants.items).toEqual([expect.objectContaining({ kind: 'profile', id: 'p1', full_name: 'Mario', title: 'Enfermera jefe', vacancy_title: 'Enfermera' })]);
+    expect(res.body.actions.awaiting_company.items.map((i: { id: string }) => i.id)).toEqual(['l2']);
+    expect(res.body.vacancies.map((v: { id: string }) => v.id).sort()).toEqual([V1, V2].sort());
   });
 
-  it('REGRESIÓN: el postulante sin fila en company_candidates cuenta como seguimiento', async () => {
-    db.company_candidates = db.company_candidates.filter((c) => c.candidate_profile_id !== 'cp1' || c.company_id !== CO);
-    const res = await request(app).get('/api/dashboard/recruiter');
-    expect(res.body.pipeline).toEqual({ seguimiento: 3, en_contacto: 0, rechazado: 1 });
+  it('por defecto los últimos 30 días; filtros por vacante y origen', async () => {
+    expect((await get()).body.filters).toEqual({ period: '30d' });
+    expect((await get()).body.funnel.candidates).toBe(2); // Pedro es de hace 60 días
+    expect((await get(`?period=all&vacancy_id=${V2}`)).body.funnel.candidates).toBe(1);
+    expect((await get('?period=all&source=internal')).body.funnel.candidates).toBe(1);
   });
 
-  it('"aprobados" son los presentados a la empresa que no están rechazados (no hay "contratados")', async () => {
-    const res = await request(app).get('/api/dashboard/recruiter');
-    expect(res.body.approved).toBe(1); // Ana; Dora está rechazada; la fila de otra empresa no cuenta
+  it('400 con filtros inválidos', async () => {
+    expect((await get('?period=1y')).status).toBe(400);
+    expect((await get('?vacancy_id=no-uuid')).status).toBe(400);
+    expect((await get('?source=linkedin')).status).toBe(400);
   });
 
-  it('"contratados" son los que la empresa contrató, solo de su empresa y solo si fueron presentados', async () => {
-    db.company_candidates.push(
-      { id: 'h1', company_id: CO, candidate_profile_id: 'cp1', status: 'seguimiento', presented_to_company: true, company_decision: 'contratado' },
-      { id: 'h2', company_id: CO, legacy_candidate_id: 'l1', status: 'seguimiento', presented_to_company: true, company_decision: 'descartado' },
-      { id: 'h3', company_id: OTHER, legacy_candidate_id: 'l3', status: 'seguimiento', presented_to_company: true, company_decision: 'contratado' },
-      { id: 'h4', company_id: CO, legacy_candidate_id: 'l9', status: 'seguimiento', presented_to_company: false, company_decision: 'contratado' },
-    );
-    expect((await request(app).get('/api/dashboard/recruiter')).body.hired).toBe(1);
+  it('aislamiento: nunca mezcla datos de otra empresa; no expone datos sensibles', async () => {
+    const res = await get('?period=all');
+    const body = JSON.stringify(res.body);
+    expect(body).not.toContain('De otra empresa');
+    expect(body).not.toContain('Ajena');
+    expect(body).not.toContain('laura@privado.com');
+    expect(body).not.toContain('3001234567');
   });
 
-  it('resume las vacantes: por estado, aplicantes de las activas y las más pedidas', async () => {
-    const res = await request(app).get('/api/dashboard/recruiter');
-    expect(res.body.vacancies).toEqual({
-      active: 2, paused: 1, closed: 0,
-      applicants_active: 3, // Python: Ana + Carlos; QA: Luis
-      top: [{ id: V1, title: 'Python', applicants: 2 }, { id: V2, title: 'QA', applicants: 1 }],
-    });
-  });
-
-  it('los aplicantes de vacantes pausadas o cerradas no cuentan en "aplicantes de activas"', async () => {
-    db.applications.push({ company_id: CO, vacancy_id: V3, candidate_profile_id: 'cp2', created_at: '2026-02-01T00:00:00Z' });
-    db.candidates.push({ id: 'l9', company_id: CO, full_name: 'Pausado', position: 'X', status: 'seguimiento', vacancy_id: V3, created_at: '2026-01-01T00:00:00Z' });
-
-    const { vacancies } = (await request(app).get('/api/dashboard/recruiter')).body;
-
-    expect(vacancies.applicants_active).toBe(3);
-    expect(vacancies.top.map((v: { id: string }) => v.id)).not.toContain(V3);
-  });
-
-  it('actividad reciente: mezcla heredados y postulaciones, más nueva primero, con título y vacante', async () => {
-    const res = await request(app).get('/api/dashboard/recruiter');
-    expect(res.body.recent.map((r: { full_name: string }) => r.full_name)).toEqual(['Ana Pérez', 'Luis Gómez', 'Carlos', 'Dora']);
-    expect(res.body.recent[0]).toMatchObject({ kind: 'profile', title: 'Ingeniera de Datos', status: 'en_contacto', vacancy_title: 'Python' });
-    expect(res.body.recent[1]).toMatchObject({ title: 'QA Senior', status: 'seguimiento', vacancy_title: 'QA' });
-    expect(res.body.recent[2]).toMatchObject({ kind: 'legacy', vacancy_title: 'Python' });
-  });
-
-  it('aislamiento: nunca mezcla datos de otra empresa', async () => {
-    const mine = JSON.stringify((await request(app).get('/api/dashboard/recruiter')).body);
-    expect(mine).not.toContain('Ajeno');
-    expect(mine).not.toContain('Ajena');
-
-    app = await buildApp('recruiter', OTHER);
-    const other = (await request(app).get('/api/dashboard/recruiter')).body;
-    expect(other.vacancies.top.map((v: { title: string }) => v.title)).toEqual(['Ajena']);
-    expect(other.recent.map((r: { full_name: string }) => r.full_name)).toEqual(['Ana Pérez', 'Ajeno']);
-  });
-
-  it('no expone datos sensibles (email, teléfono, salario)', async () => {
-    const text = JSON.stringify((await request(app).get('/api/dashboard/recruiter')).body);
-    expect(text).not.toContain('secreto@x.com');
+  it('sin las tablas de contactos o rechazos (migraciones pendientes) se muestra igual', async () => {
+    failTable = { table: 'candidate_contact_log', error: { code: 'PGRST205', message: 'no existe' } };
+    const res = await get('?period=all');
+    expect(res.status).toBe(200);
+    expect(res.body.funnel.contacted).toBe(1); // solo por estado en_contacto
   });
 
   it('empresa sin datos → ceros y listas vacías', async () => {
-    app = await buildApp('recruiter', 'co-vacia');
-    const res = await request(app).get('/api/dashboard/recruiter');
-    expect(res.body).toEqual({
-      pipeline: { seguimiento: 0, en_contacto: 0, rechazado: 0 }, total: 0, approved: 0, hired: 0,
-      vacancies: { active: 0, paused: 0, closed: 0, applicants_active: 0, top: [] }, recent: [],
-    });
+    db = { vacancies: [], candidates: [], company_candidates: [], applications: [], candidate_profiles: [], profiles: [], candidate_contact_log: [], candidate_rejections: [] };
+    const res = await get();
+    expect(res.body.funnel).toEqual({ candidates: 0, contacted: 0, approved: 0, hired: 0, rejected: 0 });
+    expect(res.body.actions.follow_up).toEqual({ total: 0, items: [] });
+    expect(res.body.vacancies).toEqual([]);
+    expect(res.body.sources).toEqual([]);
   });
 
   it('403 sin empresa; 500 genérico sin detalles; 503 si falta una migración', async () => {
-    expect((await request(await buildApp('recruiter', null)).get('/api/dashboard/recruiter')).status).toBe(403);
+    app = await buildApp('recruiter', null);
+    expect((await get()).status).toBe(403);
 
-    failTable = { table: 'vacancies', error: { code: 'XX000', message: 'boom interno' } };
-    const generic = await request(app).get('/api/dashboard/recruiter');
-    expect(generic.status).toBe(500);
-    expect(JSON.stringify(generic.body)).not.toContain('boom');
+    app = await buildApp();
+    failTable = { table: 'candidates', error: { code: 'XX000', message: 'detalle interno' } };
+    const err = await get();
+    expect(err.status).toBe(500);
+    expect(JSON.stringify(err.body)).not.toContain('detalle interno');
 
-    failTable = { table: 'vacancies', error: { code: '42703', message: 'column' } };
-    expect((await request(app).get('/api/dashboard/recruiter')).status).toBe(503);
+    failTable = { table: 'company_candidates', error: { code: '42703', message: 'column does not exist' } };
+    expect((await get()).status).toBe(503);
   });
 });

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
-    const res = await fetch(`${BACKEND_URL}/dashboard/recruiter`, { headers: { Authorization: token } });
+    const res = await fetch(`${BACKEND_URL}/dashboard/recruiter${req.nextUrl.search}`, { headers: { Authorization: token } });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch {

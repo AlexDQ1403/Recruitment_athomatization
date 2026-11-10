@@ -17,6 +17,12 @@ export interface CreateVacancyInput {
   deadline?: string;
 }
 
+/** Borrador propuesto por la IA (mismos campos del formulario) y lo que faltó o se supuso. */
+export interface VacancyDraftResult {
+  draft: CreateVacancyInput;
+  notes: string[];
+}
+
 /**
  * La gestión de vacantes (publicar, listar, editar, pausar, borrar) pasa por el backend:
  * la empresa sale de la sesión y cada consulta se acota a ella. Leer y escribir directo en
@@ -43,6 +49,30 @@ export const vacancyService = {
   /** Publica la vacante: el servidor fija la empresa, quién la crea y el estado `active`. */
   create(data: CreateVacancyInput): Promise<Vacancy> {
     return api<Vacancy>('/api/vacancies', { method: 'POST', body: JSON.stringify(data) }, 'No se pudo publicar la vacante');
+  },
+
+  /** Propuesta de vacante con IA a partir de texto libre. No guarda nada: se confirma con create(). */
+  draft(text: string): Promise<VacancyDraftResult> {
+    return api<VacancyDraftResult>('/api/vacancies/draft', { method: 'POST', body: JSON.stringify({ text }) }, 'No se pudo generar la propuesta');
+  },
+
+  /**
+   * Asocia a la vacante candidatos trabajados en el chat. Los heredados sin vacante quedan
+   * asociados; los de cuenta propia, rechazados o ya en otra vacante vuelven en `skipped`.
+   */
+  linkCandidates(vacancyId: string, candidates: { kind: 'legacy' | 'profile'; id: string }[]): Promise<{
+    linked: string[];
+    skipped: { id: string; reason: 'otra_vacante' | 'rechazado' | 'no_encontrado' | 'cuenta_propia' }[];
+  }> {
+    return api(`/api/vacancies/${vacancyId}/applicants/link`, { method: 'POST', body: JSON.stringify({ candidates }) }, 'No se pudieron asociar los candidatos');
+  },
+
+  /** Vacante activa de mi empresa para ese cargo, si existe. */
+  async match(role: string): Promise<Pick<Vacancy, 'id' | 'title'> | null> {
+    const { vacancy } = await api<{ vacancy: Pick<Vacancy, 'id' | 'title'> | null }>(
+      `/api/vacancies/match?${new URLSearchParams({ role })}`, {}, 'No se pudo consultar las vacantes'
+    );
+    return vacancy;
   },
 
   /** Vacantes de MI empresa, más nuevas primero. */

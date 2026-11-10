@@ -65,7 +65,7 @@ export function MobileMenu() {
   }, [open]);
 
   const close = () => setOpen(false);
-  const home = user?.role === 'candidato' ? '/candidate/profile' : '/dashboard';
+  const home = user?.role === 'candidato' ? '/candidate/dashboard' : '/dashboard';
 
   const drawer = (
     <div className={styles.drawerRoot} data-open={open}>

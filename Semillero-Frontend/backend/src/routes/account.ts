@@ -10,32 +10,74 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-// Lo que cada rol puede tocar de su propio perfil. La empresa administra su
-// identidad (nombre, correo); el reclutador solo su foto — el resto de su
-// ficha (rol, empresa, suspensión) lo gestiona la empresa vía /api/recruiters.
-const ALLOWED_FIELDS: Record<string, ('full_name' | 'email' | 'avatar_url')[]> = {
-  empresa: ['full_name', 'email', 'avatar_url'],
-  recruiter: ['avatar_url'],
-  superAdmin: ['full_name', 'email', 'avatar_url'],
+type ProfileField = 'full_name' | 'email' | 'avatar_url' | 'phone' | 'job_title';
+
+// Lo que cada rol puede tocar de su propio perfil. El reclutador edita sus
+// datos personales pero no el correo: es su usuario de acceso y lo gestiona
+// la empresa vía /api/recruiters, igual que rol, empresa y suspensión.
+const ALLOWED_FIELDS: Record<string, ProfileField[]> = {
+  empresa: ['full_name', 'email', 'avatar_url', 'phone', 'job_title'],
+  recruiter: ['full_name', 'avatar_url', 'phone', 'job_title'],
+  superAdmin: ['full_name', 'email', 'avatar_url', 'phone', 'job_title'],
 };
+
+const PROFILE_COLUMNS = 'id, full_name, email, avatar_url, role, phone, job_title';
+
+// Cadena vacía = borrar el dato
+const optionalText = (max: number) =>
+  z.string().trim().max(max).nullable().optional().transform((v) => (v === '' ? null : v));
 
 const updateSchema = z.object({
   full_name: z.string().trim().min(1).max(160).optional(),
   email: z.string().trim().email().max(255).optional(),
   avatar_url: z.string().trim().url().max(2048).nullable().optional(),
+  phone: optionalText(30).refine((v) => v == null || /^[+\d][\d\s()-]{5,}$/.test(v), 'Teléfono inválido'),
+  job_title: optionalText(120),
 });
+
+const companySchema = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  industry: optionalText(80),
+  city: optionalText(80),
+  website: optionalText(255).refine((v) => v == null || /^https?:\/\/\S+\.\S+/.test(v), 'El sitio web debe empezar por http:// o https://'),
+  description: optionalText(1000),
+});
+
+const COMPANY_COLUMNS = 'id, name, industry, city, website, description, logo_url, created_at';
+
+async function loadCompany(companyId: string) {
+  const [{ data: company }, { count: recruiters }, { count: activeVacancies }] = await Promise.all([
+    supabaseAdmin.from('companies').select(COMPANY_COLUMNS).eq('id', companyId).single(),
+    supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId).eq('role', 'recruiter'),
+    supabaseAdmin.from('vacancies').select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId).eq('status', 'active'),
+  ]);
+  if (!company) return null;
+  return { ...company, recruiters_count: recruiters ?? 0, active_vacancies: activeVacancies ?? 0 };
+}
 
 // GET /api/account/profile
 router.get('/profile', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const userId = req.locals!.user!.id;
-  const profile = req.locals!.profile!;
-  res.json({
-    id: userId,
-    full_name: profile.full_name ?? null,
-    email: req.locals!.user!.email,
-    avatar_url: profile.avatar_url ?? null,
-    role: profile.role,
-  });
+  try {
+    const userId = req.locals!.user!.id;
+    const companyId = req.locals!.companyId;
+
+    const [{ data: profile, error }, company] = await Promise.all([
+      supabaseAdmin.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).single(),
+      companyId ? loadCompany(companyId) : Promise.resolve(null),
+    ]);
+
+    if (error || !profile) {
+      res.status(404).json({ error: 'Perfil no encontrado' });
+      return;
+    }
+
+    res.json({ ...profile, email: req.locals!.user!.email, company });
+  } catch (err) {
+    logger.error('Error cargando perfil de cuenta', { error: String(err) });
+    res.status(500).json({ error: 'Error interno' });
+  }
 });
 
 // PATCH /api/account/profile
@@ -54,8 +96,8 @@ router.patch('/profile', async (req: AuthenticatedRequest, res: Response): Promi
     // Nunca se lee role/company_id/suspended del body: el whitelist por rol
     // es la única fuente de qué se puede tocar (mismo patrón que recruiters.ts).
     const updates = Object.fromEntries(
-      Object.entries(parsed.data).filter(([k, v]) => allowed.includes(k as never) && v !== undefined)
-    ) as { full_name?: string; email?: string; avatar_url?: string | null };
+      Object.entries(parsed.data).filter(([k, v]) => allowed.includes(k as ProfileField) && v !== undefined)
+    ) as Partial<Record<ProfileField, string | null>>;
 
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ error: 'Nada que actualizar' });
@@ -80,7 +122,7 @@ router.patch('/profile', async (req: AuthenticatedRequest, res: Response): Promi
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select('id, full_name, email, avatar_url, role')
+      .select(PROFILE_COLUMNS)
       .single();
 
     if (error) {
@@ -92,6 +134,50 @@ router.patch('/profile', async (req: AuthenticatedRequest, res: Response): Promi
     res.json(data);
   } catch (err) {
     logger.error('Error actualizando perfil de cuenta', { error: String(err) });
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// PATCH /api/account/company — solo la empresa edita su propia ficha
+router.patch('/company', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const role = req.locals!.profile!.role;
+    const companyId = req.locals!.companyId;
+    if (role !== 'empresa' || !companyId) {
+      res.status(403).json({ error: 'Solo la empresa puede editar estos datos' });
+      return;
+    }
+
+    const parsed = companySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' });
+      return;
+    }
+
+    const updates = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: 'Nada que actualizar' });
+      return;
+    }
+
+    const { error } = await supabaseAdmin
+      .from('companies')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', companyId);
+
+    if (error) {
+      // companies.name es UNIQUE
+      const duplicate = error.code === '23505';
+      res.status(duplicate ? 409 : 400).json({
+        error: duplicate ? 'Ya existe una empresa con ese nombre' : error.message,
+      });
+      return;
+    }
+
+    logger.info('Ficha de empresa actualizada', { companyId, fields: Object.keys(updates) });
+    res.json(await loadCompany(companyId));
+  } catch (err) {
+    logger.error('Error actualizando ficha de empresa', { error: String(err) });
     res.status(500).json({ error: 'Error interno' });
   }
 });

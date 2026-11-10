@@ -12,6 +12,7 @@ import chatRouter from './routes/chat';
 import n8nWebhookRouter from './routes/n8n-webhook';
 import recruiterRouter from './routes/recruiters';
 import candidatesRouter from './routes/candidates';
+import candidateProfilesRouter from './routes/candidate-profiles';
 import vacanciesRouter from './routes/vacancies';
 import vacancyApplicantsRouter from './routes/vacancy-applicants';
 import dashboardRouter from './routes/dashboard';
@@ -20,6 +21,7 @@ import registerRouter from './routes/register';
 import candidatePortalRouter from './routes/candidate-portal';
 import sessionRouter from './routes/session';
 import companyCandidatesRouter from './routes/company-candidates';
+import companyDashboardRouter from './routes/company-dashboard';
 import accountRouter from './routes/account';
 
 const n8nWebhookLimiter = rateLimit({
@@ -32,11 +34,18 @@ const n8nWebhookLimiter = rateLimit({
 
 export const createApp = () => {
   const app = express();
+  // Detrás de un proxy (Render): la IP real del cliente para el límite de peticiones
+  if (config.TRUST_PROXY > 0) app.set('trust proxy', config.TRUST_PROXY);
 
   app.use(helmet());
   app.use(cors({ origin: config.CORS_ORIGIN, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(correlationMiddleware);
+
+  // Webhook entrante de n8n: límite de tasa propio + secreto compartido. Va antes del
+  // límite global (100/15 min por IP): una búsqueda externa son ~11 llamadas de n8n y
+  // con el global se bloqueaba tras unas pocas búsquedas seguidas.
+  app.use('/api/n8n-webhook', n8nWebhookLimiter, n8nSecret, n8nWebhookRouter);
 
   app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false }));
 
@@ -57,6 +66,9 @@ export const createApp = () => {
   app.use('/api/chat', companyAuthMiddleware, requireRole('recruiter'), requireCompany, chatRouter);
   app.use('/api/recruiters', companyAuthMiddleware, requireRole('empresa'), requireCompany, recruiterRouter);
   app.use('/api/candidates', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, candidatesRouter);
+  // Perfil completo: el reclutador lo ve todo y contacta/rechaza; la empresa solo consulta
+  // el perfil de quien le presentaron (sin contacto hasta contratarlo). Ver candidate-profiles.ts.
+  app.use('/api/candidate-profiles', companyAuthMiddleware, requireRole('recruiter', 'empresa'), requireCompany, candidateProfilesRouter);
   // Dashboard del reclutador: datos de su empresa, calculados en el servidor
   app.use('/api/dashboard', companyAuthMiddleware, requireRole('recruiter'), requireCompany, dashboardRouter);
   // Postulantes de una vacante y cambio de su estado (más específico: va antes)
@@ -65,8 +77,10 @@ export const createApp = () => {
   app.use('/api/vacancies', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, vacanciesRouter);
   // Bandeja de la empresa: solo candidatos que un reclutador aprobó explícitamente.
   app.use('/api/company/candidates', companyAuthMiddleware, requireRole('empresa'), requireCompany, companyCandidatesRouter);
+  // Dashboard de la empresa: decisiones pendientes, salud de vacantes y actividad del equipo
+  app.use('/api/company/dashboard', companyAuthMiddleware, requireRole('empresa'), requireCompany, companyDashboardRouter);
   app.use('/api/reports', companyAuthMiddleware, requireRole('empresa'), requireCompany, reportsRouter);
-  // Perfil propio de empresa/reclutador (foto + para empresa, nombre y correo).
+  // Perfil propio de empresa/reclutador (datos personales; la empresa además su correo y su ficha).
   // superAdmin no pertenece a una empresa, así que no pasa por requireCompany.
   app.use(
     '/api/account',
@@ -75,9 +89,6 @@ export const createApp = () => {
     (req: AuthenticatedRequest, res, next) => (req.locals?.profile?.role === 'superAdmin' ? next() : requireCompany(req, res, next)),
     accountRouter
   );
-
-  // Webhook entrante de n8n: límite de tasa + secreto compartido
-  app.use('/api/n8n-webhook', n8nWebhookLimiter, n8nSecret, n8nWebhookRouter);
 
   app.use(errorHandler);
   app.use((_req, res) => res.status(404).json({ error: 'Recurso no encontrado' }));

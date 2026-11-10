@@ -1,18 +1,39 @@
 import { supabase } from '../lib/supabase';
 
+export interface AccountCompany {
+  id: string;
+  name: string;
+  industry: string | null;
+  city: string | null;
+  website: string | null;
+  description: string | null;
+  logo_url: string | null;
+  created_at: string;
+  recruiters_count: number;
+  active_vacancies: number;
+}
+
 export interface AccountProfile {
   id: string;
   full_name: string | null;
   email: string;
   avatar_url: string | null;
   role: string;
+  phone: string | null;
+  job_title: string | null;
+  /** null para superAdmin, que no pertenece a una empresa */
+  company?: AccountCompany | null;
 }
 
 export interface UpdateAccountInput {
   full_name?: string;
   email?: string;
   avatar_url?: string | null;
+  phone?: string | null;
+  job_title?: string | null;
 }
+
+export type UpdateCompanyInput = Partial<Pick<AccountCompany, 'name' | 'industry' | 'city' | 'website' | 'description'>>;
 
 const MAX_AVATAR_BYTES = 3 * 1024 * 1024;
 const ALLOWED_AVATAR_EXT = ['png', 'jpg', 'jpeg', 'webp'];
@@ -44,6 +65,15 @@ export const accountService = {
       body: JSON.stringify(input),
     });
     return handle<AccountProfile>(res, 'Error al actualizar tu perfil');
+  },
+
+  async updateCompany(input: UpdateCompanyInput): Promise<AccountCompany> {
+    const res = await fetch('/api/account/company', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+    });
+    return handle<AccountCompany>(res, 'Error al actualizar los datos de la empresa');
   },
 
   /**

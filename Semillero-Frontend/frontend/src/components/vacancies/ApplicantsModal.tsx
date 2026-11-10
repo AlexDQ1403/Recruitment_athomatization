@@ -13,7 +13,7 @@ const BADGE: Record<CandidateStatus, string> = {
   rechazado: 'badge-rejected',
 };
 
-// Acciones del reclutador. Rechazar es terminal y pide confirmación.
+// Acciones del reclutador. Rechazar pide confirmación y vale solo para esta vacante (migración 027).
 const ACTIONS: { status: CandidateStatus; label: string }[] = [
   { status: 'seguimiento', label: 'Seguimiento' },
   { status: 'en_contacto', label: 'En contacto' },
@@ -73,8 +73,8 @@ export function ApplicantsModal({ vacancy, onClose }: { vacancy: Vacancy; onClos
     <>
       {rejectTarget && (
         <ConfirmModal
-          message={`¿Rechazar a ${rejectTarget.full_name}? Es definitivo: un candidato rechazado no se puede reactivar.`}
-          confirmLabel="Rechazar"
+          message={`¿Rechazar a ${rejectTarget.full_name} para "${vacancy.title}"? Solo para esta vacante: sigue disponible para otras y para las búsquedas de otros cargos.`}
+          confirmLabel="Rechazar para esta vacante"
           onConfirm={() => { mutation.mutate({ applicant: rejectTarget, status: 'rechazado' }); setRejectTarget(null); }}
           onCancel={() => setRejectTarget(null)}
         />
@@ -149,7 +149,13 @@ export function ApplicantsModal({ vacancy, onClose }: { vacancy: Vacancy; onClos
                   ) : a.company_decision !== 'pendiente' ? (
                     <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>La empresa ya decidió</span>
                   ) : a.status === 'rechazado' ? (
-                    <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>Rechazado: no se puede reactivar</span>
+                    // Reconsiderar quita el rechazo de esta vacante; un rechazo global antiguo
+                    // lo bloquea el backend con su propio mensaje
+                    <button type="button" className="btn-secondary-sm" disabled={busy}
+                      title="Quita el rechazo de esta vacante y lo deja en seguimiento"
+                      onClick={() => mutation.mutate({ applicant: a, status: 'seguimiento' })}>
+                      Reconsiderar
+                    </button>
                   ) : (
                     <div role="group" aria-label={`Cambiar estado de ${a.full_name}`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button type="button" disabled={busy || a.presented} aria-pressed={a.presented}

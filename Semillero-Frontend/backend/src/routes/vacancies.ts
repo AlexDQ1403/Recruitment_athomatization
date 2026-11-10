@@ -5,6 +5,10 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { getCorrelationId } from '../utils/tracing';
 import { AuthenticatedRequest } from '../middlewares/companyAuth';
+import rateLimit from 'express-rate-limit';
+import { draftVacancy, MAX_DRAFT_INPUT } from '../services/vacancyDraft';
+import { searchTerms } from '../services/searchTerms';
+import { sameRole } from '../services/rejections';
 
 const router = Router();
 const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
@@ -239,6 +243,76 @@ router.post('/', async (req: AuthenticatedRequest, res: Response): Promise<void>
     res.status(201).json(created);
   } catch (err) {
     fail(req, res, 'Error publicando vacante', err);
+  }
+});
+
+// Cada borrador es una llamada al LLM (coste): tope por IP, aparte del global
+const draftLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados borradores seguidos. Intenta en un minuto.' },
+});
+
+const draftSchema = z.object({
+  text: z.string().trim().min(5, 'Describe la vacante con un poco más de detalle').max(MAX_DRAFT_INPUT),
+});
+
+/**
+ * POST /api/vacancies/draft — { text } → { draft, notes }
+ * Propone una vacante a partir de una descripción informal. NO la guarda: el
+ * reclutador revisa, edita y confirma con POST /api/vacancies.
+ */
+router.post('/draft', draftLimiter, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const correlationId = getCorrelationId(req);
+  if (!authorize(req, res)) return;
+
+  const parsed = draftSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Texto inválido' });
+    return;
+  }
+
+  try {
+    const result = await draftVacancy(parsed.data.text);
+    logger.info('Borrador de vacante generado', { correlationId, companyId: context(req).companyId, skills: result.draft.skills.length, notes: result.notes.length });
+    res.json(result);
+  } catch (err) {
+    // El formulario sigue disponible: el reclutador puede llenarlo a mano
+    logger.warn('Borrador de vacante: el LLM falló', { correlationId, error: describeError(err).slice(0, 300) });
+    res.status(502).json({ error: 'No se pudo generar la propuesta en este momento. Puedes llenar el formulario a mano.' });
+  }
+});
+
+/**
+ * GET /api/vacancies/match?role=contador público — vacante ACTIVA de la empresa para
+ * ese cargo (misma comparación que los rechazos por puesto), o null. Lo usa el chat
+ * para no proponer crear una vacante que ya existe.
+ */
+router.get('/match', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!authorize(req, res)) return;
+    const role = String(req.query.role ?? '').slice(0, 160);
+    const stems = searchTerms(role);
+    if (stems.length === 0) {
+      res.json({ vacancy: null });
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('vacancies')
+      .select('id, title')
+      .eq('company_id', context(req).companyId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+
+    const vacancy = (data ?? []).find((v) => sameRole(searchTerms(String(v.title)), stems)) ?? null;
+    res.json({ vacancy });
+  } catch (err) {
+    fail(req, res, 'Error buscando vacante para el cargo', err);
   }
 });
 

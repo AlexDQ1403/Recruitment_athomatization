@@ -41,19 +41,19 @@ describe('CompanyCandidatesHistoryView (la empresa decide)', () => {
     expect(await screen.findByText('Carlos Ruiz')).toBeTruthy();
     expect(screen.getByText('Ana Pérez')).toBeTruthy();
     expect(screen.getByText(/por decidir/)).toBeTruthy();
-    expect(screen.getByText(/contratados/)).toBeTruthy();
+    expect(screen.getByText(/autorizados/)).toBeTruthy();
     expect(screen.getAllByText('Rita Reclutadora', { selector: 'td' })).toHaveLength(2);
   });
 
-  it('los pendientes tienen Contratar y Descartar; los ya decididos solo la insignia', async () => {
+  it('los pendientes tienen Autorizar y Descartar; los ya decididos solo la insignia', async () => {
     renderView();
     const carlos = (await screen.findByText('Carlos Ruiz')).closest('tr')!;
-    expect(within(carlos).getByRole('button', { name: 'Contratar' })).toBeTruthy();
+    expect(within(carlos).getByRole('button', { name: 'Autorizar' })).toBeTruthy();
     expect(within(carlos).getByRole('button', { name: 'Descartar' })).toBeTruthy();
 
     const ana = screen.getByText('Ana Pérez').closest('tr')!;
-    expect(within(ana).getByText('Contratado').className).toContain('badge-hired');
-    expect(within(ana).queryByRole('button', { name: 'Contratar' })).toBeNull();
+    expect(within(ana).getByText('Autorizado').className).toContain('badge-hired');
+    expect(within(ana).queryByRole('button', { name: 'Autorizar' })).toBeNull();
   });
 
   it('descartar pide confirmación; al confirmar envía origen, id y decisión', async () => {
@@ -64,17 +64,19 @@ describe('CompanyCandidatesHistoryView (la empresa decide)', () => {
     expect(decide).not.toHaveBeenCalled();
     expect(screen.getByText(/¿Descartar a Carlos Ruiz\?/)).toBeTruthy();
 
-    // el modal de confirmación se pinta antes: su botón es el primer "Descartar"
-    await userEvent.click(screen.getAllByRole('button', { name: 'Descartar' })[0]);
+    // El motivo es opcional y le llega al reclutador
+    const dialog = within(screen.getByRole('dialog'));
+    await userEvent.type(dialog.getByRole('textbox'), 'No tiene inglés');
+    await userEvent.click(dialog.getByRole('button', { name: 'Descartar' }));
 
-    await waitFor(() => expect(decide).toHaveBeenCalledWith({ kind: 'legacy', id: 'l1', full_name: 'Carlos Ruiz' }, 'descartar'));
+    await waitFor(() => expect(decide).toHaveBeenCalledWith({ kind: 'legacy', id: 'l1', full_name: 'Carlos Ruiz' }, 'descartar', 'No tiene inglés'));
   });
 
   it('cancelar la confirmación no registra nada', async () => {
     renderView();
     const carlos = (await screen.findByText('Carlos Ruiz')).closest('tr')!;
 
-    await userEvent.click(within(carlos).getByRole('button', { name: 'Contratar' }));
+    await userEvent.click(within(carlos).getByRole('button', { name: 'Autorizar' }));
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
 
     expect(decide).not.toHaveBeenCalled();
@@ -85,8 +87,8 @@ describe('CompanyCandidatesHistoryView (la empresa decide)', () => {
     renderView();
     const carlos = (await screen.findByText('Carlos Ruiz')).closest('tr')!;
 
-    await userEvent.click(within(carlos).getByRole('button', { name: 'Contratar' }));
-    await userEvent.click(screen.getAllByRole('button', { name: 'Contratar' })[0]);
+    await userEvent.click(within(carlos).getByRole('button', { name: 'Autorizar' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Autorizar' })[0]);
 
     expect((await screen.findByRole('alert')).textContent).toContain('Ya decidiste');
   });

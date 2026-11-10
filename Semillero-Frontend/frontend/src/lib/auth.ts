@@ -114,3 +114,6 @@ export const reportFailedLogin = (reason: string): void => {
 
 export const isAuthenticated = () =>
   typeof window !== 'undefined' && !!localStorage.getItem(USER_KEY);
+
+/** AppShell escucha este evento para refrescar nombre y foto en la barra lateral tras editar el perfil. */
+export const ACCOUNT_UPDATED_EVENT = 'account:updated';

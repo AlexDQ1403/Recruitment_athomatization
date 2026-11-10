@@ -5,12 +5,12 @@ import { Sidebar } from './Sidebar';
 import { QueryProvider, createQueryClient } from '../ui/QueryProvider';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { LandingThemeProvider } from '../landing/ThemeToggle';
-import { getStoredUser, setStoredUser, clearAuth } from '../../lib/auth';
+import { getStoredUser, setStoredUser, clearAuth, ACCOUNT_UPDATED_EVENT } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { User } from '../../types';
 
 /** Rutas que solo puede ver el rol 'candidato'. */
-const CANDIDATE_HOME = '/candidate/profile';
+const CANDIDATE_HOME = '/candidate/dashboard';
 const COMPANY_HOME = '/dashboard';
 
 /**
@@ -38,19 +38,20 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, email, full_name, role, company_id')
+        .select('id, email, full_name, role, company_id, avatar_url')
         .eq('id', session.user.id)
         .single();
 
       if (profile) {
-        const u: User = { id: profile.id, email: profile.email, full_name: profile.full_name, role: profile.role, company_id: profile.company_id || '' };
+        const u: User = { id: profile.id, email: profile.email, full_name: profile.full_name, role: profile.role, company_id: profile.company_id || '', avatar_url: profile.avatar_url };
         setStoredUser(u);
         setUser(u);
 
         // El rol se decide aquí, con el dato de la BD, no con lo que diga el
         // cliente. El backend vuelve a comprobarlo en cada endpoint: esto solo
         // evita que el usuario aterrice en una pantalla que no le corresponde.
-        const inCandidateArea = pathname?.startsWith('/candidate') ?? false;
+        // '/candidate' o '/candidate/...', no '/candidates' (lista de la empresa)
+        const inCandidateArea = !!pathname && (pathname === '/candidate' || pathname.startsWith('/candidate/'));
         if (u.role === 'candidato' && !inCandidateArea) {
           router.replace(CANDIDATE_HOME);
           return;
@@ -78,6 +79,20 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
 
     return () => subscription.unsubscribe();
   }, [router, pathname]);
+
+  // Nombre y foto editados en /profile se reflejan en la barra lateral sin recargar
+  useEffect(() => {
+    const onUpdate = (e: Event) => {
+      const { full_name, avatar_url } = (e as CustomEvent<{ full_name?: string | null; avatar_url?: string | null }>).detail;
+      setUser((u) => u && {
+        ...u,
+        ...(full_name ? { full_name } : {}),
+        ...(avatar_url !== undefined ? { avatar_url } : {}),
+      });
+    };
+    window.addEventListener(ACCOUNT_UPDATED_EVENT, onUpdate);
+    return () => window.removeEventListener(ACCOUNT_UPDATED_EVENT, onUpdate);
+  }, []);
 
   const handleLogout = async () => {
     setLoggingOut(true);

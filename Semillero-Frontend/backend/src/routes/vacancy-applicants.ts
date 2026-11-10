@@ -5,6 +5,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { getCorrelationId } from '../utils/tracing';
 import { AuthenticatedRequest } from '../middlewares/companyAuth';
+import { roleKey } from '../services/rejections';
 
 // Se monta en /api/vacancies/:vacancyId/applicants
 // (ver specs/candidatos_por_vacante_design.md y specs/decision_empresa_design.md)
@@ -59,7 +60,7 @@ function fail(req: AuthenticatedRequest, res: Response, label: string, err: unkn
   res.status(500).json({ error: 'Error interno' });
 }
 
-interface Ctx { companyId: string; userId: string; vacancyId: string; role: string }
+interface Ctx { companyId: string; userId: string; vacancyId: string; vacancyTitle: string; role: string }
 
 /** La empresa sale del token; la vacante debe ser suya. Responde y devuelve null si no. */
 async function ownVacancy(req: AuthenticatedRequest, res: Response): Promise<Ctx | null> {
@@ -76,7 +77,7 @@ async function ownVacancy(req: AuthenticatedRequest, res: Response): Promise<Ctx
   }
   const { data, error } = await supabaseAdmin
     .from('vacancies')
-    .select('id')
+    .select('id, title')
     .eq('id', vacancyId)
     .eq('company_id', companyId)
     .maybeSingle();
@@ -85,7 +86,27 @@ async function ownVacancy(req: AuthenticatedRequest, res: Response): Promise<Ctx
     res.status(404).json({ error: 'Vacante no encontrada' });
     return null;
   }
-  return { companyId, userId, vacancyId, role: req.locals?.profile?.role ?? '' };
+  return { companyId, userId, vacancyId, vacancyTitle: (data.title as string) ?? '', role: req.locals?.profile?.role ?? '' };
+}
+
+/**
+ * Rechazo de ESTA vacante (migración 027). Rechazar en una vacante ya no descarta
+ * al candidato para todo: sigue disponible para otras vacantes y búsquedas.
+ * Sin la migración aplicada devuelve null (se comporta como sin rechazo).
+ */
+async function findVacancyRejection(companyId: string, vacancyId: string, kind: Kind, id: string): Promise<{ id: string } | null> {
+  const { data, error } = await supabaseAdmin
+    .from('candidate_rejections')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('vacancy_id', vacancyId)
+    .eq(originColumn(kind), id)
+    .maybeSingle();
+  if (error) {
+    logger.warn('No se pudo leer el rechazo por vacante', { error: describeError(error) });
+    return null;
+  }
+  return (data as { id: string } | null) ?? null;
 }
 
 /** Solo el reclutador aprueba y cambia el pipeline. Responde 403 y devuelve false si no lo es. */
@@ -112,7 +133,33 @@ async function findBridge(companyId: string, kind: Kind, id: string): Promise<Br
   return (data as Bridge | null) ?? null;
 }
 
-const DECIDED_MESSAGE = 'La empresa ya decidió sobre este candidato: no se puede cambiar su proceso';
+/** El candidato pertenece a la vacante: heredado con ese vacancy_id, o con postulación a ella. */
+async function vacancyMembership(
+  companyId: string, vacancyId: string, kind: Kind, id: string
+): Promise<{ status?: PipelineStatus; applicationId?: string } | null> {
+  if (kind === 'legacy') {
+    const { data, error } = await supabaseAdmin
+      .from('candidates')
+      .select('id, status')
+      .eq('id', id)
+      .eq('company_id', companyId)
+      .eq('vacancy_id', vacancyId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? { status: data.status as PipelineStatus } : null;
+  }
+  const { data, error } = await supabaseAdmin
+    .from('applications')
+    .select('id')
+    .eq('vacancy_id', vacancyId)
+    .eq('company_id', companyId)
+    .eq('candidate_profile_id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { applicationId: data.id as string } : null;
+}
+
+const DECIDED_MESSAGE ='La empresa ya decidió sobre este candidato: no se puede cambiar su proceso';
 const decided = (b: Bridge | null) => !!b && !!b.company_decision && b.company_decision !== 'pendiente';
 
 interface ApplicantItem {
@@ -163,7 +210,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
     const profileIds = apps.map((a) => a.candidate_profile_id);
     const legacyIds = legacy.map((c) => c.id);
 
-    const [profilesRes, profileBridgeRes, legacyBridgeRes] = await Promise.all([
+    const [profilesRes, profileBridgeRes, legacyBridgeRes, rejectionsRes] = await Promise.all([
       profileIds.length
         ? supabaseAdmin.from('candidate_profiles').select('id, profile_id, professional_title, position, location, experience_years').in('id', profileIds)
         : Promise.resolve({ data: [], error: null }),
@@ -173,7 +220,18 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
       legacyIds.length
         ? supabaseAdmin.from('company_candidates').select('legacy_candidate_id, presented_to_company, company_decision').eq('company_id', companyId).in('legacy_candidate_id', legacyIds)
         : Promise.resolve({ data: [], error: null }),
+      supabaseAdmin
+        .from('candidate_rejections')
+        .select('legacy_candidate_id, candidate_profile_id')
+        .eq('company_id', companyId)
+        .eq('vacancy_id', vacancyId),
     ]);
+    // Sin la migración 027 no hay rechazos por vacante: la lista se muestra igual
+    if (rejectionsRes.error) logger.warn('No se pudieron leer los rechazos de la vacante', { error: describeError(rejectionsRes.error) });
+    const rejectedHere = new Set(
+      ((rejectionsRes.data ?? []) as { legacy_candidate_id: string | null; candidate_profile_id: string | null }[])
+        .map((r) => (r.legacy_candidate_id ? `legacy:${r.legacy_candidate_id}` : `profile:${r.candidate_profile_id}`))
+    );
     if (profilesRes.error) throw profilesRes.error;
     if (profileBridgeRes.error) throw profileBridgeRes.error;
     if (legacyBridgeRes.error) throw legacyBridgeRes.error;
@@ -209,7 +267,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
         location: cp.location ?? null,
         experience_years: cp.experience_years ?? null,
         // Sin fila en company_candidates el candidato aún no se ha gestionado: seguimiento
-        status: bridge?.status ?? 'seguimiento',
+        status: rejectedHere.has(`profile:${cp.id}`) ? 'rechazado' : bridge?.status ?? 'seguimiento',
         presented: bridge?.presented_to_company === true,
         company_decision: bridge?.company_decision ?? 'pendiente',
         applied_at: a.created_at,
@@ -225,7 +283,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
         title: c.position ?? null,
         location: c.location ?? null,
         experience_years: c.experience_years ?? null,
-        status: c.status,
+        status: rejectedHere.has(`legacy:${c.id}`) ? 'rechazado' : c.status,
         presented: bridge?.presented_to_company === true,
         company_decision: bridge?.company_decision ?? 'pendiente',
         applied_at: c.created_at,
@@ -238,6 +296,74 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
     res.json({ items: visible, total: visible.length });
   } catch (err) {
     fail(req, res, 'Error listando postulantes de la vacante', err);
+  }
+});
+
+const linkSchema = z.object({
+  candidates: z.array(z.object({ kind: z.enum(['profile', 'legacy']), id: idSchema })).min(1).max(20),
+});
+
+/**
+ * POST /api/vacancies/:vacancyId/applicants/link — { candidates: [{ kind, id }] }  (reclutador)
+ * Asocia a la vacante candidatos que el reclutador ya trabajó en el chat (contactó, dejó
+ * en seguimiento o aprobó) al crear la vacante desde esa búsqueda.
+ *
+ * - Heredados: se les asigna la vacante solo si no tenían otra (no se mueven de vacante).
+ * - Con cuenta propia: NO se les crea una postulación: la verían en "Mis postulaciones"
+ *   como si la hubieran enviado ellos. Se devuelven como no asociados para invitarlos.
+ * - Rechazados (para todo, o ya para esta vacante) no se asocian.
+ */
+router.post('/link', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const ctx = await ownVacancy(req, res);
+    if (!ctx || !requireRecruiter(ctx, res)) return;
+    const parsed = linkSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'candidates debe ser una lista de 1 a 20 { kind, id }' });
+      return;
+    }
+    const { companyId, userId, vacancyId } = ctx;
+    const legacyIds = [...new Set(parsed.data.candidates.filter((c) => c.kind === 'legacy').map((c) => c.id))];
+    const profileIds = [...new Set(parsed.data.candidates.filter((c) => c.kind === 'profile').map((c) => c.id))];
+
+    let linked: string[] = [];
+    const skipped: { id: string; reason: 'otra_vacante' | 'rechazado' | 'no_encontrado' | 'cuenta_propia' }[] = [];
+    if (legacyIds.length) {
+      const { data: rows, error } = await supabaseAdmin
+        .from('candidates')
+        .select('id, vacancy_id, status')
+        .eq('company_id', companyId)
+        .in('id', legacyIds);
+      if (error) throw error;
+      const byId = new Map(((rows ?? []) as { id: string; vacancy_id: string | null; status: string }[]).map((r) => [r.id, r]));
+
+      const eligible: string[] = [];
+      for (const id of legacyIds) {
+        const row = byId.get(id);
+        if (!row) skipped.push({ id, reason: 'no_encontrado' });
+        else if (row.status === 'rechazado' || await findVacancyRejection(companyId, vacancyId, 'legacy', id)) skipped.push({ id, reason: 'rechazado' });
+        else if (row.vacancy_id && row.vacancy_id !== vacancyId) skipped.push({ id, reason: 'otra_vacante' });
+        else eligible.push(id);
+      }
+
+      if (eligible.length) {
+        const { error: updateError } = await supabaseAdmin
+          .from('candidates')
+          .update({ vacancy_id: vacancyId, updated_at: new Date().toISOString() })
+          .eq('company_id', companyId)
+          .in('id', eligible);
+        if (updateError) throw updateError;
+        linked = eligible;
+      }
+    }
+    for (const id of profileIds) skipped.push({ id, reason: 'cuenta_propia' });
+
+    logger.info('Candidatos del chat asociados a la vacante', {
+      correlationId: getCorrelationId(req), vacancyId, companyId, userId, linked: linked.length, skipped: skipped.length,
+    });
+    res.json({ linked, skipped });
+  } catch (err) {
+    fail(req, res, 'Error asociando candidatos a la vacante', err);
   }
 });
 
@@ -257,7 +383,7 @@ function parseTarget(req: AuthenticatedRequest, res: Response): { kind: Kind; id
 
 /**
  * POST /api/vacancies/:vacancyId/applicants/:kind/:id/approve — el reclutador aprueba al
- * candidato: desde ese momento la empresa lo ve y puede contratarlo o descartarlo.
+ * candidato: desde ese momento la empresa lo ve y puede autorizarlo para la siguiente fase o descartarlo.
  */
 router.post('/:kind/:id/approve', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -304,7 +430,7 @@ router.post('/:kind/:id/approve', async (req: AuthenticatedRequest, res: Respons
     const bridge = await findBridge(companyId, kind, id);
     if (bridge) status = bridge.status;
 
-    if (status === 'rechazado') {
+    if (status === 'rechazado' || await findVacancyRejection(companyId, vacancyId, kind, id)) {
       res.status(409).json({ error: 'Un candidato rechazado no se puede aprobar' });
       return;
     }
@@ -361,9 +487,81 @@ router.patch('/:kind/:id/status', async (req: AuthenticatedRequest, res: Respons
 
     const ctx = await ownVacancy(req, res);
     if (!ctx || !requireRecruiter(ctx, res)) return;
-    const { companyId, userId, vacancyId } = ctx;
+    const { companyId, userId, vacancyId, vacancyTitle } = ctx;
     const { kind, id } = target;
-    const leavesAcceptedList = toStatus === 'seguimiento' || toStatus === 'rechazado';
+
+    // ── Rechazo por vacante (migración 027) ─────────────────────────────────
+    // Rechazar aquí solo vale para ESTA vacante: no cambia el estado global del
+    // candidato, que sigue disponible para otras vacantes y búsquedas del chat.
+    const rejectedHere = await findVacancyRejection(companyId, vacancyId, kind, id);
+    if (toStatus === 'rechazado' || rejectedHere) {
+      const membership = await vacancyMembership(companyId, vacancyId, kind, id);
+      if (!membership) {
+        res.status(404).json({ error: 'Candidato no encontrado' });
+        return;
+      }
+      const bridge = await findBridge(companyId, kind, id);
+      if (decided(bridge)) {
+        res.status(409).json({ error: DECIDED_MESSAGE });
+        return;
+      }
+      const globalStatus = (kind === 'legacy' ? membership.status : bridge?.status) ?? 'seguimiento';
+
+      if (toStatus === 'rechazado') {
+        // Ya rechazado aquí, o descartado para todo antes de la migración: nada que hacer
+        if (rejectedHere || globalStatus === 'rechazado') {
+          res.json({ kind, id, status: 'rechazado', unchanged: true });
+          return;
+        }
+        const { error: insertError } = await supabaseAdmin.from('candidate_rejections').insert({
+          company_id: companyId,
+          [originColumn(kind)]: id,
+          role_label: (vacancyTitle || 'Vacante').slice(0, 160),
+          // Sin título que describa un cargo, la clave es la propia vacante
+          role_key: roleKey(vacancyTitle) || `vacante ${vacancyId}`,
+          vacancy_id: vacancyId,
+          reason: reason ?? null,
+          rejected_by: userId,
+        });
+        // 23505: ya estaba rechazado para el mismo puesto (p. ej. desde el chat)
+        if (insertError && (insertError as { code?: string }).code !== '23505') throw insertError;
+        // Sale de la lista de aceptados de la empresa para no presentarlo por esta vacante
+        if (bridge) {
+          const { error: bridgeError } = await supabaseAdmin
+            .from('company_candidates')
+            .update({ presented_to_company: false })
+            .eq('company_id', companyId)
+            .eq(originColumn(kind), id);
+          if (bridgeError) throw bridgeError;
+        }
+      } else {
+        // Seguimiento o en contacto sobre un rechazo de esta vacante = reconsiderarlo
+        const { error: deleteError } = await supabaseAdmin
+          .from('candidate_rejections')
+          .delete()
+          .eq('id', rejectedHere!.id)
+          .eq('company_id', companyId);
+        if (deleteError) throw deleteError;
+      }
+
+      if (membership.applicationId) {
+        // El candidato ve el estado de SU postulación a esta vacante
+        const { error: appError } = await supabaseAdmin
+          .from('applications')
+          .update({ status: APPLICATION_STATUS[toStatus] })
+          .eq('id', membership.applicationId)
+          .eq('company_id', companyId);
+        if (appError) logger.error('No se pudo sincronizar el estado de la postulación', { applicationId: membership.applicationId, error: describeError(appError) });
+      }
+
+      logger.info('Rechazo por vacante actualizado', {
+        correlationId: getCorrelationId(req), vacancyId, kind, candidateId: id, companyId, userId, toStatus,
+      });
+      res.json({ kind, id, status: toStatus === 'rechazado' ? 'rechazado' : globalStatus });
+      return;
+    }
+
+    const leavesAcceptedList = toStatus === 'seguimiento';
 
     const checkTransition = (from: PipelineStatus): 'same' | 'blocked' | 'ok' => {
       if (from === toStatus) return 'same';

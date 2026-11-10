@@ -14,11 +14,13 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
 const VALID_STATUSES = ['rechazado', 'en_contacto', 'seguimiento'] as const;
 type CandidateStatus = (typeof VALID_STATUSES)[number];
 
-// 'rechazado' es terminal: no se sale de ese estado
+// 'rechazado' global quedó como "descartado para todo" (antes de los rechazos por puesto,
+// migración 027). Solo el cambio manual de estado (PATCH /:id/status, el Kanban) puede
+// reactivarlo a seguimiento; la decisión del chat sigue tratándolo como terminal.
 const ALLOWED_TRANSITIONS: Record<CandidateStatus, CandidateStatus[]> = {
   seguimiento: ['en_contacto', 'rechazado'],
   en_contacto: ['seguimiento', 'rechazado'],
-  rechazado: [],
+  rechazado: ['seguimiento'],
 };
 
 const uuidSchema = z.string().uuid();
@@ -27,7 +29,12 @@ const uuidSchema = z.string().uuid();
 const decisionSchema = z.object({
   decision: z.enum(['aprobar', 'seguimiento', 'rechazar']),
   reason: z.string().trim().max(500).optional(),
+  // Vacante para la que se aprueba o se da seguimiento (el chat la envía si existe)
+  vacancy_id: z.string().uuid().optional(),
 });
+
+const VACANCY_REQUIRED_MESSAGE =
+  'Para aprobar o dar seguimiento, el candidato debe estar en una vacante. Crea la vacante para este cargo.';
 
 const MAX_DECISION_LOOKUP = 100;
 
@@ -176,7 +183,7 @@ router.get(
       }
 
       const [candidatesRes, bridgeRes] = await Promise.all([
-        supabaseAdmin.from('candidates').select('id, status').eq('company_id', companyId).in('id', ids),
+        supabaseAdmin.from('candidates').select('id, status, vacancy_id').eq('company_id', companyId).in('id', ids),
         supabaseAdmin
           .from('company_candidates')
           .select('legacy_candidate_id, presented_to_company')
@@ -189,9 +196,9 @@ router.get(
       const presented = new Set(
         (bridgeRes.data ?? []).filter((b) => b.presented_to_company === true).map((b) => b.legacy_candidate_id as string)
       );
-      const result: Record<string, { status: string; presented: boolean }> = {};
+      const result: Record<string, { status: string; presented: boolean; vacancy_id: string | null }> = {};
       for (const c of candidatesRes.data ?? []) {
-        result[c.id as string] = { status: c.status as string, presented: presented.has(c.id as string) };
+        result[c.id as string] = { status: c.status as string, presented: presented.has(c.id as string), vacancy_id: (c.vacancy_id as string) ?? null };
       }
       res.json(result);
     } catch (err) {
@@ -255,13 +262,18 @@ router.patch(
 
       const { data: candidate, error: fetchError } = await supabaseAdmin
         .from('candidates')
-        .select('id, status, source')
+        .select('id, status, source, vacancy_id')
         .eq('id', req.params.id)
         .eq('company_id', companyId)
         .single();
 
       if (fetchError || !candidate) {
         res.status(404).json({ error: 'Candidato no encontrado' });
+        return;
+      }
+      // Misma regla que la decisión del chat: se presenta a la empresa PARA una vacante
+      if (!candidate.vacancy_id) {
+        res.status(409).json({ error: VACANCY_REQUIRED_MESSAGE, code: 'vacancy_required' });
         return;
       }
 
@@ -319,12 +331,12 @@ router.patch(
         res.status(400).json({ error: 'decision debe ser: aprobar, seguimiento o rechazar' });
         return;
       }
-      const { decision, reason } = parsed.data;
+      const { decision, reason, vacancy_id: vacancyId } = parsed.data;
 
       // La empresa sale siempre del token: un id de otra empresa da 404
       const { data: current, error: fetchError } = await supabaseAdmin
         .from('candidates')
-        .select('id, status, source')
+        .select('id, status, source, vacancy_id')
         .eq('id', req.params.id)
         .eq('company_id', companyId)
         .single();
@@ -339,6 +351,41 @@ router.patch(
       if (fromStatus === 'rechazado' && decision !== 'rechazar') {
         res.status(409).json({ error: 'Un candidato rechazado no se puede reactivar' });
         return;
+      }
+
+      // Aprobar o dar seguimiento es SIEMPRE para una vacante: sin ella no hay a qué
+      // presentarlo ni dónde seguirlo. Rechazar no la exige (es por puesto, migración 027).
+      if (decision !== 'rechazar') {
+        if (vacancyId) {
+          const { data: vacancy, error: vacancyError } = await supabaseAdmin
+            .from('vacancies')
+            .select('id, title, status')
+            .eq('id', vacancyId)
+            .eq('company_id', companyId)
+            .maybeSingle();
+          if (vacancyError) throw vacancyError;
+          if (!vacancy || vacancy.status === 'closed') {
+            res.status(404).json({ error: 'Vacante no encontrada o cerrada' });
+            return;
+          }
+          if (current.vacancy_id && current.vacancy_id !== vacancyId) {
+            // Un candidato heredado pertenece a una sola vacante: no se mueve en silencio
+            res.status(409).json({ error: 'Este candidato ya está en otra vacante', code: 'other_vacancy' });
+            return;
+          }
+          if (!current.vacancy_id) {
+            const { error: linkError } = await supabaseAdmin
+              .from('candidates')
+              .update({ vacancy_id: vacancyId, updated_at: new Date().toISOString() })
+              .eq('id', current.id)
+              .eq('company_id', companyId);
+            if (linkError) throw linkError;
+            current.vacancy_id = vacancyId;
+          }
+        } else if (!current.vacancy_id) {
+          res.status(409).json({ error: VACANCY_REQUIRED_MESSAGE, code: 'vacancy_required' });
+          return;
+        }
       }
 
       const { data: bridge } = await supabaseAdmin
@@ -365,7 +412,7 @@ router.patch(
         ? wasPresented && toStatus === fromStatus
         : toStatus === fromStatus && !wasPresented;
       if (alreadyApplied) {
-        res.json({ id: current.id, status: fromStatus, presented: wasPresented, unchanged: true });
+        res.json({ id: current.id, status: fromStatus, presented: wasPresented, vacancy_id: current.vacancy_id ?? null, unchanged: true });
         return;
       }
 
@@ -418,7 +465,7 @@ router.patch(
         toStatus,
       });
 
-      res.json({ id: current.id, status: toStatus, presented: decision === 'aprobar' });
+      res.json({ id: current.id, status: toStatus, presented: decision === 'aprobar', vacancy_id: current.vacancy_id ?? null });
     } catch (err) {
       logger.error('Error aplicando decisión sobre candidato', { error: describeError(err) });
       res.status(500).json({ error: 'Error interno' });
@@ -520,10 +567,11 @@ router.patch(
 
       // Rechazar saca al candidato de la lista de aceptados de la empresa, igual que la
       // decisión del reclutador (no quedan dos caminos con resultados distintos).
-      if (toStatus === 'rechazado') {
+      // Reactivarlo también reactiva la relación con la empresa (si no, el dashboard lo seguiría contando rechazado)
+      if (toStatus === 'rechazado' || fromStatus === 'rechazado') {
         const { error: bridgeError } = await supabaseAdmin
           .from('company_candidates')
-          .update({ presented_to_company: false, status: toStatus })
+          .update(toStatus === 'rechazado' ? { presented_to_company: false, status: toStatus } : { status: toStatus })
           .eq('company_id', companyId)
           .eq('legacy_candidate_id', current.id);
         if (bridgeError) {

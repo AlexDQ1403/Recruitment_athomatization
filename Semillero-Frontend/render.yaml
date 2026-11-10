@@ -1,0 +1,124 @@
+# Despliegue de prueba gratuito en Render (Blueprint): backend, frontend y n8n.
+# Guía paso a paso: DEPLOY_PRUEBA.md
+#
+# Los servicios gratuitos se duermen tras ~15 min sin uso y tardan ~1 min en
+# despertar. La base de datos de n8n (Postgres gratis de Render) vence a los
+# 30 días: es un entorno de prueba, no de producción.
+#
+# Las URL públicas salen del nombre de cada servicio (https://<nombre>.onrender.com).
+# Si Render asigna otra porque el nombre ya existe, actualiza CORS_ORIGIN,
+# N8N_WEBHOOK_URL, NEXT_PUBLIC_API_URL y NEXT_PUBLIC_WS_URL con la URL real.
+#
+# Las claves (sync: false) no van en el repositorio: Render las pide al crear el Blueprint.
+# Las rutas (rootDir, dockerfilePath) se cuentan desde la raíz del repositorio.
+
+services:
+  - type: web
+    name: kmella-api
+    runtime: node
+    plan: free
+    region: virginia
+    rootDir: Semillero-Frontend/backend
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: CORS_ORIGIN
+        value: https://kmella-web.onrender.com
+      - key: N8N_WEBHOOK_URL
+        value: https://kmella-n8n.onrender.com/webhook/procesoReclutamiento
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: N8N_WEBHOOK_SECRET
+        sync: false
+
+  - type: web
+    name: kmella-web
+    runtime: node
+    plan: free
+    region: virginia
+    rootDir: Semillero-Frontend/frontend
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: NEXT_PUBLIC_API_URL
+        value: https://kmella-api.onrender.com/api
+      - key: NEXT_PUBLIC_WS_URL
+        value: https://kmella-api.onrender.com
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  - type: web
+    name: kmella-n8n
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./Semillero-Frontend/deploy/n8n/Dockerfile
+    dockerContext: ./Semillero-Frontend/deploy/n8n
+    healthCheckPath: /healthz
+    envVars:
+      - key: DB_TYPE
+        value: postgresdb
+      - key: DB_POSTGRESDB_HOST
+        fromDatabase:
+          name: kmella-n8n-db
+          property: host
+      - key: DB_POSTGRESDB_PORT
+        fromDatabase:
+          name: kmella-n8n-db
+          property: port
+      - key: DB_POSTGRESDB_DATABASE
+        fromDatabase:
+          name: kmella-n8n-db
+          property: database
+      - key: DB_POSTGRESDB_USER
+        fromDatabase:
+          name: kmella-n8n-db
+          property: user
+      - key: DB_POSTGRESDB_PASSWORD
+        fromDatabase:
+          name: kmella-n8n-db
+          property: password
+      # Cifra las credenciales guardadas en n8n; Render la genera una vez
+      - key: N8N_ENCRYPTION_KEY
+        generateValue: true
+      - key: N8N_PROTOCOL
+        value: https
+      - key: GENERIC_TIMEZONE
+        value: America/Bogota
+      - key: TZ
+        value: America/Bogota
+      - key: N8N_DIAGNOSTICS_ENABLED
+        value: "false"
+      - key: N8N_PERSONALIZATION_ENABLED
+        value: "false"
+
+databases:
+  - name: kmella-n8n-db
+    plan: free
+    region: virginia
+    databaseName: n8n
+    user: n8n
+    ipAllowList: []

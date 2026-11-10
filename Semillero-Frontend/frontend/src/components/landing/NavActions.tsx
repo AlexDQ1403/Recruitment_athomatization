@@ -14,7 +14,7 @@ export function NavActions() {
   }, []);
 
   if (user) {
-    const home = user.role === 'candidato' ? '/candidate/profile' : '/dashboard';
+    const home = user.role === 'candidato' ? '/candidate/dashboard' : '/dashboard';
     return (
       <Link href={home} className={styles.pill}>
         Ir a mi panel

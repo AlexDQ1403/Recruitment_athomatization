@@ -21,6 +21,8 @@ vi.mock('../services/n8nService', () => ({
 }));
 
 const mockInsert = vi.fn();
+// Vacante del candidato heredado: presentar a la empresa la exige
+let legacyVacancyId: string | null = 'vac-1';
 const mockUpsert = vi.fn();
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -31,7 +33,7 @@ vi.mock('@supabase/supabase-js', () => ({
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
           single: vi.fn().mockResolvedValue({
-            data: { id: 'legacy-1', status: 'seguimiento', source: 'internal' },
+            data: { id: 'legacy-1', status: 'seguimiento', source: 'internal', vacancy_id: legacyVacancyId },
             error: null,
           }),
         };
@@ -81,6 +83,16 @@ describe('PATCH /api/candidates/:id/present', () => {
     const res = await request(app).patch('/api/candidates/legacy-1/present');
     expect(res.status).toBe(403);
     expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it('sin vacante no se puede presentar a la empresa (409, igual que en el chat)', async () => {
+    legacyVacancyId = null;
+    const app = await buildApp({ user: { id: 'recruiter-1', email: 'r@test.com' }, companyId: 'company-1', profile: { id: 'recruiter-1', role: 'recruiter' } } as AuthenticatedRequest['locals']);
+    const res = await request(app).patch('/api/candidates/legacy-1/present');
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('vacancy_required');
+    expect(mockInsert).not.toHaveBeenCalled();
+    legacyVacancyId = 'vac-1';
   });
 
   it('permite a recruiter presentar el candidato y crea/actualiza la relación', async () => {

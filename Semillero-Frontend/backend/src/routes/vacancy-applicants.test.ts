@@ -15,7 +15,7 @@ vi.mock('../utils/tracing', () => ({
 }));
 
 type Row = Record<string, unknown>;
-type Tables = 'vacancies' | 'applications' | 'candidate_profiles' | 'profiles' | 'candidates' | 'company_candidates' | 'candidate_status_history';
+type Tables = 'vacancies' | 'applications' | 'candidate_profiles' | 'profiles' | 'candidates' | 'company_candidates' | 'candidate_status_history' | 'candidate_rejections';
 let db: Record<Tables, Row[]>;
 let failOn: { table: Tables; op: string; error: { code: string; message: string } } | null = null;
 let seq = 0;
@@ -26,7 +26,7 @@ const match = (r: Row, filters: [string, unknown][]) =>
 
 function builder(table: Tables) {
   const filters: [string, unknown][] = [];
-  let op: 'select' | 'update' | 'insert' = 'select';
+  let op: 'select' | 'update' | 'insert' | 'delete' = 'select';
   let payload: Row = {};
   const b: Record<string, unknown> = {};
 
@@ -49,6 +49,10 @@ function builder(table: Tables) {
       return { data: [], error: null };
     }
     const hit = rows.filter((r) => match(r, filters));
+    if (op === 'delete') {
+      db[table] = rows.filter((r) => !hit.includes(r));
+      return { data: hit, error: null };
+    }
     if (op === 'update') {
       hit.forEach((r) => Object.assign(r, payload));
       return { data: null, error: null };
@@ -64,6 +68,7 @@ function builder(table: Tables) {
   b.range = () => b;
   b.update = (p: Row) => { op = 'update'; payload = p; return b; };
   b.insert = (p: Row) => { op = 'insert'; payload = p; return b; };
+  b.delete = () => { op = 'delete'; return b; };
   b.maybeSingle = () => { const r = run(); return Promise.resolve({ data: (r.data as Row[] | null)?.[0] ?? null, error: r.error }); };
   b.then = (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) => Promise.resolve(run()).then(ok, ko);
   return b;
@@ -107,7 +112,7 @@ describe('candidatos de una vacante', () => {
     blindLookups = 0;
     db = {
       vacancies: [
-        { id: V1, company_id: CO }, { id: V2, company_id: CO }, { id: VOTHER, company_id: OTHER },
+        { id: V1, company_id: CO, title: 'Ingeniero de datos' }, { id: V2, company_id: CO, title: 'Analista QA' }, { id: VOTHER, company_id: OTHER, title: 'Otra' },
       ],
       applications: [
         { id: 'app-1', vacancy_id: V1, company_id: CO, candidate_profile_id: CP1, status: 'enviada', created_at: '2026-03-02T00:00:00Z' },
@@ -127,6 +132,7 @@ describe('candidatos de una vacante', () => {
         { id: 'cc-l1', company_id: CO, legacy_candidate_id: L1, status: 'seguimiento', presented_to_company: true },
       ],
       candidate_status_history: [],
+      candidate_rejections: [],
     };
     app = await buildApp();
   });
@@ -216,13 +222,43 @@ describe('candidatos de una vacante', () => {
       expect(cc?.presented_to_company).toBe(true); // en contacto no la toca
     });
 
-    it('rechazar lo saca de la lista de aceptados y es terminal (409)', async () => {
-      expect((await patch(L1, 'rechazado')).status).toBe(200);
+    it('rechazar vale SOLO para esta vacante: se registra el puesto y el estado global no cambia', async () => {
+      const res = await request(app).patch(url(V1, `/legacy/${L1}/status`)).send({ status: 'rechazado', reason: 'Sin experiencia en Spark' });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('rechazado');
       expect(db.company_candidates.find((c) => c.legacy_candidate_id === L1)?.presented_to_company).toBe(false);
+      // Sigue disponible para otros puestos
+      expect(db.candidates.find((c) => c.id === L1)?.status).toBe('seguimiento');
+      expect(db.candidate_rejections).toEqual([expect.objectContaining({
+        company_id: CO, legacy_candidate_id: L1, vacancy_id: V1, role_label: 'Ingeniero de datos',
+        role_key: 'datos ingenie', reason: 'Sin experiencia en Spark', rejected_by: 'user-1',
+      })]);
+
+      // En la lista de ESTA vacante aparece rechazado
+      const list = await request(app).get(url(V1));
+      expect(list.body.items.find((i: { id: string }) => i.id === L1).status).toBe('rechazado');
+      // y no se puede aprobar para ella
+      expect((await request(app).post(url(V1, `/legacy/${L1}/approve`))).status).toBe(409);
+    });
+
+    it('rechazar dos veces no duplica; pasarlo a seguimiento reconsidera el rechazo de esta vacante', async () => {
+      await patch(L1, 'rechazado');
+      const again = await patch(L1, 'rechazado');
+      expect(again.body.unchanged).toBe(true);
+      expect(db.candidate_rejections).toHaveLength(1);
 
       const back = await patch(L1, 'seguimiento');
-      expect(back.status).toBe(409);
-      expect(db.candidates.find((c) => c.id === L1)?.status).toBe('rechazado');
+      expect(back.status).toBe(200);
+      expect(db.candidate_rejections).toHaveLength(0);
+      const list = await request(app).get(url(V1));
+      expect(list.body.items.find((i: { id: string }) => i.id === L1).status).toBe('seguimiento');
+    });
+
+    it('un rechazo global anterior (antes de la migración 027) sigue siendo terminal', async () => {
+      db.candidates.find((c) => c.id === L1)!.status = 'rechazado';
+      expect((await patch(L1, 'seguimiento')).status).toBe(409);
+      expect((await patch(L1, 'rechazado')).body.unchanged).toBe(true);
+      expect(db.candidate_rejections).toHaveLength(0);
     });
 
     it('repetir el mismo estado no duplica historial', async () => {
@@ -430,6 +466,45 @@ describe('candidatos de una vacante', () => {
       const res = await request(app).patch(url(V1, `/legacy/${L1}/status`)).send({ status: 'en_contacto' });
       expect(res.status).toBe(500);
       expect(JSON.stringify(res.body)).not.toContain('boom');
+    });
+  });
+
+  describe('POST /link (candidatos del chat a la vacante creada desde esa búsqueda)', () => {
+    const L3 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3';
+    const L4 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4';
+    beforeEach(() => {
+      db.candidates.push(
+        { id: L3, company_id: CO, vacancy_id: null, full_name: 'Sin vacante', status: 'seguimiento', created_at: '2026-03-01T00:00:00Z' },
+        { id: L4, company_id: CO, vacancy_id: null, full_name: 'Descartado', status: 'rechazado', created_at: '2026-03-01T00:00:00Z' },
+      );
+    });
+    const link = (candidates: object[], v = V1) => request(app).post(url(v, '/link')).send({ candidates });
+
+    it('asigna la vacante a los heredados sin vacante; no mueve a quien ya tiene otra; no asocia rechazados ni cuentas propias', async () => {
+      const res = await link([
+        { kind: 'legacy', id: L3 }, { kind: 'legacy', id: L2 }, { kind: 'legacy', id: L4 },
+        { kind: 'legacy', id: LFOREIGN }, { kind: 'profile', id: CP2 },
+      ]);
+      expect(res.status).toBe(200);
+      expect(res.body.linked).toEqual([L3]);
+      expect(res.body.skipped).toEqual([
+        { id: L2, reason: 'otra_vacante' }, { id: L4, reason: 'rechazado' },
+        { id: LFOREIGN, reason: 'no_encontrado' }, { id: CP2, reason: 'cuenta_propia' },
+      ]);
+      expect(db.candidates.find((c) => c.id === L3)?.vacancy_id).toBe(V1);
+      expect(db.candidates.find((c) => c.id === L2)?.vacancy_id).toBe(V2);
+      // Al candidato con cuenta no se le inventa una postulación
+      expect(db.applications.filter((a) => a.candidate_profile_id === CP2)).toHaveLength(1);
+      // y ya aparece en la lista de la vacante
+      const list = await request(app).get(url(V1));
+      expect(list.body.items.some((i: { id: string }) => i.id === L3)).toBe(true);
+    });
+
+    it('solo reclutador; vacante de otra empresa 404; cuerpo inválido 400', async () => {
+      expect((await link([{ kind: 'legacy', id: L3 }], VOTHER)).status).toBe(404);
+      expect((await link([])).status).toBe(400);
+      app = await buildApp('empresa');
+      expect((await link([{ kind: 'legacy', id: L3 }])).status).toBe(403);
     });
   });
 });

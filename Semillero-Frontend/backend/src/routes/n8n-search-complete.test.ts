@@ -19,6 +19,8 @@ let sessionExists = true;
 let candidateRows: Record<string, unknown>[] = [];
 let candidatesError: unknown = null;
 let messageInsertError: unknown = null;
+// Última consulta del reclutador en la sesión (para la afinidad de cargo)
+let lastUserQuery = 'Busco desarrollador PHP';
 const filtersByTable: Record<string, Record<string, unknown>> = {};
 const messageInserts: Record<string, unknown>[] = [];
 const sessionUpdates: Record<string, unknown>[] = [];
@@ -39,8 +41,12 @@ function builder(table: string) {
   b.in = (k: string, v: unknown) => { filters[k] = v; return b; };
   b.insert = (p: Record<string, unknown>) => { op = 'insert'; if (table === 'chat_messages') messageInserts.push(p); return b; };
   b.update = (p: Record<string, unknown>) => { op = 'update'; if (table === 'chat_sessions') sessionUpdates.push(p); return b; };
-  b.maybeSingle = () =>
-    Promise.resolve({ data: table === 'chat_sessions' && sessionExists ? { id: 'sess' } : null, error: null });
+  b.order = () => b;
+  b.limit = () => b;
+  b.maybeSingle = () => {
+    if (table === 'chat_messages') return Promise.resolve({ data: { content: lastUserQuery }, error: null });
+    return Promise.resolve({ data: table === 'chat_sessions' && sessionExists ? { id: 'sess' } : null, error: null });
+  };
   b.then = (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) => Promise.resolve(resolve()).then(ok, ko);
   return b;
 }
@@ -88,6 +94,7 @@ describe('POST /api/n8n-webhook/search-complete', () => {
     messageInsertError = null;
     messageInserts.length = 0;
     sessionUpdates.length = 0;
+    lastUserQuery = 'Busco desarrollador PHP';
     for (const k of Object.keys(filtersByTable)) delete filtersByTable[k];
 
     app = express();
@@ -117,6 +124,34 @@ describe('POST /api/n8n-webhook/search-complete', () => {
     expect(messageInserts).toHaveLength(0);
     // la sesión se busca por id Y empresa (no se puede escribir en la sesión de otra empresa)
     expect(filtersByTable.chat_sessions).toMatchObject({ id: SESSION, company_id: COMPANY });
+  });
+
+  it('afinidad: más alta si el perfil menciona lo buscado; ordena de mayor a menor', async () => {
+    lastUserQuery = 'Busco contador público en Bogotá';
+    candidateRows = [
+      scraped(CAND[0], { position: 'Analista de datos', headline: null, summary: 'SQL y Python' }),
+      scraped(CAND[1], { position: '', headline: 'Contadora Pública · NIIF', summary: null }),
+    ];
+    const res = await post(body());
+    expect(res.status).toBe(200);
+    const sent = messageInserts[0].candidates as { id: string; affinity: number; affinity_parts: { factor: string }[] }[];
+    expect(sent.map((c) => c.id)).toEqual([CAND[1], CAND[0]]);
+    // "contador público Bogotá": menciona 2 de 3 términos → 45 + 50·(2/3) = 78; ninguno → 45
+    expect(sent[0].affinity).toBe(78);
+    expect(sent[1].affinity).toBe(45);
+    // Sin criterios conocidos solo cuenta el cargo (no se inventan factores)
+    expect(sent[0].affinity_parts.map((p) => p.factor)).toEqual(['cargo']);
+  });
+
+  it('afinidad: quien menciona todo lo pedido (cargo y ciudad) queda arriba con 95', async () => {
+    lastUserQuery = 'Busco contador público en Bogotá';
+    candidateRows = [
+      scraped(CAND[0], { position: 'Contador público', headline: null, summary: null, location: null }),
+      scraped(CAND[1], { position: 'Contador público', headline: null, summary: null, location: 'Bogotá' }),
+    ];
+    await post(body());
+    const sent = messageInserts[0].candidates as { id: string; affinity: number }[];
+    expect(sent.map((c) => [c.id, c.affinity])).toEqual([[CAND[1], 95], [CAND[0], 78]]);
   });
 
   it('agrega a la sesión un mensaje con los candidatos, filtrados por empresa', async () => {

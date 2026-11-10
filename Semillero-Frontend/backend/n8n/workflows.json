@@ -1,11 +1,11 @@
 [
   {
-    "updatedAt": "2026-05-28T22:32:15.763Z",
+    "updatedAt": "2026-11-10T04:25:44.099Z",
     "createdAt": "2026-05-12T22:56:25.960Z",
     "id": "t50zGqbvjO3IN8Mc",
     "name": "Automated_Recruiter webhook",
     "description": null,
-    "active": false,
+    "active": true,
     "isArchived": false,
     "nodes": [
       {
@@ -33,7 +33,7 @@
               {
                 "id": "b0ad8f4c-d7ba-4549-96eb-80dd1c628ff4",
                 "name": "apikey",
-                "value": "56fab6f0860aaa613ba104fc21aca2379e49b09864dca708bcc69e34ef9f56aa",
+                "value": "<SERPAPI_API_KEY>",
                 "type": "string"
               },
               {
@@ -46,6 +46,12 @@
                 "id": "7e227767-16c0-41a5-aba6-e93b28c99d71",
                 "name": "Token_",
                 "value": "={{ $json.token }}",
+                "type": "string"
+              },
+              {
+                "id": "dae2e68f-434f-4664-90ab-55dbf53760d4",
+                "name": "semilleroApi",
+                "value": "http://host.docker.internal:3001/api",
                 "type": "string"
               }
             ]
@@ -64,7 +70,7 @@
       {
         "parameters": {
           "promptType": "define",
-          "text": "=Tipos posibles:\nmensaje del usuario:{{ $('Webhook').item.json.body.mensaje }}\n\n\"solicitud nueva\"\nSe usa cuando el mensaje expresa el deseo de iniciar una nueva búsqueda de personal o un nuevo proceso de reclutamiento.\nEjemplos:\n\n\"Quiero buscar un desarrollador Java\"\n\n\"Necesito un analista de datos\"\n\n\"Deseo hacer una búsqueda de un programador Python\"\n\nPara este tipo de solicitud deberás:\n\nIdentificar la profesión o cargo solicitado.\n\nDetectar si el mensaje contiene salario, y si lo contiene debes agregar el atributo salario con su valor.\n\nDetectar si el mensaje contiene años de experiencia o nivel de experiencia (junior, semi senior, senior).\n\nSi el usuario da años, convertirlos en nivel según las reglas:\n\n0-2 → junior\n\n3-5 → semi senior\n\n≥6 → senior\n\nSi el usuario menciona el nivel directamente, úsalo.\n\n\"continuar solicitud\"\nCuando el mensaje indica que el usuario quiere seguir con una solicitud anterior.\nDebes extraer:\n\nEl tipo \"continuar solicitud\"\n\nEl número de solicitud mencionado\n\nEl mensaje original del usuario\n\nEjemplo:\n\n\"Deseo continuar con la solicitud número 3\"\n\n\"NA\"\nCuando el mensaje no tiene relación con una solicitud o no es posible clasificarlo.\nEjemplos:\n\n\"Hola\"\n\n\"Buenos días\"\n\n\"¿Cómo estás?\", \"Gracias\"\n\nDebes añadir un atributo extra:\n\n\"tipo_mensaje\": \"{{ $json.Saludo }}\"\n\nFormato de Respuesta (estricto):\n\nTu respuesta debe entregarse como si fuese un objeto, sin mencionar la palabra json.\nDebe incluir siempre un atributo \"tipo\" con el valor identificado.\n\nSi es solicitud nueva, debes incluir los atributos:\n\n\"cargo\"\n\n\"salario\" (si existe en el mensaje)\n\n\"experiencia\" (junior, semi senior o senior)\n\nSi es continuar solicitud, incluir:\n\n\"numero_solicitud\"\n\n\"mensaje\"\n\nSi es NA, incluir:\n\n\"tipo_mensaje\": \"{{ $json.Saludo }}\"\n\nSiempre responde únicamente con JSON válido.\nNo uses markdown.\nNo uses ```json",
+          "text": "=Tipos posibles:\nmensaje del usuario:{{ $('Webhook').item.json.body.mensaje }}\n\n\"solicitud nueva\"\nSe usa cuando el mensaje expresa el deseo de iniciar una nueva búsqueda de personal o un nuevo proceso de reclutamiento.\nEjemplos:\n\n\"Quiero buscar un desarrollador Java\"\n\n\"Necesito un analista de datos\"\n\n\"Deseo hacer una búsqueda de un programador Python\"\n\n\"Busco un contador público en Bogotá\"\n\n\"Auxiliar contable con 2 años de experiencia\"\n\n\"Enfermera jefe para Medellín\"\n\n\"Asesor comercial\"\n\nEl cargo puede ser de CUALQUIER área (contabilidad, salud, ventas, logística, administración, tecnología, etc.). Si el mensaje describe un perfil o un cargo, aunque no use verbos como \"busco\" o \"necesito\", es \"solicitud nueva\".\n\nPara este tipo de solicitud deberás:\n\nIdentificar la profesión o cargo solicitado (tal como lo diría un reclutador, p. ej. \"contador público\").\n\nDetectar si el mensaje menciona una ciudad; si la menciona, agrega el atributo \"ciudad\".\n\nDetectar si el mensaje contiene salario, y si lo contiene debes agregar el atributo salario con su valor.\n\nDetectar si el mensaje contiene años de experiencia o nivel de experiencia (junior, semi senior, senior).\n\nSi el usuario da años, convertirlos en nivel según las reglas:\n\n0-2 → junior\n\n3-5 → semi senior\n\n≥6 → senior\n\nSi el usuario menciona el nivel directamente, úsalo.\n\n\"continuar solicitud\"\nCuando el mensaje indica que el usuario quiere seguir con una solicitud anterior.\nDebes extraer:\n\nEl tipo \"continuar solicitud\"\n\nEl número de solicitud mencionado\n\nEl mensaje original del usuario\n\nEjemplo:\n\n\"Deseo continuar con la solicitud número 3\"\n\n\"NA\"\nCuando el mensaje no tiene relación con una solicitud o no es posible clasificarlo.\nEjemplos:\n\n\"Hola\"\n\n\"Buenos días\"\n\n\"¿Cómo estás?\", \"Gracias\"\n\nDebes añadir un atributo extra:\n\n\"tipo_mensaje\": \"{{ $json.Saludo }}\"\n\nFormato de Respuesta (estricto):\n\nTu respuesta debe entregarse como si fuese un objeto, sin mencionar la palabra json.\nDebe incluir siempre un atributo \"tipo\" con el valor identificado.\n\nSi es solicitud nueva, debes incluir los atributos:\n\n\"cargo\"\n\n\"salario\" (si existe en el mensaje)\n\n\"experiencia\" (junior, semi senior o senior)\n\n\"ciudad\" (si existe en el mensaje)\n\nSi es continuar solicitud, incluir:\n\n\"numero_solicitud\"\n\n\"mensaje\"\n\nSi es NA, incluir:\n\n\"tipo_mensaje\": \"{{ $json.Saludo }}\"\n\nSiempre responde únicamente con JSON válido.\nNo uses markdown.\nNo uses ```json",
           "options": {}
         },
         "type": "@n8n/n8n-nodes-langchain.agent",
@@ -80,7 +86,7 @@
         "parameters": {
           "httpMethod": "POST",
           "path": "procesoReclutamiento",
-          "responseMode": "responseNode",
+          "responseMode": "onReceived",
           "options": {}
         },
         "type": "n8n-nodes-base.webhook",
@@ -130,7 +136,8 @@
           752
         ],
         "id": "10833d56-43bd-437e-b457-e3708d6c20ea",
-        "name": "HTTP Request2"
+        "name": "HTTP Request2",
+        "onError": "continueRegularOutput"
       },
       {
         "parameters": {
@@ -238,7 +245,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Obtener el análisis del item actual\nconst analisis = JSON.parse(items[0].json.analisisSolicitud || {});\n\n// Construir partes dinámicamente\nconst partes = [];\n\n// Solo agrega si existen\nif (analisis.profesion) partes.push(analisis.profesion);\nif (analisis.cargo) partes.push(analisis.cargo);\nif (analisis.foco) partes.push(analisis.foco);\n//if (analisis.experiencia) partes.push(analisis.experiencia);\n\n// Unir con \"+\" para que funcione en la URL\nconst queryPrincipal = partes.join('+');\n\n// Construir query completa de Google para SerpApi\nconst query = `${queryPrincipal}`;\n\n// Crear la URL final\n\nconst location = 'Colombia';\nconst url = `https://serpapi.com/search.json?q=site:linkedin.com/in+${query}&${location}&hl=es&gl=co&google_domain=google.com.co&api_key=`;\n\n// Retornar la URL lista\nreturn [{\n  json: {\n    url,\n    query,\n    analisis\n  }\n}];\n"
+          "jsCode": "// Consulta para SerpApi: perfiles públicos de LinkedIn.\n// Se usa DuckDuckGo: Google ignora `site:` (devolvía ofertas de Indeed/Computrabajo) y Bing devolvía\n// resultados sin relación. En pruebas con contador, auxiliar contable, enfermera y java, DuckDuckGo\n// trajo solo perfiles de LinkedIn.\nconst raw = items[0].json.analisisSolicitud;\nconst analisis = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});\nconst cargo = [analisis.profesion, analisis.cargo, analisis.foco].filter(Boolean).join(' ').trim();\nconst ciudad = (analisis.ciudad || '').trim();\n// Cargo entre comillas y solo la ciudad: \"contador público\" Bogotá → 8/8 perfiles.\n// Con \"Colombia\" además bajaba a 1/5; sin comillas, \"contador\" casaba con el apellido Contador\n// y traía perfiles sin relación.\nconst lugar = ciudad || 'Colombia';\n// Solo el cargo va entre comillas; el complemento (\"para venta de seguros\") va suelto:\n// \"Asesor comercial para venta de seguros\" exacto → 0 resultados; \"Asesor comercial\" seguros → 4/10 perfiles.\n// No se corta en \"de\" para no romper cargos como \"auxiliar de enfermería\".\nconst [nucleo, ...complemento] = cargo.split(/\\s+(?:para|en|con|que)\\s+/i);\nconst conectores = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'o', 'a', 'para', 'en', 'con', 'que', 'un', 'una']);\nconst extra = complemento.join(' ').split(/\\s+/).filter((w) => w && !conectores.has(w.toLowerCase())).join(' ');\nconst termino = cargo ? `\"${nucleo.trim()}\"${extra ? ' ' + extra : ''}` : ($('Webhook').first().json.body.mensaje || '');\nconst query = `site:linkedin.com/in ${termino} ${lugar}`;\nconst url = `https://serpapi.com/search.json?engine=duckduckgo&q=${encodeURIComponent(query)}&kl=co-es&api_key=`;\n\nreturn [{ json: { url, query, analisis } }];\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -251,7 +258,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Obtener resultados orgánicos del nodo anterior\nconst resultados = $json.organic_results || [];\n\n// Fecha actual (para el campo \"fecha ingreso\")\nconst fechaIngreso = new Date().toISOString().split('T')[0];\n\n// Mapear los datos en la estructura que quieres para el Excel\nconst registros = resultados.map(r => {\n  const nombre = r.title?.split('-')[0]?.trim() || null;\n  const profesion = r.title?.split('-')[1]?.trim() || null;\n  const urlLinkedin = r.link || null;\n  const especializacion = r.snippet?.match(/Spring Boot|Angular|React|Quarkus|Microservicios|WebFlux|Cloud/i)?.[0] || null;\n\n  return {\n    json: {\n      nombre,\n      profesion,\n      urlLinkedin,\n      fechaIngreso,\n      especializacion\n    }\n  };\n});\n\nreturn registros;\n"
+          "jsCode": "// Resultados de búsqueda (SerpApi) → candidatos.\n// Títulos típicos: \"Laura Ríos - Contadora Pública - Acme SAS | LinkedIn\"\n//                  \"Luis Rey - Bogotá, Distrito Capital, Colombia - LinkedIn\"\nconst resultados = $json.organic_results || [];\nconst fechaIngreso = new Date().toISOString().split('T')[0];\nconst EMAIL = /[\\w.+-]+@[\\w-]+\\.[\\w.-]+/;\nconst TELEFONO = /(?:\\+?57[\\s-]?)?3\\d{2}[\\s-]?\\d{3}[\\s-]?\\d{4}/;\n// Segmento que es solo ubicación (\"Bogotá, Distrito Capital, Colombia\", \"Área metropolitana de Bogotá\"),\n// no un cargo que la mencione (\"Contador Público (Colombia)\").\nconst LUGAR = /^(área|area) metropolitana|^[^,()]+,\\s*[^,()]+(,\\s*colombia)?$|^colombia$/i;\n// Conectores que quedan colgando cuando el buscador corta el título: \"Contador público certificado en\"\nconst COLGANTE = /\\s+(en|de|del|para|y|con|a|la|el|los|las|e)$/i;\n\nconst fold = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();\nconst analisis = $('CODESERPAPI1').first().json.analisis || {};\n// Raíz de 5 letras: \"contador\" también reconoce \"contable\" y \"contaduría\"\nconst raices = fold([analisis.profesion, analisis.cargo, analisis.foco].filter(Boolean).join(' '))\n  .split(/[^a-z0-9]+/)\n  .filter((w) => w.length > 3)\n  .map((w) => w.slice(0, 5));\n\nconst limpiarRol = (p) => {\n  let r = p.replace(/\\s*\\((colombia|bogotá|medellín|cali)\\)$/i, '').replace(/\\s*(…|\\.\\.\\.)$/, '').trim();\n  while (COLGANTE.test(r)) r = r.replace(COLGANTE, '').trim();\n  return r;\n};\n\n// Nombre de persona: 2 a 6 palabras, sin números ni símbolos (descarta \"Ofertas de empleo…\", \"Empresa | Sede 2\")\nconst pareceNombre = (n) => {\n  const palabras = n.trim().split(/\\s+/);\n  return palabras.length >= 2 && palabras.length <= 6 && n.length <= 60 && !/[\\d|@#/]/.test(n);\n};\n\nreturn resultados\n  .filter((r) => /linkedin\\.com\\/in\\//i.test(r.link || ''))\n  .map((r) => {\n    const titulo = (r.title || '')\n      .replace(/\\s*[|·–-]\\s*(Perfil.*|Linked\\w*.*)$/i, '')\n      .replace(/\\s*(…|\\.\\.\\.)$/, '')\n      .trim();\n    const partes = titulo.split(/\\s[-–|]\\s/).map((s) => s.trim()).filter(Boolean);\n    const nombre = partes[0] || '';\n    const rol = partes.slice(1).filter((p) => !LUGAR.test(p)).map(limpiarRol).filter(Boolean);\n    const extracto = r.snippet || '';\n    return { r, nombre, rol, extracto };\n  })\n  // Relevancia: el CARGO del título debe ser el pedido (antes también contaba el extracto y pasaban\n  // perfiles como \"Jefe de Planeación Financiera\" para contador). Si el título no trae cargo, se mira\n  // el extracto sin el nombre (\"Fernando Contador\" no es contador por su apellido).\n  .filter(({ nombre, rol, extracto }) => {\n    if (!pareceNombre(nombre)) return false;\n    if (raices.length === 0) return true;\n    const texto = rol.length ? fold(rol.join(' ')) : fold(extracto.split(nombre).join(' '));\n    return raices.some((raiz) => texto.includes(raiz));\n  })\n  .map(({ r, nombre, rol, extracto }) => ({\n    json: {\n      nombre,\n      profesion: rol[0] || null,\n      especializacion: rol[0] || null,\n      titular: rol.join(' · ') || null,\n      resumen: extracto || null,\n      correo: extracto.match(EMAIL)?.[0] || null,\n      telefono: extracto.match(TELEFONO)?.[0] || null,\n      urlLinkedin: r.link,\n      fechaIngreso,\n    },\n  }));\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -260,7 +267,8 @@
           752
         ],
         "id": "bf30abf6-2019-413e-8825-b7972fe0ea4d",
-        "name": "NormalizadorCandidatos1"
+        "name": "NormalizadorCandidatos1",
+        "alwaysOutputData": true
       },
       {
         "parameters": {
@@ -602,7 +610,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const items = $input.all();\nconst candidatosNormalizados = [];\n\n\n// Obtener fecha actual\nconst fechaActual = new Date().toISOString().split('T')[0]; // Formato: YYYY-MM-DD\n\n// Extraer el número de solicitud de CUALQUIER candidato que lo tenga\nconst numeroSolicitud =\n  'SOL-' + Math.random().toString(36).substring(2, 10).toUpperCase();\n\n// Buscar primero en los arrays de candidatos\nfor (const item of items) {\n  const data = item.json;\n  if (data.candidatos && Array.isArray(data.candidatos)) {\n    for (const candidato of data.candidatos) {\n      if (candidato[\"numero de solicitud\"]) {\n        numeroSolicitud = candidato[\"numero de solicitud\"];\n        break;\n      }\n    }\n    if (numeroSolicitud) break;\n  }\n}\n\n// Si no se encontró, buscar en los items individuales\nif (!numeroSolicitud) {\n  for (const item of items) {\n    if (item.json[\"numero de solicitud\"]) {\n      numeroSolicitud = item.json[\"numero de solicitud\"];\n      break;\n    }\n  }\n}\n\n// Normalizar todos los candidatos\nfor (const item of items) {\n  const data = item.json;\n  \n  if (data.candidatos && Array.isArray(data.candidatos)) {\n    for (const candidato of data.candidatos) {\n      candidatosNormalizados.push({\n        json: {\n          \"numero de solicitud\": candidato[\"numero de solicitud\"] || numeroSolicitud,\n          nombre: candidato.nombre || null,\n          cargo: candidato.CARGO || null,\n          disponibilidad: candidato.disponibilidad || null,\n          experiencia: candidato.experiencia || null,\n          correo: candidato.correo || null,\n          profesion: candidato.profesion || null,\n          urlLinkedin: candidato.urlLinkedin || null,\n          fechaIngreso: candidato.fechaIngreso || fechaActual,\n          Aspiracion: candidato.aspiracion || null\n        }\n      });\n    }\n  } else {\n    candidatosNormalizados.push({\n      json: {\n        \"numero de solicitud\": data[\"numero de solicitud\"] || numeroSolicitud,\n        nombre: data.nombre || null,\n        cargo: data.CARGO || null,\n        disponibilidad: data.disponibilidad || null,\n        experiencia: data.experiencia || null,\n        correo: data.correo || null,\n        profesion: data.profesion || null,\n        urlLinkedin: data.urlLinkedin || null,\n        fechaIngreso: data.fechaIngreso || fechaActual,\n        Aspiracion: data.aspiracion || null\n      }\n    });\n  }\n}\n\nreturn candidatosNormalizados;"
+          "jsCode": "// Une candidatos del Sheet base y de SerpApi en una sola forma.\n// Antes: `const numeroSolicitud` se reasignaba y el nodo fallaba (\"Assignment to constant variable\").\nconst items = $input.all();\nconst fechaActual = new Date().toISOString().split('T')[0];\n\nlet numeroSolicitud = null;\nfor (const { json } of items) {\n  const lista = Array.isArray(json.candidatos) ? json.candidatos : [json];\n  const conNumero = lista.find((c) => c && c['numero de solicitud']);\n  if (conNumero) { numeroSolicitud = conNumero['numero de solicitud']; break; }\n}\nnumeroSolicitud = numeroSolicitud || 'SOL-' + Math.random().toString(36).substring(2, 10).toUpperCase();\n\nconst normalizar = (c) => ({\n  json: {\n    \"numero de solicitud\": c[\"numero de solicitud\"] || numeroSolicitud,\n    nombre: c.nombre || null,\n    cargo: c.CARGO || c.cargo || null,\n    disponibilidad: c.disponibilidad || null,\n    experiencia: c.experiencia || null,\n    correo: c.correo || null,\n    profesion: c.profesion || null,\n    titular: c.titular || null,\n    resumen: c.resumen || null,\n    telefono: c.telefono || null,\n    urlLinkedin: c.urlLinkedin || null,\n    fechaIngreso: c.fechaIngreso || fechaActual,\n    Aspiracion: c.aspiracion || c.Aspiracion || null,\n  },\n});\n\nreturn items\n  .flatMap(({ json }) => (Array.isArray(json.candidatos) ? json.candidatos.map(normalizar) : [normalizar(json)]))\n  .filter((i) => i.json.nombre);\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -611,7 +619,8 @@
           752
         ],
         "id": "d78892a4-82f8-46ac-9576-0271b1554812",
-        "name": "normalizacion scraper1"
+        "name": "normalizacion scraper1",
+        "alwaysOutputData": true
       },
       {
         "parameters": {
@@ -839,7 +848,8 @@
           512
         ],
         "id": "ddbd5a79-ffd1-4e88-bc87-eef87b186215",
-        "name": "Code9"
+        "name": "Code9",
+        "alwaysOutputData": true
       },
       {
         "parameters": {},
@@ -893,7 +903,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Obtener todos los candidatos\nconst items = $input.all();\n\n\n// Separar candidatos en dos grupos\nconst sinLinkedIn = [];\nconst conLinkedIn = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  if (data.urlLinkedin && data.urlLinkedin !== null) {\n    // Candidatos CON LinkedIn\n    conLinkedIn.push(item);\n  } else {\n    // Candidatos SIN LinkedIn (los que tienen correo)\n    sinLinkedIn.push(item);\n  }\n}\n\n// Construir el resultado final\nconst resultado = [];\n\n// 1. Agregar TODOS los candidatos sin LinkedIn primero\nresultado.push(...sinLinkedIn);\n\n// 2. Calcular cuántos candidatos faltan para llegar a 10\nconst faltantes = 10 - resultado.length;\n\n// 3. Agregar candidatos con LinkedIn hasta completar 10\nif (faltantes > 0) {\n  const candidatosLinkedIn = conLinkedIn.slice(0, faltantes);\n  resultado.push(...candidatosLinkedIn);\n}\n\n\n// Retornar los 10 candidatos (o menos si no hay suficientes)\nreturn resultado;"
+          "jsCode": "// Obtener todos los candidatos\nconst items = $input.all().filter((i) => i.json.nombre);\n\n\n// Separar candidatos en dos grupos\nconst sinLinkedIn = [];\nconst conLinkedIn = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  if (data.urlLinkedin && data.urlLinkedin !== null) {\n    // Candidatos CON LinkedIn\n    conLinkedIn.push(item);\n  } else {\n    // Candidatos SIN LinkedIn (los que tienen correo)\n    sinLinkedIn.push(item);\n  }\n}\n\n// Construir el resultado final\nconst resultado = [];\n\n// 1. Agregar TODOS los candidatos sin LinkedIn primero\nresultado.push(...sinLinkedIn);\n\n// 2. Calcular cuántos candidatos faltan para llegar a 10\nconst faltantes = 10 - resultado.length;\n\n// 3. Agregar candidatos con LinkedIn hasta completar 10\nif (faltantes > 0) {\n  const candidatosLinkedIn = conLinkedIn.slice(0, faltantes);\n  resultado.push(...candidatosLinkedIn);\n}\n\n\n// Retornar los 10 candidatos (o menos si no hay suficientes)\nreturn resultado;"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1050,7 +1060,7 @@
       {
         "parameters": {
           "promptType": "define",
-          "text": "=Eres un agente experto en reclutamiento. NO incluyas texto fuera del JSON final.\n\nEstos son los campos que vas a necesitar dentro del listado de candidatos para tu tarea: salario, ASPIRACION, experiencia, EXPER, CARGO.\n\nlistado de candidatos:\n{{JSON.stringify($json.candidatos, null, 2)}}\n\nCargo o consulta del usuario:\n{{ $('Webhook').first().json.body.mensaje }}\n\nTu tarea:\n\nIdentifica el cargo solicitado por el usuario a partir del mensaje.\n\nLee todos los candidatos del JSON y filtra únicamente a quienes realmente coincidan con el cargo solicitado, comparando inteligentemente el valor del campo CARGO del candidato con el cargo solicitado.\n\nSelecciona únicamente a los candidatos que además cumplan con todas las especificaciones adicionales indicadas abajo.\n\nNO inventes información en ningún campo. Si un campo no existe, déjalo vacío.\n\nDevuelve únicamente los candidatos que aplican.\n\nA cada candidato encontrado agrégale el campo \"numero de solicitud\": \"{{ $json.numeroSolicitud }}\".\n\nSi no se encuentra ningún candidato que coincida, devuelve \"candidatos_filtrados\": [] y \"total_encontrados\": 0.\n\nEspecificaciones obligatorias\n\nUn candidato solo es válido si cumple simultáneamente:\nsalario >= ASPIRACION\nexperiencia == EXPER\nCARGO coincide con el cargo solicitado (comparación inteligente por similitud semántica y equivalencias del rol).\n\nReglas de experiencia (campo \"exper\")\n\nLa experiencia debe presentarse como: \"(X años) de experiencia\".\n\nSi el usuario menciona directamente el nivel de experiencia, úsalo.\n\nla experiencia debe de estar dentro de los siguientes rangos obligatoriamente\n\n0-2 → junior\n\n3-5 → semi senior\n\n≥6 → senior\n\n\nEl valor debe corresponder exactamente con la comparación contra el campo EXPER del candidato.\n\nReglas para el campo aspiracion\n\nDebe ser numérico, nunca texto.\n\nConvierte siempre a su equivalente numérico y añade “.0”.\n\nReglas:\n\n“1 millón”, “1 millon”, “1M”, “1 m” → 1000000.0\n\n“5M”, “5 m”, “5 millones” → 5000000.0\n\nJAMÁS devolver aspiración como cadena.\n\nSalida obligatoria (estructura exacta)\n\n{\n\"candidatos_filtrados\": [\n{\n\"nombre\": \"\",\n\"CARGO\": \"\",\n\"experiencia\": \"\",\n\"correo\": \"\",\n\"aspiracion\": \"\",\n\"numero de solicitud\": \"\",\n\"salario\": \"\"\n}\n],\n\"total_encontrados\": 0\n}\n\nReglas finales del sistema\n\nNo incluyas explicaciones.\n\nNo incluyas texto fuera del JSON.\n\nNo escribas markdown.\n\nNo agregues comentarios.\n\nNo agregues texto antes o después del JSON.\n\nNo inventes datos.\n\nSigue estrictamente la estructura indicada.",
+          "text": "=Eres un agente experto en reclutamiento. NO incluyas texto fuera del JSON final.\n\nEstos son los campos que vas a necesitar dentro del listado de candidatos para tu tarea: salario, ASPIRACION, experiencia, EXPER, CARGO.\n\nlistado de candidatos:\n{{JSON.stringify($json.candidatos, null, 2)}}\n\nCargo o consulta del usuario:\n{{ $('Webhook').first().json.body.mensaje }}\n\nTu tarea:\n\nIdentifica el cargo solicitado por el usuario a partir del mensaje.\n\nLee todos los candidatos del JSON y filtra únicamente a quienes realmente coincidan con el cargo solicitado, comparando inteligentemente el valor del campo CARGO del candidato con el cargo solicitado.\n\nSelecciona únicamente a los candidatos que además cumplan con todas las especificaciones adicionales indicadas abajo.\n\nNO inventes información en ningún campo. Si un campo no existe, déjalo vacío.\n\nDevuelve únicamente los candidatos que aplican.\n\nA cada candidato encontrado agrégale el campo \"numero de solicitud\": \"{{ $json.numeroSolicitud }}\".\n\nSi no se encuentra ningún candidato que coincida, devuelve \"candidatos_filtrados\": [] y \"total_encontrados\": 0.\n\nEspecificaciones\n\nUn candidato es válido si su CARGO coincide con el cargo solicitado (comparación inteligente por similitud semántica, sinónimos, variantes de género y cargos equivalentes, en cualquier área: contabilidad, salud, ventas, tecnología, etc.).\n\nSi el usuario pidió salario o experiencia y el candidato TIENE ese dato, debe cumplirlo (salario >= ASPIRACION; nivel de experiencia compatible con EXPER). Si el candidato NO tiene el dato, NO lo descartes por eso.\n\nNiveles de experiencia: 0-2 años → junior; 3-5 → semi senior; ≥6 → senior.\n\nReglas para el campo aspiracion\n\nDebe ser numérico, nunca texto.\n\nConvierte siempre a su equivalente numérico y añade “.0”.\n\nReglas:\n\n“1 millón”, “1 millon”, “1M”, “1 m” → 1000000.0\n\n“5M”, “5 m”, “5 millones” → 5000000.0\n\nJAMÁS devolver aspiración como cadena.\n\nSalida obligatoria (estructura exacta)\n\n{\n\"candidatos_filtrados\": [\n{\n\"nombre\": \"\",\n\"CARGO\": \"\",\n\"experiencia\": \"\",\n\"correo\": \"\",\n\"aspiracion\": \"\",\n\"numero de solicitud\": \"\",\n\"salario\": \"\"\n}\n],\n\"total_encontrados\": 0\n}\n\nReglas finales del sistema\n\nNo incluyas explicaciones.\n\nNo incluyas texto fuera del JSON.\n\nNo escribas markdown.\n\nNo agregues comentarios.\n\nNo agregues texto antes o después del JSON.\n\nNo inventes datos.\n\nSigue estrictamente la estructura indicada.",
           "options": {}
         },
         "type": "@n8n/n8n-nodes-langchain.agent",
@@ -1061,21 +1071,6 @@
         ],
         "id": "afe77714-66e4-4643-8978-d6a6a47d607f",
         "name": "AI Agent 1"
-      },
-      {
-        "parameters": {
-          "promptType": "define",
-          "text": "=Eres un agente experto en reclutamiento. NO incluyas texto fuera del JSON final.\n\nEstos son los campos que vas a necesitar dentro del listado de candidatos para tu tarea: salario, ASPIRACION, experiencia, EXPER, CARGO.\n\nlistado de candidatos:\n{{JSON.stringify($json.candidatos, null, 2)}}\n\nCargo o consulta del usuario:\n{{ $('Webhook').first().json.body.mensaje }}\n\nTu tarea:\n\nIdentifica el cargo solicitado por el usuario a partir del mensaje.\n\nLee todos los candidatos del JSON y filtra únicamente a quienes realmente coincidan con el cargo solicitado, comparando inteligentemente el valor del campo CARGO del candidato con el cargo solicitado.\n\nSelecciona únicamente a los candidatos que además cumplan con todas las especificaciones adicionales indicadas abajo.\n\nNO inventes información en ningún campo. Si un campo no existe, déjalo vacío.\n\nDevuelve únicamente los candidatos que aplican.\n\nA cada candidato encontrado agrégale el campo \"numero de solicitud\": \"{{ $json.numeroSolicitud }}\".\n\nSi no se encuentra ningún candidato que coincida, devuelve \"candidatos_filtrados\": [] y \"total_encontrados\": 0.\n\nEspecificaciones obligatorias\n\nUn candidato solo es válido si cumple simultáneamente:\nsalario >= ASPIRACION\nexperiencia == EXPER\nCARGO coincide con el cargo solicitado (comparación inteligente por similitud semántica y equivalencias del rol).\n\nReglas de experiencia (campo \"exper\")\n\nLa experiencia debe presentarse como: \"(X años) de experiencia\".\n\nSi el usuario menciona directamente el nivel de experiencia, úsalo.\n\nla experiencia debe de estar dentro de los siguientes rangos obligatoriamente\n\n0-2 → junior\n\n3-5 → semi senior\n\n≥6 → senior\n\n\nEl valor debe corresponder exactamente con la comparación contra el campo EXPER del candidato.\n\nReglas para el campo aspiracion\n\nDebe ser numérico, nunca texto.\n\nConvierte siempre a su equivalente numérico y añade “.0”.\n\nReglas:\n\n“1 millón”, “1 millon”, “1M”, “1 m” → 1000000.0\n\n“5M”, “5 m”, “5 millones” → 5000000.0\n\nJAMÁS devolver aspiración como cadena.\n\nSalida obligatoria (estructura exacta)\n\n{\n\"candidatos_filtrados\": [\n{\n\"nombre\": \"\",\n\"CARGO\": \"\",\n\"experiencia\": \"\",\n\"correo\": \"\",\n\"aspiracion\": \"\",\n\"numero de solicitud\": \"\",\n\"salario\": \"\"\n}\n],\n\"total_encontrados\": 0\n}\n\nReglas finales del sistema\n\nNo incluyas explicaciones.\n\nNo incluyas texto fuera del JSON.\n\nNo escribas markdown.\n\nNo agregues comentarios.\n\nNo agregues texto antes o después del JSON.\n\nNo inventes datos.\n\nSigue estrictamente la estructura indicada.",
-          "options": {}
-        },
-        "type": "@n8n/n8n-nodes-langchain.agent",
-        "typeVersion": 3.1,
-        "position": [
-          -3216,
-          496
-        ],
-        "id": "7e22a97c-83c9-4807-9375-be9287419e51",
-        "name": "AI Agent1"
       },
       {
         "parameters": {
@@ -1234,231 +1229,116 @@
         "name": "Code11"
       },
       {
+        "id": "ca87dc31-be97-4122-a570-b46cecb47a90",
+        "name": "Preparar candidatos",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -188,
+          1012
+        ],
         "parameters": {
-          "method": "POST",
-          "url": "https://ynaikgwvwyptegxrxtec.supabase.co/rest/v1/candidates",
-          "authentication": "genericCredentialType",
-          "genericAuthType": "httpHeaderAuth",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
+          "jsCode": "// Lleva los candidatos al contrato de POST /api/n8n-webhook (backend Semillero).\n// Descarta los que el backend rechazaría (sin nombre, o sin correo ni perfil de LinkedIn válidos)\n// y deja máximo 10: primero los que tienen correo (contacto directo).\nconst hook = $('Webhook').first().json.body || {};\nconst EMAIL = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst LINKEDIN = /^https?:\\/\\/([a-z0-9-]+\\.)*linkedin\\.com\\/in\\/[^/?#]+/i;\nconst entero = (v, max) => {\n  const m = String(v ?? '').replace(/[.,](?=\\d{3}\\b)/g, '').match(/\\d+/);\n  const n = m ? Number(m[0]) : NaN;\n  return Number.isFinite(n) && n <= max ? n : '';\n};\nconst fecha = (v) => (v && !Number.isNaN(new Date(v).getTime()) ? v : new Date().toISOString());\n\nconst vistos = new Set();\nconst candidatos = [];\nfor (const { json: c } of $input.all()) {\n  const nombre = String(c.nombre || '').trim();\n  const correo = String(c.correo || '').trim();\n  const url = String(c.urlLinkedin || c.url || '').trim();\n  const okCorreo = EMAIL.test(correo);\n  const okUrl = LINKEDIN.test(url);\n  if (!nombre || (!okCorreo && !okUrl)) continue;\n  const clave = (okUrl ? url : correo).toLowerCase();\n  if (vistos.has(clave)) continue;\n  vistos.add(clave);\n  candidatos.push({\n    json: {\n      company_id: hook.company_id,\n      IdSolicitud: String(c['numero de solicitud'] || 'n8n'),\n      Nombre: nombre.slice(0, 200),\n      'Correo Personal': okCorreo ? correo : '',\n      urlLinkedin: okUrl ? url : '',\n      'Especializacion/descripcion': String(c.cargo || c.profesion || '').slice(0, 500),\n      Experiencia: entero(c.experiencia, 80),\n      Aspiracion: entero(c.aspiracion ?? c.Aspiracion, 1000000000),\n      Telefono: c.telefono || '',\n      Titular: String(c.titular || '').slice(0, 300),\n      Resumen: String(c.resumen || '').slice(0, 2000),\n      'Fecha de busqueda': fecha(c.fechaIngreso),\n    },\n  });\n}\ncandidatos.sort((a, b) => Number(!!b.json['Correo Personal']) - Number(!!a.json['Correo Personal']));\nconst top = candidatos.slice(0, 10);\nreturn top.length ? top : [{ json: { _vacio: true } }];\n"
+        }
+      },
+      {
+        "id": "2972563c-f02d-4c7f-9472-7ae32f8dc475",
+        "name": "¿Hay candidatos?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          32,
+          1012
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
               {
-                "name": "apikey",
-                "value": "sb_publishable_pTRpe8yrLaSF18LyFnLmAg_ZRO9I_XD"
-              },
-              {
-                "name": "Authorization",
-                "value": "Bearer sb_publishable_pTRpe8yrLaSF18LyFnLmAg_ZRO9I_XD"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "name": "Prefer",
-                "value": "return=minimal"
+                "id": "3eb77d4d-8cc8-4051-9bf1-1255f4360757",
+                "leftValue": "={{ $json._vacio === true ? 'no' : 'si' }}",
+                "rightValue": "si",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
               }
-            ]
+            ],
+            "combinator": "and"
           },
-          "sendBody": true,
-          "bodyParameters": {
-            "parameters": [
-              {
-                "name": "full_name",
-                "value": "={{ $json.nombre }}"
-              },
-              {
-                "name": "position",
-                "value": "={{ $json.cargo || $json.profesion }}"
-              },
-              {
-                "name": "email",
-                "value": "={{ $json.correo }}"
-              },
-              {
-                "name": "profile_url",
-                "value": "={= $json.url }"
-              },
-              {
-                "name": "expected_salary",
-                "value": "={{ $json.aspiracion ? Number(String($json.aspiracion).replace(/[^0-9]/g,\"\")) || null : null }}"
-              },
-              {
-                "name": "status",
-                "value": "pending"
-              },
-              {
-                "name": "source",
-                "value": "scraping"
-              }
-            ]
-          },
-          "options": {
-            "ignoreSslIssues": {
-              "value": false
-            }
-          }
-        },
+          "options": {}
+        }
+      },
+      {
+        "id": "4d252f4e-98ad-4a69-bfdb-a25bed3b17c0",
+        "name": "Guardar en Semillero",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          -708,
-          128
+          252,
+          952
         ],
-        "id": "supabase-insert-sheet3",
-        "name": "Supabase Insert (Append row in sheet3)",
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $('Edit Fields').first().json.semilleroApi }}/n8n-webhook",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json) }}",
+          "options": {}
+        },
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "xnq5Y7blm30Sxron",
+            "name": "Semillero backend (X-N8N-Secret)"
+          }
+        },
         "onError": "continueRegularOutput"
       },
       {
-        "parameters": {
-          "method": "POST",
-          "url": "https://ynaikgwvwyptegxrxtec.supabase.co/rest/v1/candidates",
-          "authentication": "genericCredentialType",
-          "genericAuthType": "httpHeaderAuth",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "apikey",
-                "value": "sb_publishable_pTRpe8yrLaSF18LyFnLmAg_ZRO9I_XD"
-              },
-              {
-                "name": "Authorization",
-                "value": "Bearer sb_publishable_pTRpe8yrLaSF18LyFnLmAg_ZRO9I_XD"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "name": "Prefer",
-                "value": "return=minimal"
-              }
-            ]
-          },
-          "sendBody": true,
-          "bodyParameters": {
-            "parameters": [
-              {
-                "name": "full_name",
-                "value": "={{ $json.nombre }}"
-              },
-              {
-                "name": "position",
-                "value": "={{ $json.cargo || $json.profesion }}"
-              },
-              {
-                "name": "email",
-                "value": "={{ $json.correo }}"
-              },
-              {
-                "name": "profile_url",
-                "value": "={= $json.urlLinkedin }"
-              },
-              {
-                "name": "expected_salary",
-                "value": "={{ $json.aspiracion ? Number(String($json.aspiracion).replace(/[^0-9]/g,\"\")) || null : null }}"
-              },
-              {
-                "name": "status",
-                "value": "pending"
-              },
-              {
-                "name": "source",
-                "value": "scraping"
-              }
-            ]
-          },
-          "options": {
-            "ignoreSslIssues": {
-              "value": false
-            }
-          }
-        },
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
+        "id": "fe644d1f-d6a8-46f7-bfdd-7a76dde29d56",
+        "name": "Reunir ids",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
         "position": [
-          -996,
-          352
+          472,
+          1012
         ],
-        "id": "supabase-insert-sheet4",
-        "name": "Supabase Insert (Append row in sheet4)",
-        "onError": "continueRegularOutput"
+        "parameters": {
+          "jsCode": "// Ids que devolvió el backend por cada candidato guardado → aviso para el chat.\n// Sin session_id (eventos que no vienen del chat) no hay a quién avisar.\nconst hook = $('Webhook').first().json.body || {};\nif (!hook.session_id || !hook.company_id) return [];\nconst ids = [...new Set($input.all().map((i) => i.json.candidate_id).filter(Boolean))].slice(0, 10);\nreturn [{ json: { company_id: hook.company_id, session_id: hook.session_id, candidate_ids: ids } }];\n"
+        }
       },
       {
-        "parameters": {
-          "method": "POST",
-          "url": "https://ynaikgwvwyptegxrxtec.supabase.co/rest/v1/candidates",
-          "authentication": "genericCredentialType",
-          "genericAuthType": "httpHeaderAuth",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "apikey",
-                "value": "sb_publishable_pTRpe8yrLaSF18LyFnLmAg_ZRO9I_XD"
-              },
-              {
-                "name": "Authorization",
-                "value": "Bearer sb_publishable_pTRpe8yrLaSF18LyFnLmAg_ZRO9I_XD"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "name": "Prefer",
-                "value": "return=minimal"
-              }
-            ]
-          },
-          "sendBody": true,
-          "bodyParameters": {
-            "parameters": [
-              {
-                "name": "full_name",
-                "value": "={{ $json.nombre }}"
-              },
-              {
-                "name": "position",
-                "value": "={{ $json.cargo || $json.profesion }}"
-              },
-              {
-                "name": "email",
-                "value": "={{ $json.correo }}"
-              },
-              {
-                "name": "profile_url",
-                "value": "={= $json.urlLinkedin }"
-              },
-              {
-                "name": "expected_salary",
-                "value": "={{ $json.aspiracion ? Number(String($json.aspiracion).replace(/[^0-9]/g,\"\")) || null : null }}"
-              },
-              {
-                "name": "status",
-                "value": "pending"
-              },
-              {
-                "name": "source",
-                "value": "scraping"
-              }
-            ]
-          },
-          "options": {
-            "ignoreSslIssues": {
-              "value": false
-            }
-          }
-        },
+        "id": "38467ab3-e675-443c-a419-50b5cd96bf73",
+        "name": "Avisar al chat",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          28,
-          752
+          692,
+          1012
         ],
-        "id": "supabase-insert-sheet5",
-        "name": "Supabase Insert (Append row in sheet5)",
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $('Edit Fields').first().json.semilleroApi }}/n8n-webhook/search-complete",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json) }}",
+          "options": {}
+        },
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "xnq5Y7blm30Sxron",
+            "name": "Semillero backend (X-N8N-Secret)"
+          }
+        },
         "onError": "continueRegularOutput"
       }
     ],
@@ -1543,8 +1423,20 @@
               "index": 1
             }
           ],
-          [],
-          []
+          [
+            {
+              "node": "Reunir ids",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Reunir ids",
+              "type": "main",
+              "index": 0
+            }
+          ]
         ]
       },
       "CODETIPO1": {
@@ -1589,13 +1481,7 @@
               "index": 0
             }
           ],
-          [
-            {
-              "node": "Supabase Insert (Append row in sheet3)",
-              "type": "main",
-              "index": 0
-            }
-          ]
+          []
         ]
       },
       "ValidacionBusqueda1": {
@@ -1717,6 +1603,11 @@
               "node": "selecciona 10 inter exter",
               "type": "main",
               "index": 0
+            },
+            {
+              "node": "Preparar candidatos",
+              "type": "main",
+              "index": 0
             }
           ]
         ]
@@ -1730,13 +1621,7 @@
               "index": 0
             }
           ],
-          [
-            {
-              "node": "Supabase Insert (Append row in sheet4)",
-              "type": "main",
-              "index": 0
-            }
-          ]
+          []
         ]
       },
       "normalizacion 2": {
@@ -1744,6 +1629,11 @@
           [
             {
               "node": "Append row in sheet3",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Preparar candidatos",
               "type": "main",
               "index": 0
             }
@@ -1755,6 +1645,11 @@
           [
             {
               "node": "Append row in sheet4",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Preparar candidatos",
               "type": "main",
               "index": 0
             }
@@ -1811,11 +1706,6 @@
               "node": "AI Agent 1",
               "type": "main",
               "index": 0
-            },
-            {
-              "node": "AI Agent1",
-              "type": "main",
-              "index": 0
             }
           ]
         ]
@@ -1838,6 +1728,11 @@
               "node": "ANALIZA",
               "type": "ai_languageModel",
               "index": 0
+            },
+            {
+              "node": "AI Agent 1",
+              "type": "ai_languageModel",
+              "index": 0
             }
           ]
         ]
@@ -1855,18 +1750,7 @@
       },
       "OpenAI Chat Model": {
         "ai_languageModel": [
-          [
-            {
-              "node": "AI Agent 1",
-              "type": "ai_languageModel",
-              "index": 0
-            },
-            {
-              "node": "AI Agent1",
-              "type": "ai_languageModel",
-              "index": 0
-            }
-          ]
+          []
         ]
       },
       "BaseReclutamiento": {
@@ -1891,17 +1775,6 @@
           ]
         ]
       },
-      "AI Agent1": {
-        "main": [
-          [
-            {
-              "node": "ValidacionBusqueda1",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
       "Append row in sheet5": {
         "main": [
           [
@@ -1911,18 +1784,63 @@
               "index": 0
             }
           ],
+          []
+        ]
+      },
+      "Code11": {
+        "main": [
+          []
+        ]
+      },
+      "Preparar candidatos": {
+        "main": [
           [
             {
-              "node": "Supabase Insert (Append row in sheet5)",
+              "node": "¿Hay candidatos?",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Code11": {
+      "¿Hay candidatos?": {
         "main": [
-          []
+          [
+            {
+              "node": "Guardar en Semillero",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Reunir ids",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Guardar en Semillero": {
+        "main": [
+          [
+            {
+              "node": "Reunir ids",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Reunir ids": {
+        "main": [
+          [
+            {
+              "node": "Avisar al chat",
+              "type": "main",
+              "index": 0
+            }
+          ]
         ]
       }
     },
@@ -1935,10 +1853,10 @@
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "10c7fe6c-1ee2-41db-bc2e-74da1ce555cc",
-    "activeVersionId": null,
-    "versionCounter": 192,
-    "triggerCount": 0,
+    "versionId": "49ee2fe2-b119-4554-b20d-8310aeb53f8d",
+    "activeVersionId": "49ee2fe2-b119-4554-b20d-8310aeb53f8d",
+    "versionCounter": 216,
+    "triggerCount": 1,
     "tags": [],
     "shared": [
       {

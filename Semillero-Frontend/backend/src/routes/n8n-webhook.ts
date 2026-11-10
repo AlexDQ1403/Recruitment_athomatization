@@ -6,6 +6,10 @@ import { logger } from '../utils/logger';
 import { getCorrelationId } from '../utils/tracing';
 import { candidateObservations } from '../services/candidateObservations';
 import { sanitizeCandidate } from '../services/chatCandidate';
+import { normalizePhone } from '../services/contact';
+import { computeAffinity } from '../services/affinity';
+import { searchTerms, termCoverage } from '../services/searchTerms';
+import { loadRejections, rejectedForRole } from '../services/rejections';
 
 const router = Router();
 
@@ -37,6 +41,13 @@ const bodySchema = z.object({
       .optional()
   ),
   'Especializacion/descripcion': z.preprocess(emptyToUndef, z.string().trim().max(500).optional()),
+  // Opcionales: lo que el scraping sabe del perfil público. Un teléfono que no
+  // se puede normalizar se descarta (no invalida al candidato).
+  Telefono: z.preprocess(emptyToUndef, z.coerce.string().trim().max(40).optional()),
+  // Titular del resultado de LinkedIn ("Contadora Pública | NIIF | Impuestos")
+  Titular: z.preprocess(emptyToUndef, z.string().trim().max(300).optional()),
+  // Extracto (snippet) del resultado de búsqueda
+  Resumen: z.preprocess(emptyToUndef, z.string().trim().max(2000).optional()),
   Experiencia: optionalInt(80),
   Aspiracion: optionalInt(1_000_000_000),
   Ubicacion: z.preprocess(emptyToUndef, z.string().trim().max(200).optional()),
@@ -104,7 +115,7 @@ const isEmpty = (v: unknown) => v === null || v === undefined || v === '';
 /** Solo rellena columnas vacías; nunca toca status, created_by, company_id ni vacancy_id. */
 async function fillEmptyFields(existing: CandidateRow, incoming: Record<string, unknown>): Promise<void> {
   const FILLABLE = [
-    'email', 'linkedin_url', 'position', 'experience_years', 'expected_salary', 'location',
+    'email', 'phone', 'linkedin_url', 'position', 'headline', 'summary', 'experience_years', 'expected_salary', 'location',
     'n8n_request_id', 'n8n_search_date',
   ];
   const patch: Record<string, unknown> = {};
@@ -150,10 +161,13 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
     const candidateData = {
       company_id: companyId,
-      full_name: body.Nombre,
+      full_name: tidyName(body.Nombre),
       email: body['Correo Personal']?.toLowerCase() ?? null,
       linkedin_url: body.urlLinkedin ? normalizeLinkedin(body.urlLinkedin) : null,
-      position: body['Especializacion/descripcion'] ?? '',
+      // Sin especialización, el titular de LinkedIn es el mejor cargo disponible
+      position: body['Especializacion/descripcion'] ?? body.Titular ?? '',
+      headline: body.Titular ?? null,
+      summary: body.Resumen ?? null,
       experience_years: body.Experiencia ?? null,
       expected_salary: body.Aspiracion ?? null,
       location: body.Ubicacion ?? null,
@@ -163,7 +177,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       n8n_search_date: body['Fecha de busqueda'] !== undefined
         ? new Date(body['Fecha de busqueda']).toISOString()
         : null,
-      phone: null,
+      phone: normalizePhone(body.Telefono),
       resume_url: null,
       profile_url: null,
       vacancy_id: null,
@@ -212,7 +226,43 @@ const searchCompleteSchema = z.object({
 });
 
 const CHAT_CANDIDATE_COLUMNS =
-  'id, full_name, position, experience_years, expected_salary, location, source, status, profile_url, resume_url';
+  'id, full_name, position, headline, summary, experience_years, expected_salary, location, source, status, profile_url, resume_url';
+
+// Afinidad de cargo para resultados externos (sin puntaje del LLM): según qué parte de
+// lo pedido ("contador", "NIIF", "Bogotá"…) aparece en cargo, titular, extracto o ciudad.
+// Antes era un 85 fijo para todos y no ayudaba a decidir a quién llamar primero.
+const EXTERNAL_ROLE_MIN = 45;
+const EXTERNAL_ROLE_MAX = 95;
+
+/** "ana jackeline piñeros" → "Ana Jackeline Piñeros" (solo si llegó todo en minúsculas o mayúsculas). */
+export function tidyName(name: string): string {
+  const n = name.trim().replace(/\s+/g, ' ');
+  if (n !== n.toLowerCase() && n !== n.toUpperCase()) return n;
+  return n.toLocaleLowerCase('es-CO').replace(/(^|[\s'-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toLocaleUpperCase('es-CO'));
+}
+
+/** Suma lo encontrado afuera a la entrada del historial de la consulta que originó la búsqueda. */
+async function addToSearchHistory(sessionId: string, companyId: string, found: number): Promise<void> {
+  const [{ data: session }, { data: lastQuery }] = await Promise.all([
+    supabaseAdmin.from('chat_sessions').select('user_id').eq('id', sessionId).maybeSingle(),
+    supabaseAdmin.from('chat_messages').select('content').eq('session_id', sessionId).eq('role', 'user')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (!session?.user_id || !lastQuery?.content) return;
+  const { data: entry } = await supabaseAdmin
+    .from('search_history')
+    .select('id, candidates_found')
+    .eq('user_id', session.user_id)
+    .eq('company_id', companyId)
+    .eq('query', lastQuery.content)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!entry) return;
+  await supabaseAdmin.from('search_history')
+    .update({ candidates_found: (entry.candidates_found ?? 0) + found })
+    .eq('id', entry.id);
+}
 
 /**
  * POST /n8n-webhook/search-complete
@@ -253,23 +303,47 @@ router.post('/search-complete', async (req: Request, res: Response): Promise<voi
 
     let candidates: Record<string, unknown>[] = [];
     if (ids.length > 0) {
-      const { data, error } = await supabaseAdmin
-        .from('candidates')
-        .select(CHAT_CANDIDATE_COLUMNS)
-        .eq('company_id', companyId)
-        .in('id', ids);
+      const [{ data, error }, { data: lastQuery }] = await Promise.all([
+        supabaseAdmin
+          .from('candidates')
+          .select(CHAT_CANDIDATE_COLUMNS)
+          .eq('company_id', companyId)
+          .in('id', ids),
+        // La consulta del reclutador que originó esta búsqueda externa
+        supabaseAdmin
+          .from('chat_messages')
+          .select('content')
+          .eq('session_id', sessionId)
+          .eq('role', 'user')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
       if (error) throw error;
-      candidates = (data ?? []).map((c) =>
-        sanitizeCandidate({ ...c, skills: [] }, undefined, {
-          observations: candidateObservations(c),
-          fit: 'partial',
+      const terms = searchTerms(String(lastQuery?.content ?? ''));
+      // n8n deduplica contra la base: un perfil que ya existía puede venir rechazado
+      // (para todo, antes de la migración 027, o para este mismo puesto)
+      const rejections = await loadRejections(supabaseAdmin, companyId, (data ?? []).map((c) => c.id as string), []);
+      candidates = (data ?? [])
+        .filter((c) => c.status !== 'rechazado' && !rejectedForRole(rejections.get(`legacy:${c.id}`) ?? [], terms))
+        .map((c) => {
+          const coverage = termCoverage(terms, c.position, c.headline, c.summary, c.location);
+          const roleScore = Math.round(EXTERNAL_ROLE_MIN + (EXTERNAL_ROLE_MAX - EXTERNAL_ROLE_MIN) * coverage);
+          return sanitizeCandidate({ ...c, kind: 'legacy', skills: [] }, undefined, {
+            observations: candidateObservations(c),
+            fit: 'partial',
+            affinity: computeAffinity(c, {}, roleScore),
+          });
         })
-      );
+        .sort((a, b) => Number(b.affinity) - Number(a.affinity));
     }
 
     const content = candidates.length > 0
       ? `Terminé la búsqueda en fuentes externas: encontré ${candidates.length === 1 ? '1 perfil' : `${candidates.length} perfiles`} para tu consulta.`
       : 'Terminé la búsqueda y no encontré perfiles nuevos para tu consulta.';
+
+    // El historial de búsquedas también refleja lo que encontró n8n
+    if (candidates.length > 0) await addToSearchHistory(sessionId, companyId, candidates.length);
 
     const { error: insertError } = await supabaseAdmin.from('chat_messages').insert({
       session_id: sessionId,

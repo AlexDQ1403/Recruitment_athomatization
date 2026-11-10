@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { SearchHistory } from '../../types';
@@ -21,8 +22,36 @@ async function fetchSearchHistory(): Promise<SearchHistory[]> {
   return data as SearchHistory[];
 }
 
+/**
+ * El mensaje del chat que originó esta entrada del historial: mismo texto, en el
+ * minuto en que se registró. null si la búsqueda (la conversación) se eliminó.
+ */
+async function findSearchMessage(item: SearchHistory): Promise<{ id: string; session_id: string } | null> {
+  const until = new Date(new Date(item.created_at).getTime() + 60_000).toISOString();
+  const { data } = await supabase
+    .from('chat_messages')
+    .select('id, session_id')
+    .eq('role', 'user')
+    .eq('content', item.query)
+    .lte('created_at', until)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  return (data?.[0] as { id: string; session_id: string } | undefined) ?? null;
+}
+
 export const SearchHistoryView = () => {
   const router = useRouter();
+  const [opening, setOpening] = useState<string | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
+
+  // Abre los resultados que se obtuvieron en su momento (la conversación del chat)
+  const view = async (item: SearchHistory) => {
+    setOpening(item.id);
+    const msg = await findSearchMessage(item).catch(() => null);
+    setOpening(null);
+    if (msg) router.push(`/chat?session=${msg.session_id}&m=${msg.id}`);
+    else setMissing((prev) => [...prev, item.id]);
+  };
 
   const { data: history = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['search-history'],
@@ -101,9 +130,21 @@ export const SearchHistoryView = () => {
                         {fmtDate(item.created_at)}
                       </td>
                       <td>
+                        {missing.includes(item.id) ? (
+                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                            Se eliminó esa búsqueda.{' '}
+                            <button
+                              onClick={() => router.push(`/chat?q=${encodeURIComponent(item.query)}`)}
+                              style={{ color: 'var(--accent-text)', textDecoration: 'underline', fontSize: 11.5 }}
+                            >
+                              Buscar de nuevo
+                            </button>
+                          </span>
+                        ) : (
                         <button
-                          onClick={() => router.push(`/chat?q=${encodeURIComponent(item.query)}`)}
-                          title="Repetir búsqueda"
+                          onClick={() => view(item)}
+                          disabled={opening === item.id}
+                          title="Ver los resultados de esta búsqueda"
                           style={{
                             padding: '5px 10px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
                             background: 'var(--surface-2)', border: '1px solid var(--border)',
@@ -112,8 +153,9 @@ export const SearchHistoryView = () => {
                           onMouseEnter={(e) => { (e.currentTarget).style.color = 'var(--accent)'; (e.currentTarget).style.borderColor = 'var(--accent)'; }}
                           onMouseLeave={(e) => { (e.currentTarget).style.color = 'var(--text-3)'; (e.currentTarget).style.borderColor = 'var(--border)'; }}
                         >
-                          Repetir →
+                          {opening === item.id ? 'Abriendo…' : 'Ver →'}
                         </button>
+                        )}
                       </td>
                     </tr>
                   ))
