@@ -12,10 +12,7 @@ export const DECISION_BADGE: Record<CompanyDecision, string> = {
 
 const BTN: React.CSSProperties = { padding: '5px 11px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'var(--surface-3)' };
 
-/**
- * Decisión de la empresa sobre un candidato que un reclutador le presentó: contratar o
- * descartar. Es definitiva, así que pide confirmación. Una vez decidida, solo se muestra la insignia.
- */
+/** Decisión de la empresa sobre un candidato que un reclutador le presentó: contratar o descartar */
 export function CompanyDecisionControl({ candidate, decision }: {
   candidate: { kind: 'profile' | 'legacy'; id: string; full_name: string };
   decision: CompanyDecision;

@@ -6,9 +6,6 @@ import { AuthenticatedRequest } from '../middlewares/companyAuth';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
-// Todo con service role y acotado a la empresa del token: `profiles` tiene RLS por
-// usuario (migración 013) y con la clave anon la lista salía SIEMPRE vacía, y editar,
-// suspender o eliminar respondían "Reclutador no encontrado".
 const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });

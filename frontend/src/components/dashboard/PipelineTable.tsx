@@ -20,10 +20,6 @@ const PAGE = 25;
 const ago = (days: number | null) => (days === null ? '' : days === 0 ? 'hoy' : days === 1 ? 'hace 1 día' : `hace ${days} días`);
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/**
- * Quién está en qué etapa de qué vacante: cada fila con el último movimiento (qué,
- * quién, cuándo y por qué) y el siguiente paso. Se filtra por etapa y por nombre.
- */
 export const PipelineTable = ({ data, loading, onOpen, vacancies = [], onLink }: {
   data?: { counts: Record<PipelineStage, number>; total: number; rows: PipelineRow[] };
   loading: boolean;

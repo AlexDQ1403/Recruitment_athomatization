@@ -1,13 +1,4 @@
-/**
- * Crea tres cuentas de prueba (empresa, reclutador y candidato) ya confirmadas.
- *
- *   npm run seed:test-accounts
- *
- * Replica lo que hacen routes/register.ts y routes/recruiters.ts, pero con
- * email_confirm: true: los correos son desechables y nadie va a abrir el enlace
- * de confirmación. Cada ejecución usa un sufijo nuevo, así que no choca con
- * cuentas anteriores. Si algo falla a mitad, deshace lo creado.
- */
+/** Crea tres cuentas de prueba (empresa, reclutador y candidato) ya confirmadas */
 import { randomBytes } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config';

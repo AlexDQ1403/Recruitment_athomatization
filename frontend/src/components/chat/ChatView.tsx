@@ -21,8 +21,7 @@ const formatTime = (iso: string) =>
 
 const tempId = () => Math.random().toString(36).slice(2);
 
-// Búsqueda externa (n8n): el backend agrega un mensaje a la sesión cuando termina.
-// Mientras tanto se consulta la sesión cada SEARCH_POLL_MS, máximo SEARCH_POLL_MAX_MS.
+// Búsqueda externa (n8n): el backend agrega un mensaje a la sesión cuando termina
 const SEARCH_DONE_PREFIX = 'Terminé la búsqueda';
 const SEARCH_POLL_MS = 8000;
 const SEARCH_POLL_MAX_MS = 3 * 60 * 1000;
@@ -41,22 +40,18 @@ export const ChatView = () => {
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null);
-  // Búsqueda externa en curso: sesión y avisos de "terminé" que ya existían al empezar.
-  // Estado vigente de cada candidato mostrado: undefined = cargando, null = no se puede decidir sobre él
+  // Búsqueda externa en curso: sesión y avisos de "terminé" que ya existían al empezar
   const [decisions, setDecisions] = useState<Record<string, CandidateDecisionState | null>>({});
   const [decidingId, setDecidingId] = useState<string | null>(null);
   // Rechazo por puesto: a quién y con qué puesto sugerido; y los rechazados en esta visita
   const [rejectTarget, setRejectTarget] = useState<{ candidate: Candidate; suggestedRole: string } | null>(null);
   const [rejectedHere, setRejectedHere] = useState<Record<string, CandidateRejection>>({});
   const requestReject = useCallback((candidate: Candidate, suggestedRole: string) => setRejectTarget({ candidate, suggestedRole }), []);
-  // Relación chat ↔ vacantes: tras contactar, dar seguimiento, aprobar o rechazar a alguien
-  // de una respuesta, se propone crear (o ver) la vacante de ese cargo.
   const [actedOn, setActedOn] = useState<string[]>([]);
   // Candidatos concretos trabajados: se asocian a la vacante que se cree o exista para la búsqueda
   const [actedCandidates, setActedCandidates] = useState<string[]>([]);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
-  // Vacante activa de cada cargo buscado (undefined = consultando, null = no existe).
-  // Aprobar y dar seguimiento la exigen: sin vacante esos botones quedan deshabilitados.
+  // Vacante activa de cada cargo buscado (undefined = consultando, null = no existe)
   const [vacancyByRole, setVacancyByRole] = useState<Record<string, Pick<Vacancy, 'id' | 'title'> | null>>({});
   const requestedRoles = useRef(new Set<string>());
   const markActed = useCallback((candidateId: string) => {
@@ -126,8 +121,7 @@ export const ChatView = () => {
       .catch(() => setMessages([]));
   }, [activeSessionId]);
 
-  // Las tarjetas guardan una captura del candidato al momento del mensaje; el estado
-  // real (aprobado, seguimiento, rechazado) se consulta aparte para no mostrar acciones obsoletas.
+  // Las tarjetas guardan una captura del candidato al momento del mensaje
   useEffect(() => {
     const ids = messages
       .flatMap((m) => m.candidates ?? [])
@@ -339,8 +333,6 @@ export const ChatView = () => {
     inputRef.current?.focus();
   };
 
-  // La sugerencia de vacante va siempre en la última respuesta de búsqueda (y en las
-  // anteriores donde el reclutador ya trabajó con algún candidato)
   const lastSearchAnswerId = [...messages].reverse().find(isSearchAnswer)?.id;
 
   // Consulta (una vez por cargo) si existe la vacante de cada búsqueda con candidatos
@@ -712,8 +704,7 @@ const CandidateResults = ({ candidates, decisions, decidingId, onDecide, vacancy
                 <button
                   type="button"
                   className="result-reject"
-                  // El cargo, no la frase completa ("Necesito una contadora en Bogotá…" → "contadora"):
-                  // la clave del rechazo con "bogota" o "niif" no reconocería el mismo puesto después
+                  // El cargo, no la frase completa ("Necesito una contadora en Bogotá…" → "contadora")
                   onClick={() => onRequestReject(c, c.matched_role || roleFromQuery(query))}
                   title="Lo descarta para este puesto; sigue disponible para otros"
                 >

@@ -2,10 +2,7 @@ import { CSSProperties } from 'react';
 import { Reveal } from './Reveal';
 import styles from './landing.module.css';
 
-// Los tres roles de Kmella, cada uno con una pieza de lo que hace en la app:
-// la empresa arma su equipo de reclutadores, el reclutador busca con el chat
-// y el candidato sube su hoja de vida para ver las vacantes que más le encajan.
-// Datos de ejemplo; los enlaces para registrarse viven solo en la sección de cierre.
+// Los tres roles de Kmella, cada uno con una pieza de lo que hace en la app
 
 const RECRUITERS = [
   { i: 'MP', c: '#3d5ba8', name: 'María Paula Rojas', area: 'Tecnología' },

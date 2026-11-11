@@ -20,12 +20,7 @@ const linkSummary = (r: LinkResult): string => {
   return parts.join(' · ');
 };
 
-/**
- * Une la búsqueda del chat con las vacantes. Si ya hay una vacante activa para el
- * cargo, la señala; si no, propone crearla con IA a partir de lo que escribió el
- * reclutador (abre el formulario prellenado, que él revisa y confirma). En ambos
- * casos los candidatos que ya trabajó en esa respuesta se asocian a la vacante.
- */
+/** Une la búsqueda del chat con las vacantes */
 export const VacancySuggestion = ({ role, query, reason, related = [], onCreated, onDismiss }: {
   /** Cargo de la búsqueda (para buscar vacantes existentes). */
   role: string;
@@ -72,8 +67,7 @@ export const VacancySuggestion = ({ role, query, reason, related = [], onCreated
     },
   });
 
-  // Mientras consulta no se muestra nada (evita parpadeos entre "existe" y "crear").
-  // Si la vacante ya existe y no hay a quién asociar, tampoco: no hay nada que hacer.
+  // Mientras consulta no se muestra nada (evita parpadeos entre "existe" y "crear")
   if (match === undefined) return null;
   if (match && related.length === 0 && !linkResult) return null;
 

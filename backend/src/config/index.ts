@@ -8,8 +8,7 @@ const envSchema = z
     CORS_ORIGIN: z.string().default('http://localhost:3002'),
     // Saltos de proxy delante del backend (0 en local; 1 en Render)
     TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
-    // El chat usa OpenRouter (API compatible con OpenAI). OPENAI_API_KEY se
-    // mantiene como alternativa para apuntar directo a OpenAI.
+    // El chat usa OpenRouter (API compatible con OpenAI)
     OPENROUTER_API_KEY: z.string().min(1).optional(),
     // Opcional: activa Google Jobs (elempleo, Computrabajo, LinkedIn…) en las ofertas externas del candidato
     SERPAPI_API_KEY: z.string().min(1).optional(),

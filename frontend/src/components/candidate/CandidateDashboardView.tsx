@@ -21,11 +21,6 @@ const ago = (iso: string) => {
   return d <= 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`;
 };
 
-/**
- * Tablero "Mi búsqueda": cuánto lleva buscando, cuántas postulaciones ha enviado
- * (aquí y en otros sitios), cuáles cambiaron de estado, cuáles necesitan
- * seguimiento y su ritmo semana a semana.
- */
 export const CandidateDashboardView = () => {
   const user = getStoredUser();
   const { data: d, isLoading, isError, error, refetch } = useQuery({

@@ -9,19 +9,7 @@ import { AuthenticatedRequest } from '../middlewares/companyAuth';
 import { normalizePhone } from '../services/contact';
 import { REJECTION_COLUMNS, roleKey, toRejection, type Rejection } from '../services/rejections';
 
-/**
- * Perfil completo de un candidato y registro de contacto, para el reclutador.
- *
- * El chat solo guarda una captura sin datos de contacto (chatCandidate.ts). Este
- * router es el único punto donde salen email y teléfono hacia el reclutador:
- * siempre filtrado por la empresa del token y dejando traza en el log.
- *
- *   GET  /api/candidate-profiles/:kind/:id          perfil + contacto + último contacto
- *   POST /api/candidate-profiles/:kind/:id/contact  registra que se le escribió
- *
- * :kind = 'legacy' (tabla candidates: scraping o alta manual), 'profile' (cuenta
- * propia) o 'auto' (mensajes del chat anteriores a `kind`: prueba ambos).
- */
+/** Perfil completo de un candidato y registro de contacto, para el reclutador */
 const router = Router();
 const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -351,11 +339,7 @@ router.post('/:kind/:id/contact', async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-/**
- * POST /:kind/:id/rejections — { role?, vacancy_id?, reason? }
- * Rechaza al candidato SOLO para ese puesto: no cambia su estado global, así que
- * sigue apareciendo en búsquedas de otros cargos. Repetir el mismo puesto no duplica.
- */
+/** POST /:kind/:id/rejections */
 router.post('/:kind/:id/rejections', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const correlationId = getCorrelationId(req);
   if (!recruiterOnly(req, res)) return;

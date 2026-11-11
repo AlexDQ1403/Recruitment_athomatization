@@ -1,10 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { Vacancy, VacancyStatus, VacancyApplicant, CandidateStatus, PaginatedResponse } from '../types';
 
-/**
- * Datos que escribe quien publica. No incluye la empresa: la pone el servidor a partir
- * de la sesión (un reclutador pertenece a una sola empresa).
- */
+/** Datos que escribe quien publica */
 export interface CreateVacancyInput {
   title: string;
   description?: string;
@@ -23,12 +20,7 @@ export interface VacancyDraftResult {
   notes: string[];
 }
 
-/**
- * La gestión de vacantes (publicar, listar, editar, pausar, borrar) pasa por el backend:
- * la empresa sale de la sesión y cada consulta se acota a ella. Leer y escribir directo en
- * Supabase dependía de las políticas RLS de `vacancies`, que en la base real no coincidían
- * con las del repo: la vacante se guardaba pero la lista salía vacía, sin error.
- */
+/** La gestión de vacantes (publicar, listar, editar, pausar, borrar) pasa por el backend */
 async function api<T>(path: string, init: RequestInit = {}, fallback: string): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('No autorizado');
@@ -56,10 +48,7 @@ export const vacancyService = {
     return api<VacancyDraftResult>('/api/vacancies/draft', { method: 'POST', body: JSON.stringify({ text }) }, 'No se pudo generar la propuesta');
   },
 
-  /**
-   * Asocia a la vacante candidatos trabajados en el chat. Los heredados sin vacante quedan
-   * asociados; los de cuenta propia, rechazados o ya en otra vacante vuelven en `skipped`.
-   */
+  /** Asocia a la vacante candidatos trabajados en el chat */
   linkCandidates(vacancyId: string, candidates: { kind: 'legacy' | 'profile'; id: string }[]): Promise<{
     linked: string[];
     skipped: { id: string; reason: 'otra_vacante' | 'rechazado' | 'no_encontrado' | 'cuenta_propia' }[];

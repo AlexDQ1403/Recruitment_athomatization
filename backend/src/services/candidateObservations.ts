@@ -1,14 +1,7 @@
 import { z } from 'zod';
 
-/**
- * Criterios que el LLM extrae de la consulta. Solo lo pedido de forma
- * explícita: campos ausentes = no pedido. Se valida porque viene de un modelo.
- */
-/**
- * El modelo a veces manda `null` (o "") para lo que no se pidió. Es lo mismo que no
- * mandarlo: antes un solo `null` invalidaba la respuesta entera y el chat caía a la
- * búsqueda por palabras clave ("No encontré candidatos… Intenta con otros términos").
- */
+/** Criterios que el LLM extrae de la consulta */
+/** El modelo a veces manda `null` (o "") para lo que no se pidió */
 export const nullish = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((v) => (v === null || v === '' ? undefined : v), schema.optional());
 
@@ -51,10 +44,7 @@ const normalize = (s: string) =>
 
 const isNil = (v: unknown) => v === null || v === undefined;
 
-/**
- * Observaciones derivadas comparando campos reales (nunca las decide el LLM).
- * Sin criterios pedidos solo puede aparecer `unverified_profile`.
- */
+/** Observaciones derivadas comparando campos reales (nunca las decide el LLM) */
 export function candidateObservations(
   c: ObservableCandidate,
   criteria: SearchCriteria = {}

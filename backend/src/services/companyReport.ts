@@ -1,14 +1,6 @@
 import type { InsightsData } from './insightsData';
 
-/**
- * Reporte de resultados de la empresa para un rango de fechas: lo que se lleva a
- * gerencia. Responde "¿qué logró el equipo con cada vacante y cuánto tardó?".
- *
- * Cada número cuenta hechos ocurridos DENTRO del rango (encontrado, contactado,
- * presentado, decidido), no el estado actual. La excepción es `pending_now`,
- * que es una foto de hoy. La decisión de la empresa se guarda como
- * contratado/descartado, pero en pantalla es "autorizado para la siguiente fase".
- */
+/** Reporte de resultados de la empresa para un rango de fechas: lo que se lleva a gerencia */
 
 export interface ReportRange { from: Date; to: Date }
 

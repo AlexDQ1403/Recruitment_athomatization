@@ -94,8 +94,6 @@ const fakeAuth: express.RequestHandler = async (req, res, next) => {
 const buildApp = async () => {
   const app = express();
   app.use(express.json());
-  // Módulo nuevo en cada prueba: el limitador de 20 req/min del chat vive en el módulo
-  // y, compartido, hacía fallar con 429 las pruebas a partir de la número 21.
   vi.resetModules();
   const { default: chatRouter } = await import('./chat');
   app.use('/api/chat', fakeAuth, chatRouter);

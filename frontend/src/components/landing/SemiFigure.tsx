@@ -13,8 +13,7 @@ interface Props {
 export const SHOULDER_L = { x: 40, y: 118 };
 export const SHOULDER_R = { x: 40, y: 118 };
 
-// Camello de perfil mirando a la izquierda. Sentado (echado, como un camello de verdad) o de pie.
-// Cuerpo: pecho, dos jorobas con su hundimiento, anca y vientre.
+// Camello de perfil mirando a la izquierda
 const BODY =
   'M34 120 C30 108 34 96 44 90 C46 74 51 58 61 54 C69 51 74 56 74 64 C76 58 82 54 88 56 ' +
   'C96 58 100 66 101 76 C108 84 112 98 110 110 C109 120 104 127 96 128 C80 130.5 58 130.5 44 128 C38 128 35 125 34 120 Z';
@@ -31,9 +30,6 @@ const EAR = 'M44 25 C44 18 48 14.5 52 15.5 C55 17.5 53 23 49 27.5 Z';
 // pata delantera doblada hacia adelante (sentado)
 const FRONT_LEG = 'M50 116 C42 114.5 32 115 25 117.5 C19 119.5 17 125 21 127.5 C24 129 34 129 50 128.5 Z';
 
-// Pata de pie: muslo, rodilla nudosa, caña y pie ancho y acolchado con dos dedos
-// (los pies acolchados y las rodillas nudosas son lo que distingue a un camello de un caballo).
-// Crece desde debajo del vientre cuando el camello se levanta.
 function StandLeg({ x, far, walk }: { x: number; far?: boolean; walk: 'a' | 'b' }) {
   return (
     <g className={`${styles.standLeg} ${walk === 'a' ? styles.walkA : styles.walkB}`}>
@@ -47,8 +43,7 @@ function StandLeg({ x, far, walk }: { x: number; far?: boolean; walk: 'a' | 'b' 
   );
 }
 
-// Dibujo de Semi. El contenedor decide los gestos con data-mood (ojo, boca y burbuja de emoción)
-// y con data-pose / data-moving si está de pie o sentado (ver .camelStand en el CSS).
+// Dibujo de Semi
 export function SemiFigure({ eyesRef }: Props) {
   return (
     <svg viewBox="0 0 120 150" className={styles.pcSvg} aria-hidden="true">

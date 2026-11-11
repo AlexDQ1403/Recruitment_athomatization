@@ -1,5 +1,4 @@
--- Migration: 004_applicant_source
--- Agregar 'applicant' como fuente válida para candidatos que aplican por el portal público
+-- 004: fuente applicant para candidatos
 
 ALTER TABLE public.candidates
   DROP CONSTRAINT IF EXISTS candidates_source_check;

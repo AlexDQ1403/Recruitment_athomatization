@@ -31,14 +31,7 @@ interface CompanyCandidateRow {
   status_history: { from_status: string | null; to_status: string; changed_at: string; changed_by_name: string | null }[];
 }
 
-/**
- * GET /api/company/candidates
- *
- * Bandeja de Empresa: histórico de procesos, no un listado de candidatos.
- * Solo devuelve relaciones company_candidates con presented_to_company=true
- * (ver migración 018) — un reclutador tuvo que revisar y aprobar al
- * candidato explícitamente antes de que la empresa pueda verlo aquí.
- */
+/** GET /api/company/candidates */
 router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const companyId = req.locals?.companyId;
@@ -50,8 +43,6 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const offset = parseInt(req.query.offset as string) || 0;
 
-    // Conteos exactos de toda la bandeja (no de la página que se pide) y la página,
-    // en paralelo: son independientes entre sí
     const summary: Record<CompanyDecision, number> = { pendiente: 0, contratado: 0, descartado: 0 };
     const decisions = Object.keys(summary) as CompanyDecision[];
     const [counts, pageRes] = await Promise.all([
@@ -178,9 +169,6 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
           vacancy: vacancyInfo ? { id: vacancyInfo.id, title: vacancyInfo.title } : null,
           presented_at: r.presented_at,
           status: r.status,
-          // El historial de cambios de estado de candidatos con perfil propio
-          // (candidate_profile_id) todavía no se registra: company_candidates.status
-          // no tiene tabla de auditoría propia. Se añade cuando exista esa acción.
           status_history: [],
         };
       }
@@ -227,13 +215,7 @@ const decisionSchema = z.object({
 });
 const idSchema = z.string().uuid();
 
-/**
- * PATCH /api/company/candidates/:kind/:id/decision — { decision: 'contratar' | 'descartar' }
- *
- * La empresa decide por su cuenta sobre un candidato que un reclutador le presentó. Es
- * independiente del pipeline del reclutador y definitiva. Un candidato no presentado (o de
- * otra empresa) da 404: la empresa no puede ni confirmar que existe.
- */
+/** PATCH /api/company/candidates/:kind/:id/decision */
 router.patch('/:kind/:id/decision', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const companyId = req.locals?.companyId;

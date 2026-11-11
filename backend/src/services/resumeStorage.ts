@@ -1,14 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-/**
- * Hojas de vida en Supabase Storage, en un bucket PRIVADO: tienen teléfono,
- * correo y dirección, así que no pueden quedar en una URL pública. El candidato
- * sube por el backend (que valida tipo y tamaño) y quien la abre recibe un
- * enlace firmado que vence.
- *
- * En candidate_profiles.cv_url se guarda "storage:resumes/<ruta>". Siguen
- * funcionando las URL públicas antiguas del bucket y los enlaces externos.
- */
 
 export const RESUMES_BUCKET = 'resumes';
 export const MAX_RESUME_BYTES = 5 * 1024 * 1024;

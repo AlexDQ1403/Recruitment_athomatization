@@ -1,18 +1,4 @@
-/**
- * Dashboard del reclutador orientado a decisiones (ver routes/dashboard.ts).
- *
- * Función pura: recibe las filas ya leídas y los filtros, y devuelve
- *  - el embudo (candidatos → contactados → aprobados → autorizados por la empresa) del periodo,
- *  - qué hacer hoy (a quién recontactar, qué postulaciones revisar, qué decisión
- *    de la empresa recordar),
- *  - qué vacantes necesitan atención y por qué,
- *  - de qué origen salen los candidatos que avanzan.
- *
- * "Contactado" usa los contactos REALES (WhatsApp/correo/LinkedIn desde el chat,
- * migración 025) además del estado 'en_contacto': contactar no cambia el estado
- * (ese estado dispara el correo de entrevista de n8n), por eso el dashboard viejo
- * mostraba "En contacto" casi siempre en 0.
- */
+/** Dashboard del reclutador orientado a decisiones (ver routes/dashboard.ts) */
 
 import { searchTerms } from './searchTerms';
 import { sameRole } from './rejections';
@@ -231,10 +217,7 @@ function people(input: InsightsInput): Person[] {
 
 const daysSince = (now: Date, iso: string) => Math.floor((now.getTime() - new Date(iso).getTime()) / DAY);
 
-/**
- * Días calendario hasta una fecha AAAA-MM-DD, contados desde la fecha de HOY en
- * Colombia (no desde la hora del servidor): el 20 → vence el 24 = 4 días; 0 = vence hoy.
- */
+/** Días calendario hasta una fecha AAAA-MM-DD, contados desde hoy */
 const calendarDaysUntil = (now: Date, date: string) => {
   const today = now.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }); // AAAA-MM-DD
   return Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY);
@@ -257,8 +240,7 @@ export function computeInsights(input: InsightsInput, filters: InsightsFilters):
   const vacancyTitle = new Map(input.vacancies.map((v) => [v.id, v.title]));
   const all = people(input);
 
-  // Vacante y origen aplican a todo; el periodo solo al embudo y a los orígenes
-  // ("qué hacer hoy" y la salud de las vacantes son el estado actual).
+  // Vacante y origen aplican a todo
   const scoped = all.filter((p) =>
     (!filters.source || p.source === filters.source) &&
     (!filters.vacancyId || p.vacancyIds.includes(filters.vacancyId)));
@@ -332,11 +314,6 @@ export function computeInsights(input: InsightsInput, filters: InsightsFilters):
 
 const CHANNEL_LABELS: Record<string, string> = { whatsapp: 'WhatsApp', email: 'correo', linkedin: 'LinkedIn' };
 
-/**
- * Una fila por candidato y vacante (o una sin vacante si salió de una búsqueda): en
- * qué etapa está, cuál fue el último movimiento (qué, cuándo, quién, motivo) y qué
- * toca hacer. Un rechazo por puesto solo cuenta en la vacante de ese puesto.
- */
 function pipelineOf(scoped: Person[], input: InsightsInput, filters: InsightsFilters): RecruiterInsights['pipeline'] {
   const { now } = input;
   const vacancyBy = new Map(input.vacancies.map((v) => [v.id, v]));

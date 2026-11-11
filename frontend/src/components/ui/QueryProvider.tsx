@@ -10,10 +10,7 @@ export const createQueryClient = () =>
     },
   });
 
-/**
- * Acepta un cliente externo para que quien monte el provider pueda vaciar la
- * caché al cerrar sesión. Sin prop, crea el suyo.
- */
+/** Acepta un cliente externo para que quien monte el provider pueda vaciar la caché al cerrar sesión */
 export const QueryProvider = ({
   children,
   client,

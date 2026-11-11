@@ -10,10 +10,7 @@ const ago = (iso: string | null) => {
   return d <= 0 ? 'publicada hoy' : d === 1 ? 'publicada ayer' : `publicada hace ${d} días`;
 };
 
-/**
- * Ofertas publicadas en otros portales. El candidato ve cuánto se ajustan a su
- * perfil y, al postularse, lo llevamos al sitio de origen (ver ApplyModal).
- */
+/** Ofertas publicadas en otros portales */
 export const ExternalJobsTab = ({ onSelect }: { onSelect: (job: ExternalJob) => void }) => {
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState<string | undefined>(undefined);

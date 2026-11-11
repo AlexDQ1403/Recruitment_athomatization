@@ -115,8 +115,7 @@
 }
 
 .page a { color: inherit; text-decoration: none; }
-/* globals.css pinta títulos y enlaces con el color fijo de la app (crema del tema oscuro);
-   aquí se neutraliza solo el color para que sigan el tema claro/oscuro. :where() no sube la especificidad */
+/* globals.css pinta títulos y enlaces con el color fijo de la app (crema del tema oscuro) */
 .page a:where(:hover) { color: inherit; }
 .page :where(h1, h2, h3, h4) { color: inherit; }
 .page a:hover { text-decoration: none; }
@@ -1020,9 +1019,7 @@
 .camelShade { fill: var(--camel-fur-dark); }
 .camelFoot { fill: var(--camel-hoof); stroke: var(--camel-ink); stroke-width: 1.8; stroke-linejoin: round; }
 
-/* ─── De pie o sentado ───
-   Se para cuando saluda (inicio), en el pipeline, al celebrar (empezar) y mientras camina por la página;
-   se sienta para escuchar (chat, roles), cuando escribes la contraseña y cuando duerme. */
+/* ─── De pie o sentado ─── */
 .camelStand { transition: translate 520ms var(--ease); }
 .standLeg {
   transform-box: fill-box;

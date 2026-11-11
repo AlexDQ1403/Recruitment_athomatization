@@ -12,7 +12,6 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
 });
 
 // El registro es público: límite estricto para frenar altas automatizadas
-// Cliente con clave anon: reenviar la confirmación no requiere service role
 const supabaseAnon = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
@@ -20,10 +19,6 @@ const supabaseAnon = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY,
 // El destino sale de la config del servidor, nunca del body de la petición
 const CONFIRM_REDIRECT = `${config.CORS_ORIGIN.replace(/\/+$/, '')}/login`;
 
-/**
- * admin.createUser NO envía correos (ni con email_confirm:false), así que el
- * correo de confirmación se dispara explícitamente con resend().
- */
 async function sendConfirmationEmail(email: string): Promise<void> {
   const { error } = await supabaseAnon.auth.resend({
     type: 'signup',
@@ -72,12 +67,7 @@ const candidateSchema = z.object({
   experience_years: z.coerce.number().int().min(0).max(60).optional(),
 });
 
-/**
- * POST /api/register/company
- *
- * Alta self-service de empresa. El rol lo fija ESTE endpoint: nada de lo que
- * llegue en el body puede influir en él.
- */
+/** POST /api/register/company */
 router.post('/company', registerLimiter, async (req: Request, res: Response): Promise<void> => {
   const correlationId = getCorrelationId(req);
   let createdUserId: string | null = null;
@@ -109,7 +99,8 @@ router.post('/company', registerLimiter, async (req: Request, res: Response): Pr
       email,
       password,
       email_confirm: false,
-      user_metadata: { full_name },
+      // account_type personaliza el correo de confirmación (supabase/templates)
+      user_metadata: { full_name, account_type: 'empresa' },
     });
 
     if (authError || !created?.user) {
@@ -160,12 +151,7 @@ router.post('/company', registerLimiter, async (req: Request, res: Response): Pr
   }
 });
 
-/**
- * POST /api/register/candidate
- *
- * Alta self-service de candidato. Sin company_id: es una identidad
- * independiente que las empresas verán a través de company_candidates.
- */
+/** POST /api/register/candidate */
 router.post('/candidate', registerLimiter, async (req: Request, res: Response): Promise<void> => {
   const correlationId = getCorrelationId(req);
   let createdUserId: string | null = null;
@@ -183,7 +169,8 @@ router.post('/candidate', registerLimiter, async (req: Request, res: Response): 
       email,
       password,
       email_confirm: false,
-      user_metadata: { full_name },
+      // account_type personaliza el correo de confirmación (supabase/templates)
+      user_metadata: { full_name, account_type: 'candidato' },
     });
 
     if (authError || !created?.user) {

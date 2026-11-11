@@ -1,14 +1,12 @@
 import { config } from '../config';
 
-// OpenRouter expone la misma API que OpenAI; solo cambian URL, clave y el id
-// del modelo (con prefijo de proveedor, p. ej. "openai/gpt-4o-mini").
+// OpenRouter expone la misma API que OpenAI
 const useOpenRouter = !!config.OPENROUTER_API_KEY;
 const LLM_URL = config.LLM_BASE_URL
   ?? (useOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
 const LLM_KEY = config.OPENROUTER_API_KEY ?? config.OPENAI_API_KEY;
 const LLM_MODEL = config.LLM_MODEL ?? (useOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini');
-// Sin límite, un proveedor colgado deja la petición abierta hasta que Render la corte.
-// Holgado: extraer una HV larga (1400 tokens de salida) puede tardar ~30 s.
+// Sin límite, un proveedor colgado deja la petición abierta hasta que Render la corte
 const LLM_TIMEOUT_MS = 45_000;
 
 export type LLMMessage = { role: 'system' | 'user' | 'assistant' | string; content: string };

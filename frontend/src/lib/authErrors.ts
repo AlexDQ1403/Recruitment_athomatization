@@ -1,10 +1,4 @@
-/**
- * Traduce los errores de Supabase Auth a alertas accionables en español.
- *
- * Por qué un tipo discriminado y no un string: la UI necesita saber QUÉ pasó
- * para ofrecer la acción correcta (reenviar confirmación, ir a registro,
- * esperar), no solo qué texto pintar.
- */
+/** Traduce los errores de Supabase Auth a alertas accionables en español */
 
 export type AuthErrorKind =
   | 'invalid_credentials'
@@ -37,15 +31,7 @@ interface SupabaseLikeError {
   name?: string;
 }
 
-/**
- * Códigos que Supabase devuelve en signInWithPassword.
- *
- * NOTA DE SEGURIDAD: 'invalid_credentials' cubre tanto "contraseña incorrecta"
- * como "el correo no existe". Supabase los unifica a propósito, y aquí NO se
- * separan: distinguirlos permitiría enumerar qué correos tienen cuenta. El
- * mensaje cubre ambos casos y ofrece el camino al registro, que es la ayuda que
- * necesita un usuario sin cuenta sin confirmar nada a un atacante.
- */
+/** Códigos que Supabase devuelve en signInWithPassword */
 export function mapAuthError(err: unknown): AuthAlert {
   const e = (err ?? {}) as SupabaseLikeError;
   const code = e.code ?? '';

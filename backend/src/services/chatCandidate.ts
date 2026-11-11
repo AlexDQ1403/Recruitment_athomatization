@@ -1,16 +1,7 @@
 import type { CandidateObservation, Fit } from './candidateObservations';
 import type { Affinity } from './affinity';
 
-/**
- * Única lista de campos que salen hacia el chat: nunca email ni teléfono.
- * Los mensajes del chat se guardan con esta captura, así que los datos de
- * contacto se piden aparte (GET /api/candidate-profiles/:kind/:id), con
- * autorización y registro, solo cuando el reclutador abre el perfil.
- *
- * `kind` dice de dónde sale el candidato: 'legacy' (tabla candidates: scraping
- * o alta manual) o 'profile' (cuenta propia, candidate_profiles). Sin él no hay
- * forma de pedir su perfil completo.
- */
+/** Única lista de campos que salen hacia el chat: nunca email ni teléfono */
 export const SAFE_CANDIDATE_FIELDS = ['id', 'kind', 'full_name', 'position', 'headline', 'experience_years', 'expected_salary', 'location', 'source', 'status', 'profile_url', 'resume_url', 'skills'] as const;
 
 export type CandidateKind = 'legacy' | 'profile';

@@ -1,11 +1,7 @@
 import { z } from 'zod';
 import { callLLM, parseLLMJson } from './llm';
 
-/**
- * Borrador del perfil a partir del texto de la hoja de vida. NO se guarda: el
- * candidato lo revisa y corrige en el portal antes de confirmar (la IA se
- * equivoca con fechas y nombres, y la HV es del candidato, no nuestra).
- */
+/** Borrador del perfil a partir del texto de la hoja de vida */
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const date = z.string().trim().regex(DATE).nullish().catch(null);

@@ -144,9 +144,7 @@ export function Mascot() {
     };
     const onScroll = () => onActivity();
 
-    // ¿El globo cae encima de algún texto de la página? Se mide sobre las líneas reales del texto.
-    // Las líneas se guardan en coordenadas de documento y solo se vuelven a medir al cambiar el
-    // tamaño de la ventana o cada 1,5 s (por las animaciones de entrada), no en cada comprobación.
+    // ¿El globo cae encima de algún texto de la página?
     const range = document.createRange();
     const PAD = 8;
     type Box = { left: number; right: number; top: number; bottom: number };
@@ -229,9 +227,7 @@ export function Mascot() {
       look.y += (clamp(look.ty + scrollVel * 0.08, -3, 3) - look.y) * 0.15;
       eyesRef.current?.setAttribute('transform', `translate(${look.x.toFixed(2)} ${look.y.toFixed(2)})`);
 
-      // cada ~120 ms revisa si el globo tapa texto; espera un momento libre antes de reaparecer.
-      // En móvil el texto ocupa todo el ancho y siempre "chocaría": ahí Semi se queda visible en la
-      // esquina como un asistente de chat y su globo se muestra siempre (se cierra con la ×).
+      // cada ~120 ms revisa si el globo tapa texto; espera un momento libre antes de reaparecer
       const now = performance.now();
       if (bubbleRef.current && now - lastCheck > 120) {
         lastCheck = now;

@@ -49,13 +49,9 @@ const partialSearchNotice = (found: number) =>
 const SEARCH_ALREADY_RUN_NOTICE =
   '\n\nYa busqué perfiles en fuentes externas para esta consulta hace poco; vuelve a consultar en unos minutos.';
 
-// Si la búsqueda interna devuelve menos de esto, se muestran los que hay y n8n
-// completa la búsqueda en fuentes externas.
 const MAX_RESULTS = 10;
 
-// Respuesta esperada del LLM: solo criterios y relevancia; las observaciones
-// se calculan en código (candidateObservations).
-// `nullish`: un null del modelo cuenta como "no indicado" (no invalida la respuesta).
+// Respuesta esperada del LLM: solo criterios y relevancia
 const llmResponseSchema = z.object({
   message: nullish(z.string()),
   // false = pregunta general (saludo, ayuda): no hay nada que buscar afuera.
@@ -83,33 +79,11 @@ export const sessionTitleFrom = (cargo: string, location?: string) => {
 /** `position` viene de scraping (no confiable): sin saltos de línea y acotado antes de ir al prompt. */
 const promptSafe = (s: string | null, max = 120) => (s ?? '').replace(/[\r\n]+/g, ' ').slice(0, max);
 
-/**
- * Base de candidatos de la empresa para el chat: une la tabla legada
- * `candidates` (scraping/alta manual) con los candidatos con cuenta propia
- * (candidate_profiles, vía company_candidates) — antes de este cambio solo se
- * buscaba en `candidates` y los candidatos con cuenta eran invisibles para el
- * chat (ver migración 020 y specs/registro_multi_rol_design.md:54).
- *
- * El archivo de CV nunca se lee aquí: solo campos estructurados (estilo
- * LinkedIn) alimentan la búsqueda; el archivo se ofrece como resume_url para
- * que el reclutador lo abra, no para que el modelo lo interprete.
- *
- * El pool tiene tope (POOL_SIZE) para no desbordar el prompt. Antes se tomaban
- * 150 filas cualquiera: con muchos perfiles de un área (p. ej. desarrollo, que
- * es lo que más trae el scraping) los de otra (contadores) podían quedar fuera
- * y el chat respondía "sin resultados" aunque existieran. Ahora van primero los
- * que coinciden con los términos del mensaje y el resto se completa con los
- * más recientes.
- */
 const POOL_SIZE = 150;
 const RELEVANT_LIMIT = 100;
 const LEGACY_COLUMNS = 'id, full_name, position, headline, summary, experience_years, expected_salary, location, source, status, profile_url, resume_url';
 
-/**
- * `shownIds`: candidatos (heredados) que ya se mostraron en esta conversación. Van
- * primero en el pool para que una pregunta de seguimiento ("de esos, ¿cuáles…?")
- * pueda responderse sobre ellos aunque no coincidan con las palabras del mensaje.
- */
+/** `shownIds`: candidatos (heredados) que ya se mostraron en esta conversación */
 async function getCompanySearchPool(companyId: string, message: string, shownIds: string[] = []): Promise<PoolCandidate[]> {
   const terms = searchTerms(message);
   // Los términos solo tienen [a-z0-9] (ver searchTerms): seguros dentro del filtro `or`.
@@ -208,24 +182,14 @@ async function getCompanySearchPool(companyId: string, message: string, shownIds
     };
   });
 
-  // Relevantes del scraping primero, luego los que se postularon (suelen ser
-  // pocos y son los de mejor calidad), y el resto se completa con recientes.
   const relevantCount = (shownRes.data?.length ?? 0) + (relevantRes.data?.length ?? 0);
   return [...legacy.slice(0, relevantCount), ...selfRegistered, ...legacy.slice(relevantCount)]
     .filter(notDiscarded)
     .slice(0, POOL_SIZE);
 }
 
-/**
- * 'rechazado' global (anterior a los rechazos por puesto, migración 027): esas
- * decisiones se conservan como "descartado para todo" y no aparecen en ninguna búsqueda.
- */
 const notDiscarded = (c: PoolCandidate) => c.status !== 'rechazado';
 
-/**
- * Quita del pool a quien fue rechazado para el puesto que se busca y anota en
- * los demás para qué otros puestos se rechazó (sigue siendo elegible para este).
- */
 function withoutRejectedFor(pool: PoolCandidate[], rejections: Map<string, Rejection[]>, roleStems: string[]): PoolCandidate[] {
   return pool.filter((c) => !rejectedForRole(rejections.get(`${c.kind}:${c.id}`) ?? [], roleStems));
 }
@@ -239,11 +203,7 @@ function withRejectionNotes(safe: Record<string, unknown>, c: PoolCandidate, rej
   };
 }
 
-/**
- * Confirma que la sesión pertenece al usuario y a su empresa.
- * Sin esta comprobación, un cliente podría enviar el session_id de otro
- * reclutador y escribir en su conversación o leer su contexto (IDOR).
- */
+/** Confirma que la sesión pertenece al usuario y a su empresa */
 async function assertSessionOwnership(
   sessionId: string,
   userId: string,
@@ -340,9 +300,7 @@ router.post('/', chatLimiter, async (req: AuthenticatedRequest, res: Response): 
       basePool.filter((c) => c.kind === 'profile').map((c) => c.id)
     );
     const pool = withoutRejectedFor(basePool, rejections, searchTerms(message));
-    // Al modelo solo le llega lo estructurado (estilo LinkedIn): nunca el
-    // archivo de CV. resume_url/profile_url se añaden después, ya elegidos
-    // los candidatos, para que el reclutador pueda abrirlos.
+    // Al modelo solo le llega lo estructurado (estilo LinkedIn): nunca el archivo de CV
     const promptPool = pool.map(({ id, full_name, position, headline, summary, experience_years, expected_salary, location, source, status, skills }) => (
       {
         id, full_name: promptSafe(full_name), position: promptSafe(position),
@@ -422,8 +380,6 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
         for (const id of parsed.candidate_ids) resultsMap.set(id, { reason: '', fit: 'full' });
       }
 
-      // El cargo que entendió el LLM afina el filtro de rechazos: "contador" excluye a
-      // quien se rechazó como "contador público" aunque el mensaje dijera más cosas.
       const matchedRole = parsed.cargo ?? '';
       const eligible = matchedRole ? withoutRejectedFor(pool, rejections, searchTerms(matchedRole)) : pool;
 
@@ -457,8 +413,6 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
         });
       }
     } catch (err) {
-      // Sin este registro el fallback por palabras clave es invisible: el reclutador
-      // ve resultados pobres y nadie sabe que el LLM falló (clave, cuota, JSON inválido).
       logger.warn('Chat: el LLM falló, se usa búsqueda por palabras clave', {
         correlationId: getCorrelationId(req),
         error: String(err).slice(0, 300),
@@ -483,10 +437,7 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
         : 'No encontré candidatos que coincidan. Intenta con otros términos.';
     }
 
-    // Flujo: 1) búsqueda interna (arriba, LLM o palabras clave); 2) si salieron menos
-    // de MAX_RESULTS se devuelve lo encontrado y n8n completa la búsqueda en fuentes
-    // externas. n8n guarda los perfiles en `candidates` y avisa por /api/n8n-webhook/search-complete,
-    // que agrega un mensaje con los nuevos a esta misma sesión.
+    // Primero la búsqueda interna (LLM o palabras clave)
     const found = filteredCandidates.length;
     const searchFallback = isSearch && found < MAX_RESULTS;
     let externalSearch = false;
@@ -509,8 +460,6 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
         { session_id: activeSessionId, role: 'user', content: message.trim() },
         { session_id: activeSessionId, role: 'assistant', content: responseMessage, candidates: filteredCandidates.length > 0 ? filteredCandidates : null },
       ]),
-      // Toda búsqueda queda en el historial (antes solo las que encontraban algo en la base
-      // interna: las resueltas por fuentes externas no aparecían). search-complete suma lo de n8n.
       isSearch
         ? supabaseAdmin.from('search_history').insert({
             user_id: userId,
@@ -519,8 +468,7 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
             candidates_found: filteredCandidates.length,
           })
         : Promise.resolve(),
-      // Mantiene el orden por actividad en la lista de sesiones. La primera búsqueda de
-      // una sesión le da nombre ("Contadora pública · Bogotá" en vez de "Búsqueda 9/11/2026").
+      // Mantiene el orden por actividad en la lista de sesiones
       supabaseAdmin
         .from('chat_sessions')
         .update({
@@ -530,8 +478,7 @@ Cuando el usuario pida candidatos, responde SOLO con JSON puro sin markdown:
         .eq('id', activeSessionId),
     ]);
 
-    // Cuenta real (sin el tope de 150 del pool de búsqueda) para decidir si
-    // hace falta más scraping — incluye candidatos con cuenta propia.
+    // Cuenta real (sin el tope de 150 del pool de búsqueda) para decidir si hace falta más scraping
     const [{ count: legacyCount }, { count: selfRegisteredCount }] = await Promise.all([
       supabaseAdmin.from('candidates').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
       supabaseAdmin

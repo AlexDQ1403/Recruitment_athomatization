@@ -56,7 +56,6 @@ const NAV = [
 ];
 
 // Empresa: sin chat ni historial de búsqueda — ver requireRole('recruiter')
-// en /api/chat (backend/src/app.ts). Tampoco tiene "Candidatos".
 const EMPRESA_MAIN_NAV = [
   {
     section: 'Principal',

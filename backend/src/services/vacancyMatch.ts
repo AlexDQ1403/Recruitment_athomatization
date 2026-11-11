@@ -1,14 +1,6 @@
 import { fold, searchTerms, termCoverage } from './searchTerms';
 
-/**
- * Qué tanto se ajusta el perfil de un candidato a una vacante (0–100).
- *
- * Igual que la afinidad del chat (services/affinity.ts) es una suma ponderada y
- * explicable, sin LLM: se calcula para todas las vacantes abiertas en cada
- * visita, y el candidato tiene que poder ver POR QUÉ le salió ese número
- * (qué habilidades tiene, cuáles le faltan). Solo cuentan los factores que la
- * vacante pide; un dato que el candidato no ha llenado vale la mitad.
- */
+/** Qué tanto se ajusta el perfil de un candidato a una vacante (0–100) */
 
 export type MatchFactor = 'habilidades' | 'cargo' | 'experiencia' | 'ubicacion' | 'salario';
 
@@ -77,10 +69,6 @@ function hasSkill(skill: string, corpus: string): boolean {
   return words.filter((w) => hasWord(w, corpus)).length / words.length >= 0.5;
 }
 
-/**
- * Habilidades comunes que se buscan en el texto de ofertas de otros sitios
- * (Google Jobs no trae la lista de habilidades, solo la descripción).
- */
 export const COMMON_SKILLS = [
   'Excel', 'Excel avanzado', 'Word', 'PowerPoint', 'Power BI', 'SAP', 'SIIGO', 'World Office', 'Helisa', 'CRM', 'Salesforce',
   'Inglés', 'Portugués', 'NIIF', 'Declaraciones tributarias', 'Conciliaciones bancarias', 'Auditoría', 'Nómina', 'Facturación electrónica',
@@ -90,11 +78,7 @@ export const COMMON_SKILLS = [
   'Licencia de conducción', 'Trabajo en equipo', 'Liderazgo', 'Comunicación asertiva',
 ];
 
-/**
- * Habilidades del vocabulario que la oferta menciona en su texto. Más estricto
- * que comparar con un perfil: deben aparecer TODAS las palabras de la habilidad,
- * para no atribuirle a la oferta algo que no pide.
- */
+/** Habilidades del vocabulario que la oferta menciona en su texto */
 export function skillsMentioned(vocabulary: string[], text: string): string[] {
   const corpus = fold(text);
   const seen = new Set<string>();
@@ -156,9 +140,6 @@ export function computeVacancyMatch(c: MatchCandidate, v: MatchVacancy): Vacancy
       : { factor: 'salario', score: clamp01(1 - ((c.expected_salary! - max!) / max!) * 2), weight: WEIGHTS.salario });
   }
 
-  // Experiencia, ciudad y salario solo valen si el oficio coincide: 6 años de
-  // contaduría no acercan a nadie a una vacante de programador. Pesan en
-  // proporción a qué tanto encajan cargo y habilidades (mínimo una cuarta parte).
   const core = parts.filter((p) => p.factor === 'habilidades' || p.factor === 'cargo');
   const coreWeight = core.reduce((a, p) => a + p.weight, 0);
   const relevance = coreWeight ? 0.25 + 0.75 * (core.reduce((a, p) => a + p.score * p.weight, 0) / coreWeight) : 1;

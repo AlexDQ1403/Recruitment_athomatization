@@ -6,11 +6,6 @@ import { candidatePortalService, CvDraft, MyProfile } from '../../services/candi
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { CvReviewModal } from './CvReviewModal';
 
-/**
- * Punto de partida del perfil: el candidato sube su hoja de vida, la IA la lee y
- * prellena el perfil, y él revisa y corrige antes de guardar (CvReviewModal).
- * Con el perfil completo, las vacantes recomendadas y su porcentaje son confiables.
- */
 export const CvImport = ({ profile, onMessage }: {
   profile: MyProfile;
   onMessage: (kind: 'success' | 'error', text: string) => void;

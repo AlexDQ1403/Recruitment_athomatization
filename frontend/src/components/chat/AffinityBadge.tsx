@@ -14,10 +14,7 @@ export const affinityLevel = (score: number): 'alta' | 'media' | 'baja' =>
 const partText = (p: AffinityPart) =>
   p.missing ? 'sin dato' : p.factor === 'cargo' ? `${Math.round(p.score * 100)} %` : p.score >= 1 ? 'cumple' : p.score <= 0 ? 'no cumple' : `${Math.round(p.score * 100)} %`;
 
-/**
- * Porcentaje de afinidad con un desglose desplegable. Explica de dónde sale el
- * número: solo cuentan los criterios que el reclutador pidió.
- */
+/** Porcentaje de afinidad con un desglose desplegable */
 export const AffinityBadge = ({ score, parts }: { score: number; parts?: AffinityPart[] }) => {
   const level = affinityLevel(score);
   const total = (parts ?? []).reduce((s, p) => s + p.weight, 0);

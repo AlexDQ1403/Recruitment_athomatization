@@ -47,12 +47,7 @@ const pct = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / 
 const daysText = (n: number | null) => (n === null ? '—' : n < 1 ? 'menos de 1 día' : `${n} ${n === 1 ? 'día' : 'días'}`);
 const STATUS: Record<string, string> = { active: 'Activa', paused: 'Pausada', closed: 'Cerrada' };
 
-/**
- * Reportes de la empresa. "Resultados" es lo que se presenta a gerencia: qué se
- * logró con cada vacante en un rango de fechas, por qué se descartan
- * candidatos y cómo rinde cada reclutador. Se exporta a CSV o se imprime/guarda
- * como PDF. "Actividad de contactos" conserva el detalle diario por reclutador.
- */
+/** Reportes de la empresa */
 export const ReportsView = () => {
   const user = getStoredUser();
   const [tab, setTab] = useState<'results' | 'activity'>('results');

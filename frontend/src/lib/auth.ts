@@ -17,8 +17,6 @@ export const setStoredUser = (user: User) => {
   try {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   } catch {
-    // Modo privado o almacenamiento lleno: la sesión de Supabase sigue siendo
-    // la fuente de verdad, así que no es fatal.
   }
 };
 
@@ -31,11 +29,7 @@ const clearLocalSession = () => {
   }
 };
 
-/**
- * Avisa al backend para dejar traza del cierre de sesión.
- * Se llama ANTES de signOut, porque después el token ya no vale.
- * Los fallos se ignoran: la auditoría no puede impedir que alguien salga.
- */
+/** Avisa al backend para dejar traza del cierre de sesión */
 const auditLogout = async () => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -49,18 +43,7 @@ const auditLogout = async () => {
   }
 };
 
-/**
- * Cierra la sesión.
- *
- * El orden importa y los fallos no se propagan: si `signOut` falla por red y
- * dejáramos que la excepción subiera, el rastro local seguiría ahí y el usuario
- * quedaría "dentro" creyendo que salió. Por eso la limpieza local va en
- * `finally`.
- *
- * `scope: 'global'` invalida la sesión en todos los dispositivos del usuario, no
- * solo en esta pestaña. Es lo que se espera de un "cerrar sesión" en una
- * aplicación que maneja datos de candidatos.
- */
+/** Cierra la sesión */
 export const clearAuth = async (): Promise<{ ok: boolean; error?: string }> => {
   await auditLogout();
 
@@ -78,10 +61,7 @@ export const clearAuth = async (): Promise<{ ok: boolean; error?: string }> => {
   }
 };
 
-/**
- * Marca el acceso del usuario tras iniciar sesión (actualiza last_login y deja
- * traza de auditoría). Silencioso: no debe bloquear la entrada.
- */
+/** Marca el acceso del usuario tras iniciar sesión (actualiza last_login y deja traza de auditoría) */
 export const touchSession = async (accessToken: string): Promise<void> => {
   try {
     await fetch('/api/session/touch', {
@@ -93,13 +73,7 @@ export const touchSession = async (accessToken: string): Promise<void> => {
   }
 };
 
-/**
- * Notifica un intento de acceso fallido para dejar traza en el servidor.
- *
- * Envía solo el MOTIVO, nunca el correo ni la contraseña: sirve para detectar
- * picos de intentos fallidos sin acumular datos personales de quien falla al
- * escribir su correo. Silencioso y sin await en el llamador.
- */
+/** Notifica un intento de acceso fallido para dejar traza en el servidor */
 export const reportFailedLogin = (reason: string): void => {
   try {
     void fetch('/api/session/failed-login', {

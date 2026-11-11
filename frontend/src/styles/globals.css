@@ -1,8 +1,7 @@
 /* Fonts loaded via next/font/google in layout.tsx */
 
 /* ─── Design Tokens ──────────────────────────────────────── */
-/* Marca Kmella: azul de marca #112454 y rojo #c81b1d. Oscuro por defecto (noche azul, igual que la web
-   pública) y claro con html[data-landing-theme='light'], la misma preferencia que guarda la web. */
+/* Marca Kmella: azul de marca #112454 y rojo #c81b1d */
 :root {
   color-scheme: dark;
 
@@ -593,9 +592,6 @@ select {
 .pagination-controls button:disabled { opacity: .25; cursor: not-allowed; }
 
 /* ─── Búsqueda de candidatos (chat) ──────────────────────── */
-/* Un espacio de trabajo a pantalla completa: búsquedas guardadas a la izquierda,
-   conversación a la derecha. Sin burbujas: las consultas se leen como encabezados
-   y los resultados como una lista densa, igual que el resto de tablas de la app. */
 .search-workspace {
   display: grid;
   grid-template-columns: 236px 1fr;

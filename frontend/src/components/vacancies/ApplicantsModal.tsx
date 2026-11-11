@@ -149,8 +149,7 @@ export function ApplicantsModal({ vacancy, onClose }: { vacancy: Vacancy; onClos
                   ) : a.company_decision !== 'pendiente' ? (
                     <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>La empresa ya decidió</span>
                   ) : a.status === 'rechazado' ? (
-                    // Reconsiderar quita el rechazo de esta vacante; un rechazo global antiguo
-                    // lo bloquea el backend con su propio mensaje
+                    // Reconsiderar quita el rechazo de esta vacante
                     <button type="button" className="btn-secondary-sm" disabled={busy}
                       title="Quita el rechazo de esta vacante y lo deja en seguimiento"
                       onClick={() => mutation.mutate({ applicant: a, status: 'seguimiento' })}>

@@ -12,10 +12,6 @@ interface Props {
   onRejected: (rejection: CandidateRejection) => void;
 }
 
-/**
- * Rechazo por puesto: el candidato deja de aparecer en búsquedas de ESE puesto
- * (y de la vacante, si se elige) pero sigue disponible para los demás.
- */
 export const RejectForRoleModal = ({ candidate, suggestedRole, onClose, onRejected }: Props) => {
   const [role, setRole] = useState(suggestedRole);
   const [vacancyId, setVacancyId] = useState('');

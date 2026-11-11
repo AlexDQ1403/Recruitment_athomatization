@@ -22,10 +22,6 @@ async function fetchSearchHistory(): Promise<SearchHistory[]> {
   return data as SearchHistory[];
 }
 
-/**
- * El mensaje del chat que originó esta entrada del historial: mismo texto, en el
- * minuto en que se registró. null si la búsqueda (la conversación) se eliminó.
- */
 async function findSearchMessage(item: SearchHistory): Promise<{ id: string; session_id: string } | null> {
   const until = new Date(new Date(item.created_at).getTime() + 60_000).toISOString();
   const { data } = await supabase

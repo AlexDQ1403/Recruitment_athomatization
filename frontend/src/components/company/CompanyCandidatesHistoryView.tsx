@@ -15,12 +15,7 @@ const STATUS_BADGE: Record<string, string> = {
   rechazado: 'badge-rejected',
 };
 
-/**
- * "Candidatos aceptados" para Empresa: lista de lo que un reclutador APROBÓ.
- * Cada fila es un candidato → reclutador → aprobación → estado. Un candidato
- * rechazado o devuelto a seguimiento sale de esta lista (ver PATCH /api/candidates/:id/decision
- * y GET /api/company/candidates).
- */
+/** "Candidatos aceptados" para Empresa: lista de lo que un reclutador APROBÓ */
 export const CompanyCandidatesHistoryView = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [profile, setProfile] = useState<CompanyCandidateProcess | null>(null);

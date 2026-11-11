@@ -1,9 +1,3 @@
-/**
- * Tablero "Mi búsqueda" del candidato: cuánto lleva buscando, cuántas
- * postulaciones ha enviado y cuándo, cuáles cambiaron de estado y cuáles siguen
- * sin respuesta. Junta las postulaciones de la plataforma con las de otros
- * sitios (que el candidato actualiza a mano) en un mismo lenguaje de estados.
- */
 
 export type JobSearchState = 'sin_respuesta' | 'en_proceso' | 'entrevista' | 'avanza' | 'no_continua';
 

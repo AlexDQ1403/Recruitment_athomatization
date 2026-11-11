@@ -26,10 +26,7 @@ function describeError(err: unknown): string {
   return JSON.stringify({ code: e?.code, message: e?.message });
 }
 
-/**
- * GET /api/dashboard/recruiter?period=30d&vacancy_id=…&source=scraping
- * Embudo, qué hacer hoy, salud de las vacantes y orígenes, para la empresa del token.
- */
+/** GET /api/dashboard/recruiter?period=30d&vacancy_id=…&source=scraping */
 router.get('/recruiter', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const companyId = req.locals?.companyId;
   if (!companyId) {

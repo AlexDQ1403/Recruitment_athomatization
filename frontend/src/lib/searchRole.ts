@@ -1,9 +1,5 @@
 import type { ChatMessage } from '../types';
 
-/**
- * Cargo aproximado a partir de la consulta, para mostrar ("Busco una contadora en Bogotá"
- * → "contadora"). La propuesta de vacante usa la consulta completa.
- */
 export const roleFromQuery = (q: string): string => {
   const role = q
     .replace(/^\s*(hola,?\s*)?(busco|buscamos|necesito|necesitamos|quiero|requiero|requerimos)\s+/i, '')
@@ -13,10 +9,6 @@ export const roleFromQuery = (q: string): string => {
   return (role || q).slice(0, 60);
 };
 
-/**
- * Respuesta a una búsqueda (no a un saludo): trae candidatos, dice que no encontró,
- * o avisa que sigue buscando en fuentes externas.
- */
 export const isSearchAnswer = (m: ChatMessage) =>
   m.role === 'assistant' && (!!m.candidates?.length || /no encontr[ée]|buscando perfiles|fuentes externas/i.test(m.content));
 

@@ -1,11 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { InsightsInput } from './recruiterInsights';
 
-/**
- * Lee de una vez todo lo que necesitan los dashboards (reclutador y empresa) para
- * una empresa. Las funciones de cálculo son puras (recruiterInsights, companyInsights);
- * aquí solo se consulta, siempre filtrado por company_id.
- */
+/** Lee de una vez todo lo que necesitan los dashboards (reclutador y empresa) para una empresa */
 
 const ROW_CAP = 1000; // tope de filas por consulta en Supabase
 
@@ -21,10 +17,6 @@ function rows<T>(res: { data: unknown; error: unknown }): T[] {
 
 const BRIDGE_COLUMNS = 'legacy_candidate_id, candidate_profile_id, status, source, presented_to_company, presented_at, presented_by, company_decision, company_decided_at, created_at';
 
-/**
- * @param warn  avisa (al log) cuando falta una tabla o columna de una migración
- *              reciente: el dashboard se muestra igual, sin ese dato.
- */
 export async function loadInsightsData(
   db: SupabaseClient,
   companyId: string,

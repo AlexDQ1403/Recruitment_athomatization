@@ -1,17 +1,4 @@
-/**
- * Comprueba que la base REAL tiene las columnas que usa el código.
- *
- *   npm run check:schema
- *
- * Existe porque las migraciones del repo y la base pueden desfasarse: la tabla
- * `vacancies` se creó con una versión vieja de la migración 005 y le faltaban
- * salary_min, salary_max, experience_years_min y skills. Publicar vacantes fallaba
- * con PGRST204 y ninguna prueba unitaria lo podía ver, porque las pruebas leen las
- * migraciones del repo, no la base.
- *
- * Solo lee metadatos (select ... limit 0): no toca ni devuelve datos. Sale con
- * código 1 si falta algo, para poder usarlo en una lista de verificación de despliegue.
- */
+/** Comprueba que la base REAL tiene las columnas que usa el código */
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config';
 

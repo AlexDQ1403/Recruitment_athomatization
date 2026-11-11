@@ -1,15 +1,6 @@
 import { z } from 'zod';
 import { callLLM, parseLLMJson } from './llm';
 
-/**
- * Borrador de vacante a partir de lo que el reclutador escribe con sus palabras
- * ("necesito una contadora en Bogotá, 2 años, hasta 3 millones").
- *
- * Solo PROPONE: no guarda nada. El reclutador revisa y edita los mismos campos
- * del formulario y confirma con POST /api/vacancies (que valida de nuevo).
- * Lo que el modelo no pudo saber o tuvo que suponer va en `notes`, para que el
- * reclutador lo complete en vez de publicar datos inventados.
- */
 
 export const MAX_DRAFT_INPUT = 2000;
 const MODALITIES = ['presencial', 'remoto', 'híbrido'] as const;
@@ -30,10 +21,7 @@ export interface VacancyDraftResult {
   notes: string[];
 }
 
-/**
- * Número que el modelo puede devolver como texto. "3.000.000" y "3,000,000" son miles
- * (formato colombiano), no decimales: sin esto el monto se perdía (NaN).
- */
+/** Número que el modelo puede devolver como texto */
 const toNumber = (v: unknown): unknown => {
   if (v === '' || v === null) return undefined;
   if (typeof v !== 'string') return v;
@@ -83,11 +71,6 @@ Reglas:
 
 const MAX_SKILLS = 10;
 
-/**
- * Los modelos a veces devuelven la descripción en un solo párrafo
- * ("Responsabilidades: - a - b Requisitos: - c"): se le dan saltos de línea para
- * que en el formulario se lea como secciones con viñetas.
- */
 export function formatDescription(text: string): string {
   return text
     .replace(/\s*\b(Responsabilidades|Requisitos|Ofrecemos|Beneficios|Funciones):\s*/g, '\n\n$1:\n')

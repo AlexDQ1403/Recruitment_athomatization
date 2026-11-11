@@ -14,9 +14,6 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
 const VALID_STATUSES = ['rechazado', 'en_contacto', 'seguimiento'] as const;
 type CandidateStatus = (typeof VALID_STATUSES)[number];
 
-// 'rechazado' global quedó como "descartado para todo" (antes de los rechazos por puesto,
-// migración 027). Solo el cambio manual de estado (PATCH /:id/status, el Kanban) puede
-// reactivarlo a seguimiento; la decisión del chat sigue tratándolo como terminal.
 const ALLOWED_TRANSITIONS: Record<CandidateStatus, CandidateStatus[]> = {
   seguimiento: ['en_contacto', 'rechazado'],
   en_contacto: ['seguimiento', 'rechazado'],
@@ -40,11 +37,6 @@ const MAX_DECISION_LOOKUP = 100;
 
 const COMPANY_DECIDED_MESSAGE = 'La empresa ya decidió sobre este candidato: no se puede cambiar su proceso';
 
-/**
- * Los errores de Supabase son objetos planos ({ message, code, details, hint }), no
- * instancias de Error: `String(err)` daba "[object Object]" y ocultaba la causa real.
- * Solo se usa para el log del servidor; al cliente nunca se le devuelve.
- */
 function describeError(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (err && typeof err === 'object') {
@@ -54,16 +46,6 @@ function describeError(err: unknown): string {
   return String(err);
 }
 
-/**
- * Marca la relación empresa↔candidato como presentada (la empresa la ve en su lista de
- * aceptados), creándola si no existe.
- *
- * NO usa upsert a propósito: el único índice de (company_id, legacy_candidate_id) es
- * PARCIAL (migración 015: WHERE legacy_candidate_id IS NOT NULL) y PostgREST genera
- * `ON CONFLICT (company_id, legacy_candidate_id)` sin ese predicado, así que Postgres
- * responde 42P10 ("no unique or exclusion constraint matching the ON CONFLICT
- * specification") y el endpoint devolvía 500 al aprobar.
- */
 async function markPresented(
   companyId: string,
   candidate: { id: string; source: string },
@@ -158,10 +140,7 @@ router.get(
   }
 );
 
-// GET /api/candidates/decisions?ids=a,b,c - Estado actual y si está aprobado,
-// para que el chat muestre el estado vigente y no el de la captura del mensaje.
-// Debe declararse ANTES de '/:id'. Solo candidatos de la empresa del usuario;
-// devuelve únicamente estado y bandera (nunca datos personales).
+// GET /api/candidates/decisions?ids=a,b,c
 router.get(
   '/decisions',
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -239,10 +218,7 @@ router.get(
   }
 );
 
-// PATCH /api/candidates/:id/present - Reclutador aprueba presentar el
-// candidato a la empresa (habilita el Dashboard y el histórico de Empresa).
-// :id es el candidato legado (candidates.id), el mismo que usa el Kanban;
-// la relación en company_candidates se crea aquí si todavía no existía.
+// PATCH /api/candidates/:id/present
 router.patch(
   '/:id/present',
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -301,11 +277,7 @@ router.patch(
   }
 );
 
-// PATCH /api/candidates/:id/decision - El reclutador aprueba, deja en seguimiento o rechaza.
-//   aprobar     → lo ve la empresa en su lista de aceptados (presented_to_company = true)
-//   seguimiento → se sigue considerando sin descartarlo; sale de la lista de aceptados
-//   rechazar → estado 'rechazado' (terminal); sale de la lista de aceptados
-// Aprobar no contacta al candidato: 'en_contacto' (entrevista por n8n) es otra acción.
+// PATCH /api/candidates/:id/decision
 router.patch(
   '/:id/decision',
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -353,8 +325,6 @@ router.patch(
         return;
       }
 
-      // Aprobar o dar seguimiento es SIEMPRE para una vacante: sin ella no hay a qué
-      // presentarlo ni dónde seguirlo. Rechazar no la exige (es por puesto, migración 027).
       if (decision !== 'rechazar') {
         if (vacancyId) {
           const { data: vacancy, error: vacancyError } = await supabaseAdmin
@@ -443,8 +413,7 @@ router.patch(
         }
       }
 
-      // Lista de la empresa: solo entra al aprobar; seguimiento y rechazo la dejan.
-      // Cada paso es reintentable: repetir la decisión completa lo que falte.
+      // Lista de la empresa: solo entra al aprobar; seguimiento y rechazo la dejan
       if (decision === 'aprobar') {
         await markPresented(companyId, { id: current.id, source: current.source }, toStatus, userId);
       } else {
@@ -546,8 +515,7 @@ router.patch(
         return;
       }
 
-      // candidate_status_history es la fuente única del historial (la consume la UI).
-      // candidate_status_audit quedó deprecada en la migración 010.
+      // candidate_status_history es la fuente única del historial (la consume la UI)
       const { error: historyError } = await supabaseAdmin
         .from('candidate_status_history')
         .insert({
@@ -565,9 +533,6 @@ router.patch(
         });
       }
 
-      // Rechazar saca al candidato de la lista de aceptados de la empresa, igual que la
-      // decisión del reclutador (no quedan dos caminos con resultados distintos).
-      // Reactivarlo también reactiva la relación con la empresa (si no, el dashboard lo seguiría contando rechazado)
       if (toStatus === 'rechazado' || fromStatus === 'rechazado') {
         const { error: bridgeError } = await supabaseAdmin
           .from('company_candidates')

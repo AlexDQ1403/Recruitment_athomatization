@@ -15,13 +15,7 @@ const emptyForm = (initial?: Vacancy): CreateVacancyInput => ({
   deadline: initial?.deadline ?? '',
 });
 
-/**
- * Formulario de vacante. Al crear, ofrece "Descríbela con tus palabras": la IA
- * propone los campos y el reclutador los revisa y edita antes de crear. Nada se
- * guarda hasta que pulsa "Crear vacante".
- *
- * `initialText` (p. ej. la búsqueda del chat) genera la propuesta al abrir.
- */
+/** Formulario de vacante */
 export function VacancyForm({ initial, initialText, onSubmit, loading, error }: {
   initial?: Vacancy;
   initialText?: string;

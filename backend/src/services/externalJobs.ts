@@ -1,19 +1,6 @@
 import { createHash } from 'node:crypto';
 
-/**
- * Ofertas de empleo de otros sitios web para el portal del candidato. El
- * candidato se postula EN EL SITIO de origen (no aquí); la plataforma solo le
- * muestra la oferta, cuánto se ajusta a su perfil y le lleva el control.
- *
- * Fuentes:
- *  - Get on Board (API pública, sin clave): LATAM, sobre todo tecnología y negocios.
- *  - Google Jobs vía SerpApi (si hay SERPAPI_API_KEY): agrega elempleo,
- *    Computrabajo, LinkedIn y demás portales de Colombia, de todos los sectores.
- *
- * Cada fuente que falle se omite (las demás siguen). Los resultados se guardan
- * en memoria unas horas: las ofertas no cambian minuto a minuto y SerpApi cobra
- * por búsqueda.
- */
+/** Ofertas de empleo de otros sitios web para el portal del candidato */
 
 export type ExternalSource = 'getonbrd' | 'google_jobs';
 

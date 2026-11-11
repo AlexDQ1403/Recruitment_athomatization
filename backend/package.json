@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "check:schema": "tsx --env-file=.env src/scripts/checkSchema.ts",
     "seed:test-accounts": "tsx --env-file=.env src/scripts/seedTestAccounts.ts",
+    "emails:apply": "tsx --env-file=.env src/scripts/applyEmailTemplates.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

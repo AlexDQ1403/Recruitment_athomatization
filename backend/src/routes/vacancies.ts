@@ -15,12 +15,7 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-/**
- * Toda la gestión de vacantes pasa por aquí, no por el navegador. Leer, editar y borrar
- * directo con la sesión del usuario dependía de las políticas RLS de `vacancies`, que en
- * la base real no coincidían con las del repo: la vacante se guardaba pero la lista salía
- * vacía, sin error. Aquí la empresa sale del token y cada consulta se acota a ella.
- */
+/** Toda la gestión de vacantes pasa por aquí, no por el navegador */
 
 const PUBLISHER_ROLES = ['empresa', 'recruiter'];
 const MODALITIES = ['presencial', 'remoto', 'híbrido'] as const;
@@ -42,11 +37,7 @@ const salaryRangeIssue = { message: 'El salario mínimo no puede superar al máx
 const skillsSchema = z.array(z.string().trim().min(1).max(60)).max(30);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha límite debe ser AAAA-MM-DD');
 
-/**
- * Lo único que acepta la publicación. Nada de `company`, `company_id`, `status` ni
- * `created_by`: la empresa sale del usuario autenticado y una vacante publicada nace
- * `active`. Si el cliente los envía, se descartan (z.object quita lo desconocido).
- */
+/** Lo único que acepta la publicación */
 const createVacancySchema = z
   .object({
     title: z.string().trim().min(2, 'El cargo debe tener al menos 2 caracteres').max(200),
@@ -125,11 +116,7 @@ function fail(req: AuthenticatedRequest, res: Response, label: string, err: unkn
   res.status(500).json({ error: 'Error interno' });
 }
 
-/**
- * GET /api/vacancies?status=active&page=1&limit=12 — vacantes de la empresa del usuario.
- * `applicants_count` suma las postulaciones de candidatos con cuenta y los candidatos
- * heredados asociados a la vacante.
- */
+/** GET /api/vacancies?status=active&page=1&limit=12 */
 router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!authorize(req, res)) return;
@@ -181,14 +168,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
   }
 });
 
-/**
- * POST /api/vacancies — publica una vacante de la empresa del usuario.
- *
- * Roles: empresa y recruiter (un reclutador pertenece a una sola empresa).
- * `company_id` y el nombre de la empresa los pone el servidor a partir de la sesión.
- * La vacante nace `active`: desde ese momento el catálogo de candidatos
- * (GET /api/me/vacancies) la muestra.
- */
+/** POST /api/vacancies */
 router.post('/', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const correlationId = getCorrelationId(req);
 
@@ -259,11 +239,7 @@ const draftSchema = z.object({
   text: z.string().trim().min(5, 'Describe la vacante con un poco más de detalle').max(MAX_DRAFT_INPUT),
 });
 
-/**
- * POST /api/vacancies/draft — { text } → { draft, notes }
- * Propone una vacante a partir de una descripción informal. NO la guarda: el
- * reclutador revisa, edita y confirma con POST /api/vacancies.
- */
+/** POST /api/vacancies/draft */
 router.post('/draft', draftLimiter, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const correlationId = getCorrelationId(req);
   if (!authorize(req, res)) return;
@@ -285,11 +261,7 @@ router.post('/draft', draftLimiter, async (req: AuthenticatedRequest, res: Respo
   }
 });
 
-/**
- * GET /api/vacancies/match?role=contador público — vacante ACTIVA de la empresa para
- * ese cargo (misma comparación que los rechazos por puesto), o null. Lo usa el chat
- * para no proponer crear una vacante que ya existe.
- */
+/** GET /api/vacancies/match?role=contador */
 router.get('/match', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!authorize(req, res)) return;
@@ -316,10 +288,7 @@ router.get('/match', async (req: AuthenticatedRequest, res: Response): Promise<v
   }
 });
 
-/**
- * PATCH /api/vacancies/:id — edita, pausa, activa o cierra una vacante de la empresa.
- * Una vacante de otra empresa da 404. La empresa y el autor no se pueden cambiar.
- */
+/** PATCH /api/vacancies/:id */
 router.patch('/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!authorize(req, res)) return;

@@ -41,8 +41,7 @@ const bodySchema = z.object({
       .optional()
   ),
   'Especializacion/descripcion': z.preprocess(emptyToUndef, z.string().trim().max(500).optional()),
-  // Opcionales: lo que el scraping sabe del perfil público. Un teléfono que no
-  // se puede normalizar se descarta (no invalida al candidato).
+  // Opcionales: lo que el scraping sabe del perfil público
   Telefono: z.preprocess(emptyToUndef, z.coerce.string().trim().max(40).optional()),
   // Titular del resultado de LinkedIn ("Contadora Pública | NIIF | Impuestos")
   Titular: z.preprocess(emptyToUndef, z.string().trim().max(300).optional()),
@@ -64,11 +63,7 @@ const bodySchema = z.object({
   path: ['urlLinkedin'],
 });
 
-/**
- * Forma canónica de un perfil: `https://www.linkedin.com/in/<slug>`. Ignora el
- * subdominio de país (co., www.), el sufijo de idioma (/en), query, hash y mayúsculas,
- * para que el mismo perfil siempre dé la misma clave de deduplicación.
- */
+/** Forma canónica de un perfil: `https://www.linkedin.com/in/<slug>` */
 function normalizeLinkedin(url: string): string {
   const slug = new URL(url).pathname.split('/').filter(Boolean)[1] ?? '';
   return `https://www.linkedin.com/in/${slug.toLowerCase()}`;
@@ -98,8 +93,7 @@ async function findExisting(
       .limit(1);
     if (data && data.length > 0) return data[0] as CandidateRow;
   }
-  // n8n_request_id es igual para todos los candidatos de una solicitud: solo
-  // sirve junto con el nombre.
+  // n8n_request_id es igual para todos los candidatos de una solicitud: solo sirve junto con el nombre
   const { data } = await supabaseAdmin
     .from('candidates')
     .select('*')
@@ -128,11 +122,7 @@ async function fillEmptyFields(existing: CandidateRow, incoming: Record<string, 
   if (error) throw error;
 }
 
-/**
- * POST /n8n-webhook
- * Recibe candidatos del flujo n8n "Automated_Recruiter webhook".
- * Autenticado por el middleware n8nSecret (X-N8N-Secret).
- */
+/** POST /n8n-webhook */
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   const correlationId = getCorrelationId(req);
 
@@ -228,9 +218,6 @@ const searchCompleteSchema = z.object({
 const CHAT_CANDIDATE_COLUMNS =
   'id, full_name, position, headline, summary, experience_years, expected_salary, location, source, status, profile_url, resume_url';
 
-// Afinidad de cargo para resultados externos (sin puntaje del LLM): según qué parte de
-// lo pedido ("contador", "NIIF", "Bogotá"…) aparece en cargo, titular, extracto o ciudad.
-// Antes era un 85 fijo para todos y no ayudaba a decidir a quién llamar primero.
 const EXTERNAL_ROLE_MIN = 45;
 const EXTERNAL_ROLE_MAX = 95;
 
@@ -264,17 +251,7 @@ async function addToSearchHistory(sessionId: string, companyId: string, found: n
     .eq('id', entry.id);
 }
 
-/**
- * POST /n8n-webhook/search-complete
- * n8n avisa que terminó la búsqueda externa de una consulta del chat: se agrega a
- * la sesión del reclutador un mensaje con los candidatos encontrados. El frontend
- * lo recoge al refrescar los mensajes de la sesión.
- *
- * Seguridad: autenticado por n8nSecret; la sesión debe pertenecer a `company_id`
- * y los candidatos se leen siempre filtrados por esa empresa (un id de otra
- * empresa simplemente no se devuelve). El texto del mensaje es fijo y los datos
- * pasan por sanitizeCandidate: nunca salen email ni teléfono.
- */
+/** POST /n8n-webhook/search-complete */
 router.post('/search-complete', async (req: Request, res: Response): Promise<void> => {
   const correlationId = getCorrelationId(req);
 
@@ -321,8 +298,6 @@ router.post('/search-complete', async (req: Request, res: Response): Promise<voi
       ]);
       if (error) throw error;
       const terms = searchTerms(String(lastQuery?.content ?? ''));
-      // n8n deduplica contra la base: un perfil que ya existía puede venir rechazado
-      // (para todo, antes de la migración 027, o para este mismo puesto)
       const rejections = await loadRejections(supabaseAdmin, companyId, (data ?? []).map((c) => c.id as string), []);
       candidates = (data ?? [])
         .filter((c) => c.status !== 'rechazado' && !rejectedForRole(rejections.get(`legacy:${c.id}`) ?? [], terms))

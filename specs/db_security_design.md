@@ -134,7 +134,7 @@ entorno donde sí corriera 003 mantiene las notas de todas las empresas legibles
 
 ### M3 — MEDIO · El esquema base no es reproducible
 
-Faltan las migraciones 001 y 002 (`CLAUDE.md` referencia un `002_supabase_schema.sql`
+Faltan las migraciones 001 y 002 (la documentación referencia un `002_supabase_schema.sql`
 inexistente). `profiles` y `candidates` se crearon a mano en Supabase. No hay forma de
 auditar ni de recrear el entorno desde cero, que es precisamente cómo **C2** pasó inadvertido.
 
@@ -201,7 +201,7 @@ cliente anónimo no ve ninguna.
 ### Fase 5 — Reproducibilidad (M3) · ~1 h
 
 1. Volcar el esquema real (`supabase db dump`) a `000_baseline.sql`.
-2. Corregir la referencia rota de `CLAUDE.md`.
+2. Corregir la referencia rota en la documentación.
 3. Documentar el orden de aplicación en un README de migraciones.
 
 ---

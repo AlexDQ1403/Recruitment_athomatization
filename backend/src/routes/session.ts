@@ -11,8 +11,6 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-// Estas rutas se llaman una vez por inicio/cierre de sesión: un límite holgado
-// basta para frenar un bucle accidental del cliente.
 const sessionLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
@@ -20,8 +18,6 @@ const sessionLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Un intento de acceso fallido no tiene token, así que esta ruta va ANTES del
-// middleware de autenticación: en Express el orden de registro es el que manda.
 const failedLoginLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
@@ -29,8 +25,6 @@ const failedLoginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Lista blanca: el motivo se escribe al log, y aceptar texto libre permitiría
-// inyectar saltos de línea para falsificar entradas (log injection).
 const VALID_REASONS = new Set([
   'invalid_credentials',
   'email_not_confirmed',
@@ -40,16 +34,7 @@ const VALID_REASONS = new Set([
   'unknown',
 ]);
 
-/**
- * POST /api/session/failed-login  (público)
- *
- * Deja traza de un intento de acceso fallido para poder detectar picos de
- * fuerza bruta. NO recibe el correo ni la contraseña: solo el motivo, para no
- * acumular datos personales de quien simplemente se equivocó al escribir.
- *
- * Escribe únicamente al log de aplicación, no a la base de datos: siendo un
- * endpoint público, una tabla sería un vector para llenarla de basura.
- */
+/** POST /api/session/failed-login */
 router.post('/failed-login', failedLoginLimiter, (req, res): void => {
   const raw = (req.body?.reason ?? '') as unknown;
   const reason = typeof raw === 'string' && VALID_REASONS.has(raw) ? raw : 'unknown';
@@ -66,11 +51,7 @@ router.post('/failed-login', failedLoginLimiter, (req, res): void => {
 
 router.use(companyAuthMiddleware, sessionLimiter);
 
-/**
- * Registra el evento en recruiter_audit_log.
- * Solo aplica a usuarios de empresa: la tabla tiene FK a companies, y un
- * candidato no pertenece a ninguna. Nunca hace fallar la petición.
- */
+/** Registra el evento en recruiter_audit_log */
 async function auditSession(
   req: AuthenticatedRequest,
   action: 'login' | 'logout'
@@ -79,8 +60,7 @@ async function auditSession(
   const userId = req.locals?.user?.id;
   if (!companyId || !userId) return;
 
-  // Con proxy delante, req.ip puede ser el del proxy; sirve como indicio, no
-  // como prueba de origen.
+  // Con proxy delante, req.ip puede ser el del proxy; sirve como indicio, no como prueba de origen
   const { error } = await supabaseAdmin.from('recruiter_audit_log').insert({
     company_id: companyId,
     recruiter_id: userId,
@@ -95,13 +75,7 @@ async function auditSession(
   }
 }
 
-/**
- * POST /api/session/touch
- *
- * Marca el acceso del usuario. Lo llama el cliente tras autenticarse.
- * El id sale del token verificado por el middleware, nunca del body: así un
- * usuario no puede marcar el acceso de otro.
- */
+/** POST /api/session/touch */
 router.post('/touch', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.locals!.user!.id;
@@ -131,14 +105,7 @@ router.post('/touch', async (req: AuthenticatedRequest, res: Response): Promise<
   }
 });
 
-/**
- * POST /api/session/logout
- *
- * Deja constancia del cierre de sesión. La invalidación del token la hace
- * Supabase desde el cliente (signOut); este endpoint es solo la traza de
- * auditoría, y por eso nunca devuelve error al cliente: si falla, el usuario
- * debe poder salir igualmente.
- */
+/** POST /api/session/logout */
 router.post('/logout', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     await auditSession(req, 'logout');

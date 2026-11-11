@@ -30,19 +30,7 @@ interface RecruiterGroup {
   candidates: ContactedCandidate[];
 }
 
-/**
- * GET /api/reports/daily-contacted?days=1
- *
- * Candidatos contactados en el periodo, agrupados por el reclutador: los que
- * pasaron a 'en_contacto' y los que se contactaron de verdad por WhatsApp,
- * correo o LinkedIn desde la plataforma (migración 025). Antes solo contaba lo
- * primero y el reporte salía vacío aunque el equipo estuviera contactando. Lo consume n8n para el envío diario por
- * correo, y la página /reports para verlo en la aplicación.
- *
- * Se apoya en candidate_status_history —no en candidates.updated_at— porque
- * updated_at cambia con cualquier edición y contaría candidatos que no fueron
- * contactados en el periodo.
- */
+/** GET /api/reports/daily-contacted?days=1 */
 router.get(
   '/daily-contacted',
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -192,13 +180,7 @@ const bogota = (day: string, end: boolean) => new Date(`${day}T${end ? '23:59:59
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_RANGE_DAYS = 366;
 
-/**
- * GET /api/reports/results?from=YYYY-MM-DD&to=YYYY-MM-DD
- *
- * Reporte de resultados para gerencia: por vacante, motivos de descarte y
- * rendimiento por reclutador en el rango (ver services/companyReport.ts).
- * Sin fechas: últimos 30 días.
- */
+/** GET /api/reports/results?from=YYYY-MM-DD&to=YYYY-MM-DD */
 router.get('/results', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const companyId = req.locals?.companyId;
   if (!companyId) {

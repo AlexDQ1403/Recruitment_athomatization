@@ -4,10 +4,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { getCorrelationId } from '../utils/tracing';
 
-/**
- * Autentica las peticiones entrantes de n8n con el secreto compartido
- * (cabecera X-N8N-Secret). Falla cerrado: sin secreto configurado → 503.
- */
+/** Autentica las peticiones entrantes de n8n con el secreto compartido (cabecera X-N8N-Secret) */
 export function n8nSecret(req: Request, res: Response, next: NextFunction): void {
   const expected = config.N8N_WEBHOOK_SECRET;
   if (!expected) {

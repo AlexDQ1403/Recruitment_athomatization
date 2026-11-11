@@ -102,11 +102,6 @@ export const candidateService = {
     return result as Candidate;
   },
 
-  /**
-   * Cambia el estado del candidato a través del backend, que valida la
-   * transición, registra el historial y —al pasar a 'en_contacto'— dispara
-   * el agendamiento de entrevista vía n8n.
-   */
   async updateStatus(id: string, status: CandidateStatus, _previousStatus?: CandidateStatus): Promise<Candidate> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('No autorizado');
@@ -125,10 +120,6 @@ export const candidateService = {
     return res.json() as Promise<Candidate>;
   },
 
-  /**
-   * Aprueba al candidato para que la Empresa lo vea en su Dashboard e
-   * histórico de procesos (solo reclutador, ver migración 018).
-   */
   async presentToCompany(id: string): Promise<{ presented_to_company: boolean; presented_at: string }> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('No autorizado');
@@ -146,11 +137,6 @@ export const candidateService = {
     return res.json();
   },
 
-  /**
-   * Decisión del reclutador: aprobar (entra en la lista de aceptados de la
-   * empresa), dejar en seguimiento o rechazar. La autorización la valida el
-   * backend; el rechazo es terminal.
-   */
   async decide(
     id: string,
     decision: CandidateDecision,

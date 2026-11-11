@@ -1,17 +1,5 @@
--- MIGRACIÓN 002: Esquema base (profiles, candidates, chat, búsquedas, vacantes, empresas)
--- Ejecutar PRIMERO en una base nueva; después 003 → 031 en orden.
---
--- Es idempotente (IF NOT EXISTS / DROP POLICY IF EXISTS): en una base que ya
--- tiene las tablas no rompe nada. Incluye parte de lo que luego formaliza 006.
+-- 002: esquema base (profiles, candidates, chat, búsquedas, vacantes, empresas)
 
--- ============================================================================
--- EJECUTAR TODAS LAS MIGRACIONES EN ORDEN
--- ============================================================================
--- Si algunas tablas ya existen, esto no fallará (usa IF NOT EXISTS)
-
--- ============================================================================
--- MIGRACIÓN 1: Schema básico (si no existe)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL PRIMARY KEY,
   email TEXT,
@@ -32,9 +20,6 @@ CREATE POLICY "profiles_read" ON profiles
 CREATE POLICY "profiles_update" ON profiles
   FOR UPDATE USING (auth.uid() = id);
 
--- ============================================================================
--- MIGRACIÓN 2: Tabla candidates (si no existe)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.candidates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name TEXT NOT NULL,
@@ -58,9 +43,6 @@ CREATE TABLE IF NOT EXISTS public.candidates (
 CREATE INDEX IF NOT EXISTS candidates_status_idx ON candidates(status);
 CREATE INDEX IF NOT EXISTS candidates_source_idx ON candidates(source);
 
--- ============================================================================
--- MIGRACIÓN 3: Tablas de chat (si no existen)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.chat_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -72,9 +54,6 @@ CREATE TABLE IF NOT EXISTS public.chat_history (
 
 CREATE INDEX IF NOT EXISTS chat_history_user_idx ON chat_history(user_id);
 
--- ============================================================================
--- MIGRACIÓN 4: Historial de búsquedas (si no existe)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.search_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -85,9 +64,6 @@ CREATE TABLE IF NOT EXISTS public.search_history (
 
 CREATE INDEX IF NOT EXISTS search_history_user_idx ON search_history(user_id);
 
--- ============================================================================
--- MIGRACIÓN 5: Tabla vacancies (si no existe)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.vacancies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -107,11 +83,6 @@ CREATE TABLE IF NOT EXISTS public.vacancies (
 
 CREATE INDEX IF NOT EXISTS vacancies_status_idx ON vacancies(status);
 
--- ============================================================================
--- AHORA SÍ: FASE 0 - Jerarquía Empresa → Reclutador
--- ============================================================================
-
--- 1. Crear tabla companies
 CREATE TABLE IF NOT EXISTS public.companies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL UNIQUE,
@@ -127,11 +98,9 @@ DROP POLICY IF EXISTS "companies_read" ON companies;
 CREATE POLICY "companies_read" ON companies
   FOR SELECT USING (true);
 
--- 2. Agregar company_id a profiles
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS profiles_company_idx ON profiles(company_id);
 
--- 3. Agregar columnas a candidates
 ALTER TABLE public.candidates ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 ALTER TABLE public.candidates ADD COLUMN IF NOT EXISTS n8n_request_id TEXT;
 ALTER TABLE public.candidates ADD COLUMN IF NOT EXISTS n8n_search_date TIMESTAMP WITH TIME ZONE;
@@ -140,12 +109,10 @@ CREATE INDEX IF NOT EXISTS candidates_company_idx ON candidates(company_id);
 CREATE INDEX IF NOT EXISTS candidates_email_idx ON candidates(email);
 CREATE INDEX IF NOT EXISTS candidates_linkedin_idx ON candidates(linkedin_url);
 
--- 4. Actualizar estados a los nuevos
 UPDATE public.candidates SET status = 'seguimiento' WHERE status IN ('Pendiente', 'pending', 'Entrevistado', 'interviewed');
 UPDATE public.candidates SET status = 'contratacion' WHERE status IN ('Contratado', 'hired');
 UPDATE public.candidates SET status = 'rechazado' WHERE status IN ('Rechazado', 'rejected');
 
--- 5. Crear constraint nuevo de status
 DO $$
 BEGIN
   BEGIN
@@ -158,7 +125,6 @@ END $$;
 ALTER TABLE public.candidates ADD CONSTRAINT candidates_status_check
   CHECK (status IN ('seguimiento', 'rechazado', 'contratacion'));
 
--- 6. Habilitar RLS en candidates
 ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "candidates_read_own_company" ON candidates;
@@ -198,7 +164,6 @@ CREATE POLICY "candidates_delete_own_company" ON candidates
     )
   );
 
--- 7. Crear tabla chat_sessions
 CREATE TABLE IF NOT EXISTS public.chat_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -230,7 +195,6 @@ CREATE POLICY "chat_sessions_update_own" ON chat_sessions
 CREATE POLICY "chat_sessions_delete_own" ON chat_sessions
   FOR DELETE USING (user_id = auth.uid());
 
--- 8. Crear tabla chat_messages
 CREATE TABLE IF NOT EXISTS public.chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
@@ -263,7 +227,6 @@ CREATE POLICY "chat_messages_insert_own" ON chat_messages
     )
   );
 
--- 9. Actualizar tabla search_history con company_id
 ALTER TABLE public.search_history ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 
 ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
@@ -286,8 +249,3 @@ CREATE POLICY "search_history_insert_own_company" ON search_history
       SELECT company_id FROM public.profiles WHERE profiles.id = auth.uid()
     )
   );
-
--- ============================================================================
--- FIN: Todas las migraciones ejecutadas
--- ============================================================================
--- Si todo está bien, deberías ver: "Success. No rows returned"

@@ -12,9 +12,7 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
 
 type ProfileField = 'full_name' | 'email' | 'avatar_url' | 'phone' | 'job_title';
 
-// Lo que cada rol puede tocar de su propio perfil. El reclutador edita sus
-// datos personales pero no el correo: es su usuario de acceso y lo gestiona
-// la empresa vía /api/recruiters, igual que rol, empresa y suspensión.
+// Lo que cada rol puede tocar de su propio perfil
 const ALLOWED_FIELDS: Record<string, ProfileField[]> = {
   empresa: ['full_name', 'email', 'avatar_url', 'phone', 'job_title'],
   recruiter: ['full_name', 'avatar_url', 'phone', 'job_title'],
@@ -93,8 +91,6 @@ router.patch('/profile', async (req: AuthenticatedRequest, res: Response): Promi
     }
 
     const allowed = ALLOWED_FIELDS[role] ?? [];
-    // Nunca se lee role/company_id/suspended del body: el whitelist por rol
-    // es la única fuente de qué se puede tocar (mismo patrón que recruiters.ts).
     const updates = Object.fromEntries(
       Object.entries(parsed.data).filter(([k, v]) => allowed.includes(k as ProfileField) && v !== undefined)
     ) as Partial<Record<ProfileField, string | null>>;

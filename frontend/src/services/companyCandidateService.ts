@@ -24,10 +24,6 @@ async function handle<T>(res: Response, fallback: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/**
- * Bandeja de la Empresa: solo candidatos que un reclutador presentó
- * explícitamente (ver backend/src/routes/company-candidates.ts).
- */
 export const companyCandidateService = {
   async list(limit = 50, offset = 0): Promise<CompanyCandidatesResponse> {
     const res = await fetch(`/api/company/candidates?limit=${limit}&offset=${offset}`, {
@@ -36,10 +32,6 @@ export const companyCandidateService = {
     return handle<CompanyCandidatesResponse>(res, 'Error al cargar los candidatos presentados');
   },
 
-  /**
-   * La empresa autoriza para la siguiente fase (guardado como 'contratado') o descarta a un candidato que le presentaron. Es definitivo:
-   * el backend responde 409 si ya había decidido otra cosa.
-   */
   async decide(
     candidate: Pick<CompanyCandidateProcess, 'kind'> & { id: string },
     decision: 'contratar' | 'descartar',

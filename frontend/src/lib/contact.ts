@@ -1,8 +1,4 @@
-/**
- * Mensaje de primer contacto y enlaces para abrirlo en WhatsApp o en el correo.
- * El mensaje sale por el canal externo (wa.me / mailto): la plataforma no lo
- * envía ni lo guarda, solo registra que hubo contacto.
- */
+/** Mensaje de primer contacto y enlaces para abrirlo en WhatsApp o en el correo */
 
 export interface ContactMessageInput {
   fullName: string;

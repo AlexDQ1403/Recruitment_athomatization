@@ -33,11 +33,7 @@ function diff<T extends Record<string, string>>(form: T, original: Record<string
   return out;
 }
 
-/**
- * Perfil propio de Empresa/Reclutador. Lo editable depende del rol
- * (ver backend/src/routes/account.ts): el reclutador edita sus datos pero no
- * su correo (lo gestiona la empresa); la empresa además edita su ficha.
- */
+/** Perfil propio de Empresa/Reclutador */
 export const AccountProfileView = () => {
   const toast = useToast();
   const { data: profile, isLoading, error } = useQuery({

@@ -75,8 +75,7 @@ export const LoginForm = () => {
     } catch (err) {
       const mapped = mapAuthError(err);
       setError(mapped);
-      // Deja traza del intento fallido para detectar fuerza bruta.
-      // No espera la respuesta: no debe retrasar el aviso al usuario.
+      // Deja traza del intento fallido para detectar fuerza bruta
       reportFailedLogin(mapped.kind);
     } finally {
       setLoading(false);

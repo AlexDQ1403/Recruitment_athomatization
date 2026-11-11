@@ -24,10 +24,6 @@ export interface SemiState {
   say: string;
 }
 
-/**
- * Consejos por inactividad: tras `idleAfter` ms sin teclear, hacer clic o enfocar,
- * devuelve el índice del consejo a mostrar (va rotando). -1 mientras no aplica.
- */
 export function useIdleTips(enabled: boolean, idleAfter = 4000, every = 6500) {
   const [tip, setTip] = useState(-1);
   const [lastActivity, setLastActivity] = useState(0);
@@ -56,10 +52,7 @@ export function useIdleTips(enabled: boolean, idleAfter = 4000, every = 6500) {
   return tip;
 }
 
-/**
- * Ojos de Semi: si hay un texto en edición, lo siguen según su largo;
- * si no, miran hacia el cursor.
- */
+/** Ojos de Semi: si hay un texto en edición, lo siguen según su largo; si no, miran hacia el cursor */
 export function useSemiEyes(
   eyesRef: RefObject<SVGGElement>,
   semiRef: RefObject<HTMLDivElement>,

@@ -7,8 +7,6 @@ import { getCorrelationId } from '../utils/tracing';
 import { AuthenticatedRequest } from '../middlewares/companyAuth';
 import { roleKey } from '../services/rejections';
 
-// Se monta en /api/vacancies/:vacancyId/applicants
-// (ver specs/candidatos_por_vacante_design.md y specs/decision_empresa_design.md)
 const router = Router({ mergeParams: true });
 const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -89,11 +87,7 @@ async function ownVacancy(req: AuthenticatedRequest, res: Response): Promise<Ctx
   return { companyId, userId, vacancyId, vacancyTitle: (data.title as string) ?? '', role: req.locals?.profile?.role ?? '' };
 }
 
-/**
- * Rechazo de ESTA vacante (migración 027). Rechazar en una vacante ya no descarta
- * al candidato para todo: sigue disponible para otras vacantes y búsquedas.
- * Sin la migración aplicada devuelve null (se comporta como sin rechazo).
- */
+/** Rechazo de ESTA vacante (migración 027) */
 async function findVacancyRejection(companyId: string, vacancyId: string, kind: Kind, id: string): Promise<{ id: string } | null> {
   const { data, error } = await supabaseAdmin
     .from('candidate_rejections')
@@ -176,10 +170,7 @@ interface ApplicantItem {
   applied_at: string | null;
 }
 
-/**
- * GET /api/vacancies/:vacancyId/applicants — postulantes de la vacante con datos básicos
- * (sin email, teléfono, salario ni CV). El rol empresa solo recibe los que un reclutador aprobó.
- */
+/** GET /api/vacancies/:vacancyId/applicants */
 router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const ctx = await ownVacancy(req, res);
@@ -303,16 +294,7 @@ const linkSchema = z.object({
   candidates: z.array(z.object({ kind: z.enum(['profile', 'legacy']), id: idSchema })).min(1).max(20),
 });
 
-/**
- * POST /api/vacancies/:vacancyId/applicants/link — { candidates: [{ kind, id }] }  (reclutador)
- * Asocia a la vacante candidatos que el reclutador ya trabajó en el chat (contactó, dejó
- * en seguimiento o aprobó) al crear la vacante desde esa búsqueda.
- *
- * - Heredados: se les asigna la vacante solo si no tenían otra (no se mueven de vacante).
- * - Con cuenta propia: NO se les crea una postulación: la verían en "Mis postulaciones"
- *   como si la hubieran enviado ellos. Se devuelven como no asociados para invitarlos.
- * - Rechazados (para todo, o ya para esta vacante) no se asocian.
- */
+/** POST /api/vacancies/:vacancyId/applicants/link */
 router.post('/link', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const ctx = await ownVacancy(req, res);
@@ -381,10 +363,7 @@ function parseTarget(req: AuthenticatedRequest, res: Response): { kind: Kind; id
   return { kind, id: req.params.id };
 }
 
-/**
- * POST /api/vacancies/:vacancyId/applicants/:kind/:id/approve — el reclutador aprueba al
- * candidato: desde ese momento la empresa lo ve y puede autorizarlo para la siguiente fase o descartarlo.
- */
+/** POST /api/vacancies/:vacancyId/applicants/:kind/:id/approve */
 router.post('/:kind/:id/approve', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const target = parseTarget(req, res);
@@ -469,11 +448,7 @@ router.post('/:kind/:id/approve', async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-/**
- * PATCH /api/vacancies/:vacancyId/applicants/:kind/:id/status — { status, reason? }  (reclutador)
- * Seguimiento y rechazo sacan al candidato de la lista de aceptados de la empresa
- * (igual que la decisión del chat); en contacto no la toca. Si la empresa ya decidió, 409.
- */
+/** PATCH /api/vacancies/:vacancyId/applicants/:kind/:id/status */
 router.patch('/:kind/:id/status', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const target = parseTarget(req, res);
@@ -491,8 +466,6 @@ router.patch('/:kind/:id/status', async (req: AuthenticatedRequest, res: Respons
     const { kind, id } = target;
 
     // ── Rechazo por vacante (migración 027) ─────────────────────────────────
-    // Rechazar aquí solo vale para ESTA vacante: no cambia el estado global del
-    // candidato, que sigue disponible para otras vacantes y búsquedas del chat.
     const rejectedHere = await findVacancyRejection(companyId, vacancyId, kind, id);
     if (toStatus === 'rechazado' || rejectedHere) {
       const membership = await vacancyMembership(companyId, vacancyId, kind, id);

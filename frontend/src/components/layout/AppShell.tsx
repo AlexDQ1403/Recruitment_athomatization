@@ -13,12 +13,7 @@ import { User } from '../../types';
 const CANDIDATE_HOME = '/candidate/dashboard';
 const COMPANY_HOME = '/dashboard';
 
-/**
- * Chat y su historial son herramientas operativas del reclutador; Empresa no
- * las tiene (ver requireRole('recruiter') en /api/chat, backend/src/app.ts).
- * El backend ya rechaza estas rutas para empresa — esto es solo para que no
- * aterrice en una pantalla vacía/con error 403.
- */
+/** Chat y su historial son herramientas operativas del reclutador */
 const RECRUITER_ONLY_PATHS = ['/chat', '/history'];
 
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
@@ -47,10 +42,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
         setStoredUser(u);
         setUser(u);
 
-        // El rol se decide aquí, con el dato de la BD, no con lo que diga el
-        // cliente. El backend vuelve a comprobarlo en cada endpoint: esto solo
-        // evita que el usuario aterrice en una pantalla que no le corresponde.
-        // '/candidate' o '/candidate/...', no '/candidates' (lista de la empresa)
+        // El rol se decide aquí, con el dato de la BD, no con lo que diga el cliente
         const inCandidateArea = !!pathname && (pathname === '/candidate' || pathname.startsWith('/candidate/'));
         if (u.role === 'candidato' && !inCandidateArea) {
           router.replace(CANDIDATE_HOME);
@@ -98,14 +90,10 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     setLoggingOut(true);
     const result = await clearAuth();
 
-    // Vacía la caché en memoria: candidatos, reclutadores y reportes de la
-    // sesión anterior no deben sobrevivir a un cambio de usuario en la misma
-    // pestaña.
     queryClient.clear();
 
     if (!result.ok) {
-      // La sesión local ya está limpia, así que se sale igualmente; solo se
-      // avisa de que el servidor puede no haberla revocado.
+      // La sesión local ya está limpia, así que se sale igualmente
       console.warn('Cierre de sesión incompleto en el servidor:', result.error);
     }
 

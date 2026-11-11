@@ -32,11 +32,6 @@ const ALERTS: Record<VacancyAlert, { label: string; advice: (v: CompanyDashboard
 const asCandidate = (r: PipelineRow) =>
   ({ id: r.id, kind: r.kind, full_name: r.full_name, position: r.title ?? '' } as Candidate);
 
-/**
- * Dashboard de la empresa: qué decisiones le tocan (y desde cuándo), cómo van
- * sus vacantes y qué hace su equipo de reclutamiento. Solo muestra candidatos
- * que un reclutador ya presentó (GET /api/company/dashboard).
- */
 export const EmpresaDashboardView = () => {
   const user = getStoredUser();
   const [profile, setProfile] = useState<PipelineRow | null>(null);

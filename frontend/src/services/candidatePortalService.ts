@@ -339,11 +339,6 @@ export const candidatePortalService = {
     await handle(res, 'Error al postularte');
   },
 
-  /**
-   * Sube la HV por el backend: queda en un bucket privado (tiene datos
-   * personales) y se abre con enlaces firmados que vencen. Aquí solo se
-   * revisan tamaño y extensión para avisar rápido; el backend valida los bytes.
-   */
   async uploadCv(file: File): Promise<string> {
     if (file.size > MAX_CV_BYTES) {
       throw new Error('El archivo supera los 5 MB');
@@ -448,8 +443,6 @@ export const candidatePortalService = {
   },
 
   // ─── Preferencias de búsqueda / matching ─────────────────
-  // Separado a propósito del CV: esto es lo que alimenta el chat de
-  // reclutadores (ver backend/src/routes/chat.ts), no el archivo subido.
 
   async getSearchPreferences(): Promise<SearchPreferences> {
     const res = await fetch('/api/me/search-preferences', { headers: await authHeaders() });

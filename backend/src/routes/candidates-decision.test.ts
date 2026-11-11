@@ -64,8 +64,6 @@ function builder(table: string) {
     }
     if (op === 'upsert') {
       upsertCalls.push(table);
-      // La base real lo rechaza: el único índice de (company_id, legacy_candidate_id) es PARCIAL
-      // (WHERE legacy_candidate_id IS NOT NULL) y PostgREST genera ON CONFLICT sin ese predicado.
       return { data: null, error: { code: '42P10', message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' } };
     }
     return { data: rows.filter((r) => match(r, filters)), error: null };

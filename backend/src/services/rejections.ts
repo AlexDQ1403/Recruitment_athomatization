@@ -1,11 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { searchTerms } from './searchTerms';
 
-/**
- * Rechazos por puesto (migración 027). Un candidato rechazado para "contador"
- * no debe aparecer al buscar "contadora pública", pero sí al buscar
- * "auxiliar administrativo".
- */
+/** Rechazos por puesto (migración 027) */
 
 export type RejectionKind = 'legacy' | 'profile';
 
@@ -23,12 +19,7 @@ export interface Rejection {
 /** Raíces del puesto, ordenadas: misma clave para "Contador Público" y "público contador". */
 export const roleKey = (role: string): string => [...new Set(searchTerms(role))].sort().join(' ');
 
-/**
- * ¿Es el mismo puesto? Todas las raíces del más corto deben estar en el otro
- * (por prefijo, para cubrir "contad"/"contado"):
- *   "contador" ≈ "contador público"           → sí
- *   "auxiliar contable" vs "auxiliar administrativo" → no
- */
+/** ¿Es el mismo puesto? */
 export function sameRole(a: string[], b: string[]): boolean {
   if (a.length === 0 || b.length === 0) return false;
   const [short, long] = a.length <= b.length ? [a, b] : [b, a];
@@ -56,11 +47,7 @@ export const toRejection = (r: Row): Rejection => ({
   created_at: r.created_at,
 });
 
-/**
- * Rechazos de la empresa para esos candidatos, agrupados por "kind:id".
- * Si la tabla aún no existe (migración pendiente) devuelve vacío: la búsqueda
- * sigue funcionando, solo sin este filtro.
- */
+/** Rechazos de la empresa para esos candidatos, agrupados por "kind:id" */
 export async function loadRejections(
   db: SupabaseClient,
   companyId: string,

@@ -60,11 +60,6 @@ const groupOf = (x: AnyApp): Exclude<AppFilter, 'todas'> => {
 const appliedAt = (x: AnyApp) => (x.kind === 'externa' ? x.app.applied_at : x.app.created_at);
 const scoreOf = (x: AnyApp) => (x.kind === 'externa' ? x.app.match_score ?? -1 : x.app.match.score);
 
-/**
- * Portal del candidato: vacantes ordenadas por ajuste a su perfil (con el
- * porcentaje y por qué), consejos para ajustar la HV a cada vacante antes de
- * postularse, y control de sus postulaciones (etapa, notas propias, filtros).
- */
 export const CandidateApplicationsView = () => {
   const [tab, setTab] = useState<'recommended' | 'external' | 'mine'>('recommended');
   const [adding, setAdding] = useState(false);

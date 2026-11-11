@@ -275,11 +275,6 @@ export interface StatusHistoryEntry {
   changer?: { full_name: string };
 }
 
-/**
- * Un proceso de selección tal como lo ve la Empresa: candidato presentado
- * por un reclutador, con la oferta y el estado del proceso. Nunca candidatos
- * sin aprobar — ver GET /api/company/candidates (migración 018).
- */
 export interface CompanyCandidateProcess {
   /** Origen: candidato con cuenta propia o ficha heredada. Se usa para decidir sobre él. */
   kind: 'profile' | 'legacy';

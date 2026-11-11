@@ -76,10 +76,6 @@ export const accountService = {
     return handle<AccountCompany>(res, 'Error al actualizar los datos de la empresa');
   },
 
-  /**
-   * Sube la foto a Storage bajo la carpeta del propio usuario (mismo patrón
-   * que candidatePortalService.uploadCv) y guarda la URL resultante.
-   */
   async uploadAvatar(file: File): Promise<string> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No autorizado');

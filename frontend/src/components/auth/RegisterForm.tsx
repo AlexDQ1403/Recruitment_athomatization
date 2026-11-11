@@ -127,8 +127,7 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
     e.preventDefault();
     setError(null);
 
-    // Validación en cliente: conveniencia, nunca la única barrera.
-    // El backend revalida todo con Zod.
+    // Validación en cliente: conveniencia, nunca la única barrera
     const passwordError = validatePassword(form.password);
     if (passwordError) {
       setError(passwordError);

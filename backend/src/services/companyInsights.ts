@@ -1,13 +1,6 @@
 import { computeInsights, type PipelineRow, type VacancyHealth } from './recruiterInsights';
 import type { InsightsData } from './insightsData';
 
-/**
- * Dashboard de la EMPRESA (no del reclutador): qué decisiones le tocan, cómo van
- * sus vacantes y qué está haciendo su equipo de reclutamiento.
- *
- * Reutiliza las reglas del dashboard del reclutador (salud de vacantes, etapa de
- * cada candidato) para que ambos vean los mismos números.
- */
 
 export interface TeamMember {
   id: string;

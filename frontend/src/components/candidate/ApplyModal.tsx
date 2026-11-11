@@ -17,11 +17,6 @@ interface Props {
   onApplied?: () => void;
 }
 
-/**
- * Antes de postularse: cuánto se ajusta su perfil a la vacante y cómo ajustar
- * la hoja de vida a lo que pide ESTA vacante (cada trabajo pide cosas
- * distintas). Los consejos los genera la IA al abrir; postularse no depende de ellos.
- */
 export const ApplyModal = ({ vacancy, match, applied = false, external, onClose, onApplied }: Props) => {
   const queryClient = useQueryClient();
   const [coverLetter, setCoverLetter] = useState('');

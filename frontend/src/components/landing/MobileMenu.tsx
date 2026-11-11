@@ -13,8 +13,6 @@ const SECTIONS = [
   { href: '#roles', label: 'Para quién' },
 ];
 
-// Menú de celular: un panel que entra desde la derecha (del lado del botón) y sale por el mismo camino.
-// Se monta fuera de la barra con un portal: la barra usa backdrop-filter, que atraparía un panel fijo.
 export function MobileMenu() {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);

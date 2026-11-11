@@ -4,9 +4,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
-// profiles tiene RLS por usuario (013): con la clave anon la consulta no ve
-// ninguna fila. El token ya se valida con auth.getUser, así que el perfil se
-// lee con service role, acotado siempre a user.id.
+// profiles tiene RLS por usuario (013): con la clave anon la consulta no ve ninguna fila
 const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
@@ -26,10 +24,7 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-/**
- * Middleware que verifica token, obtiene profile, y adjunta a req.locals
- * USO: Aplicar a TODAS las rutas que requieren autenticación
- */
+/** Middleware que verifica token, obtiene profile, y adjunta a req.locals */
 export const companyAuthMiddleware = async (
   req: AuthenticatedRequest,
   res: Response,

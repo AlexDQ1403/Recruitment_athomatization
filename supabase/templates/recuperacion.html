@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Restablece tu contraseña de Kmella</title>
+</head>
+<body style="margin:0;padding:0;background:#e4ebf6;font-family:Arial,Helvetica,sans-serif;color:#112454;">
+  <div style="display:none;max-height:0;overflow:hidden;">Crea una contraseña nueva para tu cuenta de Kmella.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e4ebf6;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#f7f9fd;border:1px solid #cfd8e8;border-radius:14px;">
+          <tr>
+            <td style="padding:28px 32px 8px;">
+              <img src="https://kmella-web.onrender.com/brand/km-light.png" alt="Kmella" width="72" style="display:block;border:0;height:auto;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 0;">
+              <h1 style="margin:0 0 12px;font-size:22px;line-height:1.3;color:#112454;">
+                Hola{{ if .Data.full_name }}, {{ .Data.full_name }}{{ end }}: restablece tu contraseña
+              </h1>
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#36425f;">
+                Pediste cambiar la contraseña de tu cuenta de Kmella. Usa el botón para crear una nueva.
+                El enlace funciona una sola vez y vence en 1 hora.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 8px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#c81b1d;border-radius:8px;">
+                    <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;">
+                      Crear contraseña nueva
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 0;">
+              <p style="margin:0 0 6px;font-size:13px;line-height:1.5;color:#55617d;">
+                Si el botón no funciona, copia este enlace en tu navegador:
+              </p>
+              <p style="margin:0 0 20px;font-size:12px;line-height:1.5;word-break:break-all;">
+                <a href="{{ .ConfirmationURL }}" style="color:#b0171a;">{{ .ConfirmationURL }}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 28px;border-top:1px solid #cfd8e8;">
+              <p style="margin:0;font-size:12px;line-height:1.5;color:#55617d;">
+                Enviamos este correo a {{ .Email }}. Si no pediste cambiar tu contraseña, ignóralo:
+                tu contraseña actual sigue funcionando y nadie puede cambiarla sin este enlace.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:11px;color:#55617d;">Kmella · Reclutamiento con IA</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

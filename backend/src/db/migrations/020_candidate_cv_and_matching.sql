@@ -1,29 +1,9 @@
--- MIGRACIÓN 020: Hoja de vida estructurada + preferencias de búsqueda del candidato
--- Ejecutar DESPUÉS de 019_profile_avatar.sql
---
--- CONTEXTO (confirmado por /graphify y specs/registro_multi_rol_design.md:54):
--- el chat de reclutadores (backend/src/routes/chat.ts) hoy solo busca en la
--- tabla legada `candidates`. Los candidatos con cuenta propia (candidate_profiles)
--- son invisibles para esa búsqueda — la migración 015 ya dejó anotado que
--- "una migración posterior unificará ambos orígenes cuando el flujo nuevo esté
--- validado en uso". Esta migración prepara esos datos; chat.ts se actualiza
--- en el mismo cambio para leer de ambos orígenes.
---
--- DISEÑO: el archivo de CV (candidate_profiles.cv_url, ya existe) es solo un
--- documento para que el reclutador lo abra — nunca se parsea ni reemplaza los
--- campos manuales. Lo que alimenta la búsqueda son los campos estructurados
--- de esta migración (estilo LinkedIn), no el archivo.
+-- 020: hoja de vida estructurada + preferencias de búsqueda del candidato
 
--- ============================================================================
--- 1. candidate_profiles gana encabezado tipo LinkedIn
--- ============================================================================
 ALTER TABLE public.candidate_profiles
   ADD COLUMN IF NOT EXISTS professional_title TEXT,
   ADD COLUMN IF NOT EXISTS professional_summary TEXT CHECK (professional_summary IS NULL OR char_length(professional_summary) <= 2000);
 
--- ============================================================================
--- 2. Experiencia laboral
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.candidate_experience (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_profile_id UUID NOT NULL REFERENCES public.candidate_profiles(id) ON DELETE CASCADE,
@@ -38,9 +18,6 @@ CREATE TABLE IF NOT EXISTS public.candidate_experience (
 );
 CREATE INDEX IF NOT EXISTS idx_candidate_experience_profile ON public.candidate_experience(candidate_profile_id);
 
--- ============================================================================
--- 3. Formación académica
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.candidate_education (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_profile_id UUID NOT NULL REFERENCES public.candidate_profiles(id) ON DELETE CASCADE,
@@ -54,9 +31,6 @@ CREATE TABLE IF NOT EXISTS public.candidate_education (
 );
 CREATE INDEX IF NOT EXISTS idx_candidate_education_profile ON public.candidate_education(candidate_profile_id);
 
--- ============================================================================
--- 4. Habilidades (técnicas, blandas, idiomas, herramientas)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.candidate_skills (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_profile_id UUID NOT NULL REFERENCES public.candidate_profiles(id) ON DELETE CASCADE,
@@ -68,9 +42,6 @@ CREATE TABLE IF NOT EXISTS public.candidate_skills (
 );
 CREATE INDEX IF NOT EXISTS idx_candidate_skills_profile ON public.candidate_skills(candidate_profile_id);
 
--- ============================================================================
--- 5. Preferencias de búsqueda / matching — separadas del CV a propósito
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.candidate_search_preferences (
   candidate_profile_id UUID PRIMARY KEY REFERENCES public.candidate_profiles(id) ON DELETE CASCADE,
   target_position      TEXT,
@@ -86,10 +57,6 @@ CREATE TRIGGER trg_candidate_search_preferences_updated_at
   BEFORE UPDATE ON public.candidate_search_preferences
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
--- ============================================================================
--- 6. RLS — mismo patrón que candidate_profiles (014) y su lectura por empresa
--- (015): el dueño lee/escribe la suya; la empresa relacionada solo lee.
--- ============================================================================
 DO $$
 DECLARE
   t TEXT;
@@ -119,8 +86,3 @@ BEGIN
     $p$, t, t);
   END LOOP;
 END $$;
-
--- Verificación
-SELECT table_name FROM information_schema.tables
-WHERE table_schema = 'public'
-  AND table_name IN ('candidate_experience', 'candidate_education', 'candidate_skills', 'candidate_search_preferences');

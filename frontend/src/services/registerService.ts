@@ -21,10 +21,7 @@ export interface RegistrationResult {
   company_id?: string;
 }
 
-/**
- * El rol NO se envía: lo fija el endpoint del backend según la ruta.
- * Enviar un rol desde el cliente permitiría auto-asignarse 'empresa'.
- */
+/** El rol NO se envía: lo fija el endpoint del backend según la ruta */
 async function post<T>(path: string, body: T): Promise<RegistrationResult> {
   const res = await fetch(path, {
     method: 'POST',

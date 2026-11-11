@@ -21,10 +21,7 @@ const invalidate = (qc: ReturnType<typeof useQueryClient>) => {
   for (const key of ['external-applications', 'external-jobs', 'candidate-dashboard']) qc.invalidateQueries({ queryKey: [key] });
 };
 
-/**
- * Postulación hecha en otro sitio. Ese sitio no nos avisa si avanzó: el
- * candidato cambia el estado aquí (y queda la fecha del cambio para su tablero).
- */
+/** Postulación hecha en otro sitio */
 export const ExternalApplicationCard = ({ application: a, onError }: { application: ExternalApplication; onError: (m: string) => void }) => {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);

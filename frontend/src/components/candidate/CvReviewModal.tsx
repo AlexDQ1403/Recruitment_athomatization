@@ -23,12 +23,7 @@ type Exp = CvDraft['experience'][number] & { use: boolean };
 type Edu = CvDraft['education'][number] & { use: boolean };
 type Skill = CvDraft['skills'][number] & { use: boolean };
 
-/**
- * Revisión del borrador que la IA sacó de la HV. Nada se guarda sin que el
- * candidato lo vea: puede corregir cada campo y desmarcar lo que no quiere.
- * Lo que ya está en su perfil (misma empresa y cargo, mismo título, misma
- * habilidad) llega desmarcado para no duplicarlo.
- */
+/** Revisión del borrador que la IA sacó de la HV */
 export const CvReviewModal = ({ draft, profile, onClose, onSaved }: {
   draft: CvDraft;
   profile: MyProfile;

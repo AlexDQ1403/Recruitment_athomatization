@@ -1,11 +1,4 @@
--- MIGRACIÓN 030: Postulaciones a ofertas de otros sitios web
--- Ejecutar DESPUÉS de 029_application_candidate_note.sql
---
--- El candidato ve ofertas de otros portales (Get on Board, Google Jobs) y se
--- postula EN ESE SITIO. Aquí solo queda su registro personal para llevar el
--- control: el otro sitio no nos avisa si avanzó, así que el estado lo
--- actualiza el propio candidato. Solo lo lee y escribe el backend (service
--- role) filtrando por el candidato de la sesión: RLS activo y sin políticas.
+-- 030: postulaciones a ofertas de otros sitios web
 
 CREATE TABLE IF NOT EXISTS public.external_applications (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -24,7 +17,6 @@ CREATE TABLE IF NOT EXISTS public.external_applications (
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  -- Una vez por oferta: confirmar dos veces no duplica
   UNIQUE (candidate_profile_id, url)
 );
 
@@ -37,8 +29,3 @@ CREATE TRIGGER trg_external_applications_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 ALTER TABLE public.external_applications ENABLE ROW LEVEL SECURITY;
-
--- Verificación
-SELECT column_name, data_type FROM information_schema.columns
-WHERE table_schema = 'public' AND table_name = 'external_applications'
-ORDER BY ordinal_position;

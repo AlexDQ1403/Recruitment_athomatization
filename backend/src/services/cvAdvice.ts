@@ -2,12 +2,6 @@ import { z } from 'zod';
 import { callLLM, parseLLMJson } from './llm';
 import type { MatchCandidate, MatchVacancy, VacancyMatch } from './vacancyMatch';
 
-/**
- * Cómo ajustar la hoja de vida a UNA vacante: cada trabajo pide cosas distintas
- * y una HV genérica no sirve para todos. Regla de oro del prompt: no inventar
- * experiencia. Lo que el candidato no tiene va en "brechas", con una forma
- * honesta de abordarlo, nunca como algo que deba escribir en la HV.
- */
 
 const list = (max: number) => z.array(z.string().trim().min(1).max(400)).max(max).catch([]);
 

@@ -1,16 +1,6 @@
 import type { SearchCriteria } from './candidateObservations';
 
-/**
- * Afinidad (0–100) de un candidato con lo que pidió el reclutador.
- *
- * Es una suma ponderada y explicable, no una probabilidad de que el candidato
- * acepte: no tenemos datos históricos de respuestas para estimar eso. Solo el
- * cargo lo califica el LLM (similitud semántica); experiencia, salario y
- * ubicación se comparan con los datos reales, como en candidateObservations.
- *
- * Solo cuentan los criterios pedidos: si el reclutador no habló de salario, el
- * salario no suma ni resta. Un dato faltante vale la mitad (ni cumple ni falla).
- */
+/** Afinidad (0–100) de un candidato con lo que pidió el reclutador */
 export type AffinityFactor = 'cargo' | 'experiencia' | 'salario' | 'ubicacion';
 
 export interface AffinityPart {

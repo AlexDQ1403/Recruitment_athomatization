@@ -1,12 +1,6 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-/**
- * Columnas de `public.vacancies` según las migraciones del repo: las de CREATE TABLE
- * (005) más todo `ADD COLUMN IF NOT EXISTS` sobre la tabla (016, 022...).
- * Sirve para que el código no escriba ni pida columnas que ninguna migración define:
- * ese desfase hizo fallar la publicación de vacantes (PGRST204).
- */
 export function vacanciesColumnsFromMigrations(): Set<string> {
   const dir = join(__dirname, '..', 'db', 'migrations');
   const columns = new Set<string>();

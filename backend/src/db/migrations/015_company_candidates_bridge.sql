@@ -1,28 +1,8 @@
--- MIGRACIÓN 015: Tabla puente empresa ↔ candidato
--- Ejecutar DESPUÉS de 014_candidate_accounts.sql
---
--- PROBLEMA QUE RESUELVE:
--- candidates.company_id ata cada candidato a UNA empresa. Con cuentas de
--- candidato eso obliga a duplicar la persona por cada empresa interesada, cada
--- copia con su propio estado e historial: no hay identidad única.
---
--- El estado deja de ser atributo de la persona y pasa a ser atributo de la
--- RELACIÓN. Ana puede estar 'en_contacto' en la empresa A y 'rechazado' en la
--- B sin duplicarse.
---
--- TRANSICIÓN: candidates.company_id se conserva y sigue siendo válida. El chat,
--- el Kanban, los reportes y seis políticas RLS dependen de ella y ya están
--- probados. Se migrarán uno a uno; esta migración solo añade el modelo nuevo y
--- lo rellena con lo que ya existe.
+-- 015: tabla puente empresa ↔ candidato
 
--- ============================================================================
--- 1. Tabla puente
--- ============================================================================
 CREATE TABLE IF NOT EXISTS public.company_candidates (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id           UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  -- Un origen y solo uno: o es un candidato con cuenta, o una ficha del pool
-  -- heredado (scraping / n8n / alta manual), nunca ambos ni ninguno.
   candidate_profile_id UUID REFERENCES public.candidate_profiles(id) ON DELETE CASCADE,
   legacy_candidate_id  UUID REFERENCES public.candidates(id) ON DELETE CASCADE,
   status               TEXT NOT NULL DEFAULT 'seguimiento'
@@ -39,7 +19,6 @@ CREATE TABLE IF NOT EXISTS public.company_candidates (
   )
 );
 
--- Evita relaciones duplicadas por cada origen
 CREATE UNIQUE INDEX IF NOT EXISTS uq_company_candidate_profile
   ON public.company_candidates(company_id, candidate_profile_id)
   WHERE candidate_profile_id IS NOT NULL;
@@ -58,9 +37,6 @@ CREATE TRIGGER trg_company_candidates_updated_at
   BEFORE UPDATE ON public.company_candidates
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
--- ============================================================================
--- 2. Backfill desde el modelo actual
--- ============================================================================
 INSERT INTO public.company_candidates
   (company_id, legacy_candidate_id, status, source, created_by, created_at)
 SELECT c.company_id, c.id, c.status, c.source, c.created_by, c.created_at
@@ -74,17 +50,12 @@ WHERE c.company_id IS NOT NULL
 COMMENT ON COLUMN public.candidates.company_id IS
   'DEPRECADA desde la migración 015: la relación vive en company_candidates. Se conserva durante la transición.';
 
--- ============================================================================
--- 3. RLS del puente
--- ============================================================================
 ALTER TABLE public.company_candidates ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS company_candidates_read   ON public.company_candidates;
 DROP POLICY IF EXISTS company_candidates_write  ON public.company_candidates;
 DROP POLICY IF EXISTS company_candidates_update ON public.company_candidates;
 
--- La empresa (y sus reclutadores) ven su propia relación.
--- El candidato NO lee esta tabla: su estado interno no se le expone.
 CREATE POLICY company_candidates_read ON public.company_candidates
   FOR SELECT TO authenticated
   USING (company_id = public.current_company_id());
@@ -98,9 +69,6 @@ CREATE POLICY company_candidates_update ON public.company_candidates
   USING (company_id = public.current_company_id())
   WITH CHECK (company_id = public.current_company_id());
 
--- ============================================================================
--- 4. Las empresas pueden ver los perfiles de sus candidatos relacionados
--- ============================================================================
 DROP POLICY IF EXISTS candidate_profiles_company_read ON public.candidate_profiles;
 
 CREATE POLICY candidate_profiles_company_read ON public.candidate_profiles
@@ -113,8 +81,3 @@ CREATE POLICY candidate_profiles_company_read ON public.candidate_profiles
         AND cc.company_id = public.current_company_id()
     )
   );
-
--- Verificación
-SELECT
-  (SELECT count(*) FROM public.candidates WHERE company_id IS NOT NULL) AS candidatos_con_empresa,
-  (SELECT count(*) FROM public.company_candidates) AS relaciones_creadas;

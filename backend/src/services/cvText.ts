@@ -1,11 +1,7 @@
 import { extractText } from 'unpdf';
 import mammoth from 'mammoth';
 
-/**
- * Texto plano de una hoja de vida (PDF o DOCX). El .doc antiguo (binario de
- * Word 97) no se puede leer sin LibreOffice: se le pide al candidato que lo
- * guarde como PDF.
- */
+/** Texto plano de una hoja de vida (PDF o DOCX) */
 
 export const MAX_CV_TEXT = 15_000; // ~4 páginas; lo demás no cambia la extracción y encarece el LLM
 

@@ -17,13 +17,7 @@ export interface N8nPayload {
   [key: string]: unknown;
 }
 
-/**
- * Llama webhook outbound de n8n de forma asíncrona (non-blocking)
- * Se usa para disparar flujos de fallback cuando:
- * - No hay resultados de búsqueda
- * - Escasez de candidatos (< 30)
- * - Resultados de baja confianza
- */
+/** Llama webhook outbound de n8n de forma asíncrona (non-blocking) */
 export async function callN8nOutboundWebhook(
   event: N8nEventType,
   payload: { company_id: string; recruiter_id?: string; [key: string]: unknown }
@@ -70,8 +64,7 @@ export async function callN8nOutboundWebhook(
   }
 }
 
-// Throttles en memoria: se reinician con el servidor y no se comparten entre
-// instancias. Aceptable con una sola instancia; con varias, mover a una tabla.
+// Throttles en memoria: se reinician con el servidor y no se comparten entre instancias
 const SHORTAGE_WINDOW_MS = 60 * 60 * 1000;
 const NO_RESULTS_WINDOW_MS = 10 * 60 * 1000;
 const lastShortage = new Map<string, number>();
@@ -91,13 +84,7 @@ export function resetN8nThrottles(): void {
   lastNoResults.clear();
 }
 
-/**
- * Trigger para fallback de candidatos (sin resultados).
- * No repite la misma consulta de la misma empresa dentro de 10 min.
- * Devuelve true solo si la petición salió hacia n8n; false si se omitió
- * (repetida dentro de la ventana o n8n sin configurar): el chat no debe
- * prometer entonces que llegarán candidatos.
- */
+/** Trigger para fallback de candidatos (sin resultados) */
 export async function triggerNoSearchResults(
   companyId: string,
   recruiterId: string,
@@ -116,11 +103,6 @@ export async function triggerNoSearchResults(
   });
 }
 
-/**
- * Hubo resultados internos, pero menos de los pedidos: se muestran los que hay
- * y n8n completa la búsqueda. Comparte la ventana de 10 min con
- * `triggerNoSearchResults` (misma empresa y misma consulta).
- */
 export async function triggerSearchShortage(
   companyId: string,
   recruiterId: string,
@@ -144,9 +126,7 @@ export function isN8nConfigured(): boolean {
   return !!config.N8N_WEBHOOK_URL;
 }
 
-/**
- * Trigger para refill de candidatos (< 30 activos)
- */
+/** Trigger para refill de candidatos (< 30 activos) */
 export async function triggerCandidateShortage(
   companyId: string,
   currentCount: number,
@@ -160,10 +140,7 @@ export async function triggerCandidateShortage(
   });
 }
 
-/**
- * Trigger de entrevista: se dispara cuando un candidato pasa a 'en_contacto'.
- * n8n se encarga de consultar disponibilidad en Google Calendar y enviar el email.
- */
+/** Trigger de entrevista: se dispara cuando un candidato pasa a 'en_contacto' */
 export async function triggerInterviewRequest(
   companyId: string,
   recruiterId: string,
@@ -179,9 +156,7 @@ export async function triggerInterviewRequest(
   });
 }
 
-/**
- * Trigger para resultados de baja confianza
- */
+/** Trigger para resultados de baja confianza */
 export async function triggerLowConfidenceResults(
   companyId: string,
   recruiterId: string,

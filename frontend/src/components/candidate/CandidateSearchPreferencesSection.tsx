@@ -46,11 +46,7 @@ function TagInput({ values, onChange, placeholder }: { values: string[]; onChang
   );
 }
 
-/**
- * Lo que usa el chat de reclutadores para encontrar al candidato — separado a
- * propósito de la hoja de vida (ver backend/src/routes/chat.ts). Subir un CV
- * nunca rellena esto automáticamente.
- */
+/** Lo que usa el chat de reclutadores para encontrar al candidato */
 export const CandidateSearchPreferencesSection = () => {
   const queryClient = useQueryClient();
   const toast = useToast();

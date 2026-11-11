@@ -42,9 +42,7 @@ export const createApp = () => {
   app.use(express.json({ limit: '1mb' }));
   app.use(correlationMiddleware);
 
-  // Webhook entrante de n8n: límite de tasa propio + secreto compartido. Va antes del
-  // límite global (100/15 min por IP): una búsqueda externa son ~11 llamadas de n8n y
-  // con el global se bloqueaba tras unas pocas búsquedas seguidas.
+  // Webhook entrante de n8n: límite de tasa propio + secreto compartido
   app.use('/api/n8n-webhook', n8nWebhookLimiter, n8nSecret, n8nWebhookRouter);
 
   app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false }));
@@ -61,13 +59,10 @@ export const createApp = () => {
   app.use('/api/session', sessionRouter);
 
   // Rutas de empresa: autenticadas, con empresa y vetadas a candidatos
-  // Búsqueda por chat: solo reclutadores. Empresa no debe tener esta
-  // funcionalidad (ver sección 2 del pedido de producto).
   app.use('/api/chat', companyAuthMiddleware, requireRole('recruiter'), requireCompany, chatRouter);
   app.use('/api/recruiters', companyAuthMiddleware, requireRole('empresa'), requireCompany, recruiterRouter);
   app.use('/api/candidates', companyAuthMiddleware, requireRole('empresa', 'recruiter'), requireCompany, candidatesRouter);
-  // Perfil completo: el reclutador lo ve todo y contacta/rechaza; la empresa solo consulta
-  // el perfil de quien le presentaron (sin contacto hasta contratarlo). Ver candidate-profiles.ts.
+  // Perfil completo: el reclutador lo ve todo y contacta/rechaza
   app.use('/api/candidate-profiles', companyAuthMiddleware, requireRole('recruiter', 'empresa'), requireCompany, candidateProfilesRouter);
   // Dashboard del reclutador: datos de su empresa, calculados en el servidor
   app.use('/api/dashboard', companyAuthMiddleware, requireRole('recruiter'), requireCompany, dashboardRouter);
@@ -80,8 +75,7 @@ export const createApp = () => {
   // Dashboard de la empresa: decisiones pendientes, salud de vacantes y actividad del equipo
   app.use('/api/company/dashboard', companyAuthMiddleware, requireRole('empresa'), requireCompany, companyDashboardRouter);
   app.use('/api/reports', companyAuthMiddleware, requireRole('empresa'), requireCompany, reportsRouter);
-  // Perfil propio de empresa/reclutador (datos personales; la empresa además su correo y su ficha).
-  // superAdmin no pertenece a una empresa, así que no pasa por requireCompany.
+  // Perfil propio de empresa/reclutador (datos personales; la empresa además su correo y su ficha)
   app.use(
     '/api/account',
     companyAuthMiddleware,

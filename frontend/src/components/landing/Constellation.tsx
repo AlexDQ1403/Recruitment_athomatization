@@ -2,8 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LandingTheme, useLandingTheme } from './ThemeToggle';
 
-// Degradados de marca: del azul (#112454 y sus tonos) al rojo (#c81b1d).
-// Cada partícula toma el color según su posición, así la figura se lee como un degradado continuo.
+// Degradados de marca: del azul (#112454 y sus tonos) al rojo (#c81b1d)
 const PALETTES: Record<LandingTheme, string[]> = {
   dark: ['#2f4a8f', '#3d5ba8', '#5a78c0', '#809bd4', '#b4c5e8', '#e8b4b5', '#e5484d', '#c81b1d'],
   light: ['#112454', '#162c62', '#1f3a80', '#2c4d99', '#3d5ba8', '#7b2f4f', '#a8151a', '#c81b1d'],

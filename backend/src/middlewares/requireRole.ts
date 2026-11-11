@@ -4,11 +4,7 @@ import { AuthenticatedRequest } from './companyAuth';
 
 export type AppRole = 'empresa' | 'recruiter' | 'candidato' | 'superAdmin';
 
-/**
- * Exige que el usuario autenticado tenga uno de los roles indicados.
- * Se aplica SIEMPRE después de companyAuthMiddleware, que es quien resuelve el
- * perfil desde la base de datos. El cliente nunca declara su rol.
- */
+/** Exige que el usuario autenticado tenga uno de los roles indicados */
 export const requireRole = (...roles: AppRole[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     const role = req.locals?.profile?.role as AppRole | undefined;
@@ -33,11 +29,7 @@ export const requireRole = (...roles: AppRole[]) => {
   };
 };
 
-/**
- * Exige que el usuario esté asociado a una empresa.
- * Los candidatos no lo están por diseño, así que las rutas de empresa la usan
- * para no tener que comprobarlo en cada handler.
- */
+/** Exige que el usuario esté asociado a una empresa */
 export const requireCompany = (
   req: AuthenticatedRequest,
   res: Response,

@@ -1,7 +1,5 @@
--- Migration: 003_candidate_features
--- Notas por candidato, historial de etapas, y storage de CVs
+-- 003: notas por candidato, historial de etapas, y storage de CVs
 
--- Notas por candidato
 CREATE TABLE IF NOT EXISTS public.candidate_notes (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_id UUID NOT NULL REFERENCES public.candidates(id) ON DELETE CASCADE,
@@ -33,7 +31,6 @@ CREATE POLICY "Autor y superAdmin pueden eliminar notas"
 
 CREATE INDEX IF NOT EXISTS idx_candidate_notes_candidate ON public.candidate_notes(candidate_id, created_at DESC);
 
--- Historial de cambios de etapa (audit trail)
 CREATE TABLE IF NOT EXISTS public.candidate_status_history (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_id UUID NOT NULL REFERENCES public.candidates(id) ON DELETE CASCADE,
@@ -53,7 +50,6 @@ CREATE POLICY "Autenticados pueden insertar historial"
 
 CREATE INDEX IF NOT EXISTS idx_status_history_candidate ON public.candidate_status_history(candidate_id, changed_at DESC);
 
--- Trigger updated_at para notas
 CREATE TRIGGER trg_candidate_notes_updated_at
   BEFORE UPDATE ON public.candidate_notes
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

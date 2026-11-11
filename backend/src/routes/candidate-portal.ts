@@ -22,8 +22,7 @@ const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_
 // Todo el portal exige sesión y rol 'candidato'
 router.use(companyAuthMiddleware, requireRole('candidato'));
 
-// Campos que el candidato puede ver de su propia ficha.
-// No incluye nada del proceso interno de las empresas.
+// Campos que el candidato puede ver de su propia ficha
 const OWN_PROFILE_FIELDS =
   'id, position, professional_title, professional_summary, experience_years, expected_salary, location, phone, cv_url, linkedin_url, visible, created_at, updated_at';
 
@@ -338,8 +337,6 @@ router.delete('/skills/:id', async (req: AuthenticatedRequest, res: Response): P
 });
 
 // ─── Preferencias de búsqueda / matching ───────────────────────────────────
-// Separadas a propósito de la hoja de vida (ver migración 020): esto es lo
-// que alimenta el chat de reclutadores, no el archivo de CV.
 
 router.get('/search-preferences', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const profileId = await getOwnCandidateProfileId(req.locals!.user!.id);
@@ -433,8 +430,6 @@ router.post('/applications', async (req: AuthenticatedRequest, res: Response): P
     }
 
     // Postularse incorpora al candidato al pool de esa empresa
-    // Sin upsert: el índice único (company_id, candidate_profile_id) es PARCIAL y PostgREST
-    // responde 42P10, con lo que el candidato nunca entraba al pool de la empresa.
     let bridgeError: { message?: string; code?: string } | null = null;
     const { data: existingBridge, error: bridgeLookupError } = await supabaseAdmin
       .from('company_candidates')
@@ -706,10 +701,7 @@ router.post('/vacancies/:id/advice', aiLimiter, async (req: AuthenticatedRequest
   }
 });
 
-/**
- * Etapa de la postulación contada al candidato, de lo más avanzado a lo menos.
- * La decisión de la empresa se guarda por empresa (company_candidates), no por vacante.
- */
+/** Etapa de la postulación contada al candidato, de lo más avanzado a lo menos */
 type Stage = 'enviada' | 'en_revision' | 'contactado' | 'preseleccionado' | 'siguiente_fase' | 'no_continua';
 function stageOf(appStatus: string, bridge?: { presented_to_company: boolean | null; company_decision: string | null }): Stage {
   if (appStatus === 'descartada' || bridge?.company_decision === 'descartado') return 'no_continua';
@@ -811,11 +803,6 @@ const EXTERNAL_FIELDS = 'id, source, title, company, location, url, status, matc
 const MAX_EXTERNAL_SHOWN = 40;
 const MIN_EXTERNAL_MATCH = 20;
 
-/**
- * Vocabulario de habilidades para leer ofertas externas: las del candidato, las
- * que piden las vacantes de la plataforma y unas comunes. Con él se detecta en
- * la descripción qué pide la oferta (y así qué tiene y qué le falta al candidato).
- */
 async function skillVocabulary(c: MatchCandidate): Promise<string[]> {
   const { data } = await supabaseAdmin.from('vacancies').select('skills').eq('status', 'active').range(0, MAX_VACANCIES - 1);
   return [...c.skills, ...(data ?? []).flatMap((v) => (v.skills as string[] | null) ?? []), ...COMMON_SKILLS];
