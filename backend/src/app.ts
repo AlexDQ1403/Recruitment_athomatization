@@ -45,7 +45,14 @@ export const createApp = () => {
   // Webhook entrante de n8n: límite de tasa propio + secreto compartido
   app.use('/api/n8n-webhook', n8nWebhookLimiter, n8nSecret, n8nWebhookRouter);
 
-  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false }));
+  // Por IP: una oficina o universidad comparte IP, así que el tope es holgado
+  app.use(rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: config.RATE_LIMIT_PER_15MIN,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiadas solicitudes: espera un momento e inténtalo de nuevo.' },
+  }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

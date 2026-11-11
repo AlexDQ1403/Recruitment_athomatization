@@ -10,6 +10,12 @@ const ago = (iso: string | null) => {
   return d <= 0 ? 'publicada hoy' : d === 1 ? 'publicada ayer' : `publicada hace ${d} días`;
 };
 
+/** "Actualizado hace 3 horas" */
+const updated = (iso: string) => {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
+  return h < 1 ? 'Actualizado hace menos de una hora' : h === 1 ? 'Actualizado hace 1 hora' : `Actualizado hace ${h} horas`;
+};
+
 /** Ofertas publicadas en otros portales */
 export const ExternalJobsTab = ({ onSelect }: { onSelect: (job: ExternalJob) => void }) => {
   const [draft, setDraft] = useState('');
@@ -21,7 +27,8 @@ export const ExternalJobsTab = ({ onSelect }: { onSelect: (job: ExternalJob) => 
     staleTime: 10 * 60 * 1000,
   });
 
-  const failed = data?.sources.filter((s) => !s.ok) ?? [];
+  const failed = data?.sources.filter((s) => !s.ok && !s.skipped) ?? [];
+  const paused = data?.sources.some((s) => s.skipped === 'presupuesto');
 
   return (
     <>
@@ -44,7 +51,11 @@ export const ExternalJobsTab = ({ onSelect }: { onSelect: (job: ExternalJob) => 
         Fuentes: <strong>Get on Board</strong>
         {data?.google_enabled ? <>, <strong>Google Jobs</strong> (elempleo, Computrabajo, LinkedIn y más)</> : ' · pronto más portales de Colombia'}
         . Te postulas en el sitio de cada oferta; aquí llevas el control.
+        {data?.fetched_at && <> {updated(data.fetched_at)}.</>}
       </p>
+      {paused && (
+        <p className="cp-note" role="status">Este mes ya se usaron las búsquedas en Google Jobs: por ahora ves ofertas de Get on Board y las que ya teníamos guardadas.</p>
+      )}
 
       {failed.length > 0 && (
         <p className="cp-note" role="status">Algunas fuentes no respondieron ahora; mostramos las demás. Vuelve a intentarlo en un rato.</p>

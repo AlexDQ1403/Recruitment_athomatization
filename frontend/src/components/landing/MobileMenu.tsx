@@ -8,9 +8,9 @@ import { BrandLogo } from '../ui/BrandMark';
 import styles from './landing.module.css';
 
 const SECTIONS = [
-  { href: '#chat', label: 'Búsqueda IA' },
-  { href: '#pipeline', label: 'Pipeline' },
-  { href: '#roles', label: 'Para quién' },
+  { href: '#empresas', label: 'Para empresas' },
+  { href: '#candidatos', label: 'Para candidatos' },
+  { href: '#pipeline', label: 'Cómo funciona' },
 ];
 
 export function MobileMenu() {

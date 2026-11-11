@@ -9,6 +9,7 @@ import { ConfirmModal } from '../ui/ConfirmModal';
 import { Icon } from '../ui/Icon';
 import { ApplicantsModal } from './ApplicantsModal';
 import { VacancyForm } from './VacancyForm';
+import { getStoredUser } from '../../lib/auth';
 
 const STATUS_LABELS: Record<VacancyStatus, string> = {
   active: 'Activa', paused: 'Pausada', closed: 'Cerrada',
@@ -93,7 +94,7 @@ export const VacanciesView = () => {
       {viewingCandidates && (
         <ApplicantsModal vacancy={viewingCandidates} onClose={() => {
           setViewingCandidates(null);
-          queryClient.invalidateQueries({ queryKey: ['vacancies'] }); // refresca el contador de aplicantes
+          queryClient.invalidateQueries({ queryKey: ['vacancies'] }); // refresca el contador de postulantes
         }} />
       )}
 
@@ -170,6 +171,7 @@ export const VacanciesView = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
             {data?.items.map((v) => (
               <VacancyCard
+                showCompany={getStoredUser()?.role === 'superAdmin'}
                 key={v.id}
                 vacancy={v}
                 onEdit={() => setEditing(v)}
@@ -191,8 +193,9 @@ export const VacanciesView = () => {
 
 // ─── Card de vacante ─────────────────────────────────────────────────────────
 
-function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus, onViewCandidates }: {
+function VacancyCard({ vacancy: v, showCompany, onEdit, onDelete, onCopyLink, onToggleStatus, onViewCandidates }: {
   vacancy: Vacancy;
+  showCompany: boolean;
   onViewCandidates: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -215,7 +218,7 @@ function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus,
             {STATUS_LABELS[v.status]}
           </span>
         </div>
-        <p style={{ fontSize: 12.5, color: 'var(--accent-text)', fontWeight: 600 }}>{v.company}</p>
+        {showCompany && <p style={{ fontSize: 12.5, color: 'var(--accent-text)', fontWeight: 600 }}>{v.company}</p>}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -249,39 +252,30 @@ function VacancyCard({ vacancy: v, onEdit, onDelete, onCopyLink, onToggleStatus,
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
-            {v.applicants_count ?? 0} aplicantes
-          </span>
+      <div className="vac-foot">
+        <div className="vac-meta">
+          <button type="button" className="btn-save vac-main" onClick={onViewCandidates}>
+            <Icon name="users" size={14} /> Ver postulantes ({v.applicants_count ?? 0})
+          </button>
           {v.deadline && (
-            <span style={{ fontSize: 11, color: new Date(v.deadline) < new Date() ? 'var(--red)' : 'var(--text-3)' }}>
-              · Cierra {new Date(v.deadline).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+            <span style={{ fontSize: 11.5, color: new Date(v.deadline) < new Date() ? 'var(--red)' : 'var(--text-3)' }}>
+              Cierra {new Date(v.deadline).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 5 }}>
-          <button onClick={onCopyLink} title="Copiar link de aplicación"
-            style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 12, transition: 'color 120ms' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-text)')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+        <div className="vac-actions">
+          <button type="button" className="vac-btn" onClick={onCopyLink}>
+            <Icon name="link" size={13} /> Copiar enlace
           </button>
-          <button onClick={onViewCandidates} title="Ver candidatos" aria-label="Ver candidatos de la vacante"
-            style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 12, display: 'flex', alignItems: 'center', transition: 'color 120ms' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-text)')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          <button type="button" className={`vac-btn ${v.status === 'active' ? 'pause' : 'play'}`} onClick={onToggleStatus}>
+            <Icon name={v.status === 'active' ? 'pause' : 'play'} size={13} /> {v.status === 'active' ? 'Pausar' : 'Activar'}
           </button>
-          <button onClick={onToggleStatus} title={v.status === 'active' ? 'Pausar' : 'Activar'} aria-label={v.status === 'active' ? 'Pausar vacante' : 'Activar vacante'}
-            style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: v.status === 'active' ? 'var(--yellow)' : 'var(--green)', display: 'grid', placeItems: 'center' }}>
-            <Icon name={v.status === 'active' ? 'pause' : 'play'} size={13} />
+          <button type="button" className="vac-btn" onClick={onEdit}>
+            <Icon name="edit" size={13} /> Editar
           </button>
-          <button onClick={onEdit} title="Editar"
-            style={{ padding: '5px 9px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 12 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <button type="button" className="vac-btn danger" onClick={onDelete}>
+            <Icon name="trash" size={13} /> Eliminar
           </button>
-          <button onClick={onDelete} className="btn-danger-sm" title="Eliminar">×</button>
         </div>
       </div>
     </div>

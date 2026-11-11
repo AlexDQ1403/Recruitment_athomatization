@@ -159,7 +159,7 @@ export const LoginForm = () => {
               onChange={(e) => setPassword(e.target.value)}
               onFocus={() => setField('password')}
               onBlur={() => setField('none')}
-              placeholder="••••••••"
+              placeholder="Tu contraseña"
               autoComplete="current-password"
               required
             />

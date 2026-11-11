@@ -10,7 +10,7 @@ import { cvToText, CvReadError } from '../services/cvText';
 import { extractCvDraft } from '../services/cvExtract';
 import { COMMON_SKILLS, computeVacancyMatch, MatchCandidate, MatchVacancy, skillsMentioned } from '../services/vacancyMatch';
 import { adviseCv } from '../services/cvAdvice';
-import { searchExternalJobs, findExternalJob, ExternalJob } from '../services/externalJobs';
+import { searchExternalJobs, findExternalJob, ExternalJob, ExternalJobsStore } from '../services/externalJobs';
 import { computeCandidateDashboard, ExternalApp } from '../services/candidateDashboard';
 import { MAX_RESUME_BYTES, RESUMES_BUCKET, ResumeError, resumeLink, resumePathOf, uploadResume } from '../services/resumeStorage';
 
@@ -798,6 +798,36 @@ router.patch('/applications/:id', async (req: AuthenticatedRequest, res: Respons
 // ─── Ofertas de otros sitios web ───────────────────────────────────────────
 
 const isMissingTable = (e: { code?: string } | null) => !!e && (e.code === '42P01' || e.code === 'PGRST205');
+
+/** Caché de ofertas y consumo de SerpApi en Supabase (migración 032) */
+const externalJobsStore: ExternalJobsStore = {
+  async get(key) {
+    const { data, error } = await supabaseAdmin.from('external_jobs_cache').select('jobs, sources, fetched_at').eq('cache_key', key).maybeSingle();
+    if (error) throw error;
+    return data ? { at: new Date(data.fetched_at as string).getTime(), jobs: data.jobs as ExternalJob[], sources: data.sources } : null;
+  },
+  async set(key, query, location, entry) {
+    const { error } = await supabaseAdmin.from('external_jobs_cache').upsert({
+      cache_key: key, query, location, jobs: entry.jobs, sources: entry.sources, fetched_at: new Date(entry.at).toISOString(),
+    });
+    if (error) throw error;
+  },
+  async findJob(id) {
+    const { data, error } = await supabaseAdmin.from('external_jobs_cache').select('jobs')
+      .contains('jobs', [{ id }]).order('fetched_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    return ((data?.jobs as ExternalJob[] | undefined) ?? []).find((j) => j.id === id) ?? null;
+  },
+  async usage(month) {
+    const { data, error } = await supabaseAdmin.from('serpapi_usage').select('searches').eq('month', month).maybeSingle();
+    if (error) throw error;
+    return (data?.searches as number | undefined) ?? 0;
+  },
+  async addUsage(month) {
+    const { error } = await supabaseAdmin.rpc('increment_serpapi_usage', { p_month: month });
+    if (error) throw error;
+  },
+};
 const EXTERNAL_TABLE_PENDING = 'El registro de postulaciones externas estará disponible cuando se aplique una actualización pendiente de la base de datos.';
 const EXTERNAL_FIELDS = 'id, source, title, company, location, url, status, match_score, note, applied_at, status_changed_at';
 const MAX_EXTERNAL_SHOWN = 40;
@@ -834,7 +864,9 @@ router.get('/external-jobs', async (req: AuthenticatedRequest, res: Response): P
     const [search, appliedRes, vocabulary] = await Promise.all([
       searchExternalJobs(query, candidate.location ?? null, {
         serpApiKey: config.SERPAPI_API_KEY,
-        onError: (source, err) => logger.warn('Ofertas externas: una fuente falló', { source, error: err instanceof Error ? err.message : String(err) }),
+        store: externalJobsStore,
+        monthlyLimit: config.SERPAPI_MONTHLY_LIMIT,
+        onError: (source, err) => logger.warn('Ofertas externas: una fuente falló', { source, error: err instanceof Error ? err.message : JSON.stringify(err) }),
       }),
       supabaseAdmin.from('external_applications').select('url').eq('candidate_profile_id', profileId),
       skillVocabulary(candidate),
@@ -848,7 +880,7 @@ router.get('/external-jobs', async (req: AuthenticatedRequest, res: Response): P
       .sort((a, b) => b.match.score - a.match.score || String(b.published_at ?? '').localeCompare(String(a.published_at ?? '')))
       .slice(0, MAX_EXTERNAL_SHOWN);
 
-    res.json({ query, sources: search.sources, jobs, google_enabled: !!config.SERPAPI_API_KEY });
+    res.json({ query, sources: search.sources, jobs, google_enabled: !!config.SERPAPI_API_KEY, fetched_at: search.fetched_at });
   } catch (err) {
     logger.error('Error buscando ofertas externas', { error: String(err) });
     res.status(500).json({ error: 'Error interno' });
@@ -857,7 +889,7 @@ router.get('/external-jobs', async (req: AuthenticatedRequest, res: Response): P
 
 // POST /api/me/external-jobs/:id/advice — consejos de HV para una oferta externa vista hace poco
 router.post('/external-jobs/:id/advice', aiLimiter, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const job = findExternalJob(String(req.params.id));
+  const job = await findExternalJob(String(req.params.id), externalJobsStore);
   if (!job) {
     res.status(404).json({ error: 'Esa oferta ya no está en memoria. Vuelve a cargar las ofertas de otros sitios.' });
     return;
@@ -922,7 +954,7 @@ router.post('/external-applications', async (req: AuthenticatedRequest, res: Res
 
     let row: { source: string; title: string; company: string | null; location: string | null; url: string; match_score: number | null };
     if ('job_id' in parsed.data) {
-      const job = findExternalJob(parsed.data.job_id);
+      const job = await findExternalJob(parsed.data.job_id, externalJobsStore);
       if (!job) {
         res.status(404).json({ error: 'Esa oferta ya no está en memoria. Vuelve a cargar las ofertas de otros sitios.' });
         return;

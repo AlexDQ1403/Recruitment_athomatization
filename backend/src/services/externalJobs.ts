@@ -21,12 +21,12 @@ export interface ExternalJob {
   description: string;
 }
 
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_DESCRIPTION = 2500;
 const MAX_KNOWN_JOBS = 3000;
 
-const cache = new Map<string, { at: number; jobs: ExternalJob[] }>();
+const cache = new Map<string, CacheEntry>();
 /** Ofertas vistas recientemente, por id: los consejos de HV se piden por id, no con texto del navegador. */
 const known = new Map<string, ExternalJob>();
 
@@ -163,25 +163,89 @@ async function fromGoogleJobs(query: string, location: string | null, apiKey: st
 
 // ─── Búsqueda combinada ────────────────────────────────────────────────────
 
+type SourceStatus = { source: ExternalSource; ok: boolean; count: number; skipped?: 'presupuesto' };
+
 export interface ExternalSearch {
   jobs: ExternalJob[];
   /** Fuentes consultadas y si respondieron. */
-  sources: { source: ExternalSource; ok: boolean; count: number }[];
+  sources: SourceStatus[];
+  /** Cuándo se consultaron los portales */
+  fetched_at: string;
 }
+
+interface CacheEntry { at: number; jobs: ExternalJob[]; sources: SourceStatus[] }
+
+/** Caché y consumo de SerpApi que sobreviven a reinicios (Supabase) */
+export interface ExternalJobsStore {
+  get(key: string): Promise<CacheEntry | null>;
+  set(key: string, query: string, location: string | null, entry: CacheEntry): Promise<void>;
+  findJob(id: string): Promise<ExternalJob | null>;
+  /** Búsquedas de SerpApi del mes ('YYYY-MM'). */
+  usage(month: string): Promise<number>;
+  addUsage(month: string): Promise<void>;
+}
+
+/** Clave de caché: "Contadora", "contador" y "CONTADOR." comparten resultado */
+export function cacheKeyOf(query: string, location: string | null): string {
+  const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9ñ ]+/g, ' ').split(/\s+/).filter(Boolean)
+    .map((w) => (w.length > 4 ? w.replace(/ora$/, 'or').replace(/era$/, 'ero').replace(/([^aeiou])a$/, '$1o') : w))
+    .join(' ');
+  return `${norm(query)}|${norm(location ?? '')}`.slice(0, 300);
+}
+
+const monthOf = (d: Date) => d.toISOString().slice(0, 7);
 
 export async function searchExternalJobs(
   query: string,
   location: string | null,
-  opts: { serpApiKey?: string; onError?: (source: ExternalSource, err: unknown) => void } = {}
+  opts: {
+    serpApiKey?: string;
+    store?: ExternalJobsStore;
+    /** Tope mensual de búsquedas de SerpApi */
+    monthlyLimit?: number;
+    onError?: (source: ExternalSource | 'cache', err: unknown) => void;
+  } = {}
 ): Promise<ExternalSearch> {
-  const key = `${query.toLowerCase().trim()}|${(location ?? '').toLowerCase().trim()}|${opts.serpApiKey ? 'g' : ''}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
-    return { jobs: hit.jobs, sources: [...new Set(hit.jobs.map((j) => j.source))].map((s) => ({ source: s, ok: true, count: hit.jobs.filter((j) => j.source === s).length })) };
+  const key = cacheKeyOf(query, location) + (opts.serpApiKey ? '|g' : '');
+  const isFresh = (e: CacheEntry | null | undefined) => !!e && Date.now() - e.at < CACHE_TTL_MS;
+  const respond = (e: CacheEntry): ExternalSearch => {
+    for (const j of e.jobs) remember(j);
+    return { jobs: e.jobs, sources: e.sources, fetched_at: new Date(e.at).toISOString() };
+  };
+
+  const memo = cache.get(key);
+  if (memo && isFresh(memo)) return respond(memo);
+  let stored: CacheEntry | null = null;
+  try {
+    stored = (await opts.store?.get(key)) ?? null;
+  } catch (err) {
+    opts.onError?.('cache', err);
+  }
+  if (stored && isFresh(stored)) {
+    cache.set(key, stored);
+    return respond(stored);
+  }
+
+  // Al llegar al tope mensual solo se consulta Get on Board
+  let useGoogle = !!opts.serpApiKey;
+  const month = monthOf(new Date());
+  if (useGoogle && opts.store && opts.monthlyLimit !== undefined) {
+    try {
+      useGoogle = (await opts.store.usage(month)) < opts.monthlyLimit;
+    } catch (err) {
+      opts.onError?.('cache', err);
+    }
   }
 
   const providers: [ExternalSource, () => Promise<ExternalJob[]>][] = [['getonbrd', () => fromGetOnBoard(query)]];
-  if (opts.serpApiKey) providers.push(['google_jobs', () => fromGoogleJobs(query, location, opts.serpApiKey!)]);
+  if (useGoogle) {
+    providers.push(['google_jobs', async () => {
+      // SerpApi cobra aunque no haya ofertas
+      await opts.store?.addUsage(month).catch((err) => opts.onError?.('cache', err));
+      return fromGoogleJobs(query, location, opts.serpApiKey!);
+    }]);
+  }
 
   const results = await Promise.all(providers.map(async ([source, run]) => {
     try {
@@ -199,17 +263,34 @@ export async function searchExternalJobs(
     const k = `${j.title}|${j.company ?? ''}`.toLowerCase();
     return !seen.has(k) && seen.add(k);
   });
+  const sources: SourceStatus[] = results.map((r) => ({ source: r.source, ok: r.ok, count: r.jobs.length }));
+  if (opts.serpApiKey && !useGoogle) sources.push({ source: 'google_jobs', ok: false, count: 0, skipped: 'presupuesto' });
 
-  // Si alguna fuente falló no se guarda en caché: se reintenta en la próxima visita
-  if (results.every((r) => r.ok)) cache.set(key, { at: Date.now(), jobs });
-  for (const j of jobs) known.set(j.id, j);
-  while (known.size > MAX_KNOWN_JOBS) known.delete(known.keys().next().value as string);
+  // Si una fuente falló, mejor lo guardado aunque esté viejo
+  if (results.some((r) => !r.ok) && stored && stored.jobs.length >= jobs.length) return respond(stored);
 
-  return { jobs, sources: results.map((r) => ({ source: r.source, ok: r.ok, count: r.jobs.length })) };
+  const entry: CacheEntry = { at: Date.now(), jobs, sources };
+  // Solo se guarda lo completo; lo demás se reintenta en la próxima visita
+  if (results.every((r) => r.ok) && useGoogle === !!opts.serpApiKey) {
+    cache.set(key, entry);
+    await opts.store?.set(key, query, location, entry).catch((err) => opts.onError?.('cache', err));
+  }
+  return respond(entry);
 }
 
-/** Oferta externa vista recientemente (null si ya salió de la memoria). */
-export const findExternalJob = (id: string): ExternalJob | null => known.get(id) ?? null;
+function remember(j: ExternalJob) {
+  known.set(j.id, j);
+  while (known.size > MAX_KNOWN_JOBS) known.delete(known.keys().next().value as string);
+}
+
+/** Oferta vista recientemente: en memoria o en la caché guardada */
+export async function findExternalJob(id: string, store?: ExternalJobsStore): Promise<ExternalJob | null> {
+  const hit = known.get(id);
+  if (hit) return hit;
+  const job = await store?.findJob(id).catch(() => null);
+  if (job) remember(job);
+  return job ?? null;
+}
 
 /** Solo para pruebas. */
 export const clearExternalJobsCache = () => { cache.clear(); known.clear(); };

@@ -1,5 +1,5 @@
 'use client';
-import { useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '../../services/authService';
 import { AuthLayout, PasswordInput, SemiState, useIdleTips, useSemiEyes, useSemiRefs } from './AuthLayout';
@@ -23,6 +23,9 @@ export const ResetPasswordForm = () => {
   const [error, setError] = useState<string | null>(null);
   const [field, setField] = useState<Field>('none');
   const [showPassword, setShowPassword] = useState(false);
+  // Reclutador que llega desde el correo de invitación: crea su primera contraseña
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => { setWelcome(new URLSearchParams(window.location.search).has('bienvenida')); }, []);
   const { eyesRef, semiRef } = useSemiRefs();
 
   const tip = useIdleTips(field === 'none' && !loading && !done);
@@ -61,7 +64,9 @@ export const ResetPasswordForm = () => {
       return { pose: 'peek', mood: 'shy', say: 'Escríbela otra vez, sin mirar 🙈' };
     }
     if (tip >= 0) return IDLE_TIPS[tip % IDLE_TIPS.length];
-    return { pose: 'inicio', mood: 'happy', say: '¡Bienvenido de vuelta! Creemos una contraseña nueva.' };
+    return welcome
+      ? { pose: 'inicio', mood: 'happy', say: '¡Bienvenido al equipo! Crea tu contraseña para entrar.' }
+      : { pose: 'inicio', mood: 'happy', say: '¡Bienvenido de vuelta! Creemos una contraseña nueva.' };
   })();
 
   const handleSubmit = async (e: FormEvent) => {
@@ -96,8 +101,8 @@ export const ResetPasswordForm = () => {
       semiRef={semiRef}
     >
       <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Nueva contraseña</h2>
-        <p className={styles.cardSubtitle}>Elige una contraseña segura para tu cuenta</p>
+        <h2 className={styles.cardTitle}>{welcome ? 'Crea tu contraseña' : 'Nueva contraseña'}</h2>
+        <p className={styles.cardSubtitle}>{welcome ? 'Es la que usarás para entrar a Kmella' : 'Elige una contraseña segura para tu cuenta'}</p>
 
         {error && (
           <div className={styles.error} role="alert">

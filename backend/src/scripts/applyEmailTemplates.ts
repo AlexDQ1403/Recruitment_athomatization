@@ -17,6 +17,7 @@ const APP_URLS = ['http://localhost:3002', 'https://kmella-web.onrender.com'];
 const EMAILS = {
   confirmation: { subject: 'Confirma tu correo en Kmella', file: 'confirmacion.html' },
   recovery: { subject: 'Restablece tu contraseña de Kmella', file: 'recuperacion.html' },
+  invite: { subject: 'Te invitaron a Kmella: crea tu contraseña', file: 'invitacion.html' },
 } as const;
 
 async function main() {

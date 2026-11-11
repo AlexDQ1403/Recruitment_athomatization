@@ -144,8 +144,10 @@ export interface ExternalJob {
 
 export interface ExternalJobsResult {
   query: string | null;
-  sources: { source: ExternalJob['source']; ok: boolean; count: number }[];
+  sources: { source: ExternalJob['source']; ok: boolean; count: number; skipped?: 'presupuesto' }[];
   jobs: ExternalJob[];
+  /** Cuándo se consultaron los portales (los resultados se guardan 24 h) */
+  fetched_at?: string;
   /** Google Jobs (elempleo, Computrabajo, LinkedIn…) necesita SERPAPI_API_KEY en el backend. */
   google_enabled: boolean;
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { SearchHistory } from '../../types';
@@ -54,6 +54,18 @@ export const SearchHistoryView = () => {
     queryFn: fetchSearchHistory,
   });
 
+  // La misma búsqueda repetida se muestra una vez (la más reciente) con cuántas veces se hizo
+  const rows = useMemo(() => {
+    const byQuery = new Map<string, SearchHistory & { times: number }>();
+    for (const item of history) {
+      const key = item.query.trim().toLowerCase().replace(/\s+/g, ' ');
+      const seen = byQuery.get(key);
+      if (seen) seen.times++;
+      else byQuery.set(key, { ...item, times: 1 });
+    }
+    return [...byQuery.values()];
+  }, [history]);
+
   return (
     <div>
       <div className="page-header">
@@ -98,7 +110,7 @@ export const SearchHistoryView = () => {
                       </td>
                     </tr>
                   )
-                  : history.map((item) => (
+                  : rows.map((item) => (
                     <tr key={item.id} className="table-row">
                       <td style={{ color: 'var(--text-1)', fontWeight: 500, maxWidth: 360 }}>
                         <span style={{
@@ -107,6 +119,11 @@ export const SearchHistoryView = () => {
                         }}>
                           {item.query}
                         </span>
+                        {item.times > 1 && (
+                          <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', fontWeight: 400, marginTop: 2 }}>
+                            Buscada {item.times} veces
+                          </span>
+                        )}
                       </td>
                       <td>
                         <span style={{

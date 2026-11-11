@@ -8,6 +8,8 @@ export interface Recruiter {
   suspended?: boolean;
   last_login?: string | null;
   created_at?: string;
+  /** Invitado que aún no crea su contraseña */
+  invite_pending?: boolean;
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -27,11 +29,20 @@ export const recruiterService = {
     return data.recruiters ?? [];
   },
 
-  async create(email: string, password: string, fullName: string): Promise<Recruiter> {
+  async resendInvite(id: string): Promise<void> {
+    const res = await fetch(`/api/recruiters/${encodeURIComponent(id)}/invite`, { method: 'POST', headers: await authHeaders() });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error ?? 'No se pudo reenviar la invitación');
+    }
+  },
+
+  /** Invita al reclutador: le llega un correo para crear su propia contraseña. */
+  async create(email: string, fullName: string): Promise<Recruiter> {
     const res = await fetch('/api/recruiters', {
       method: 'POST',
       headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, full_name: fullName }),
+      body: JSON.stringify({ email, full_name: fullName }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

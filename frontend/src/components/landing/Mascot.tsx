@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CSSProperties, useEffect, useRef, useState } from 'react';
 import { SemiFigure } from './SemiFigure';
 import styles from './landing.module.css';
+import { useMotionReduced } from '../../lib/motion';
 
 // Lo que dice Semi en cada sección; mientras la persona se queda, va rotando los mensajes
 type Message = { text: string; cta?: { href: string; label: string } };
@@ -33,6 +34,8 @@ const MESSAGES: Record<string, Message[]> = {
   ],
 };
 const ROTATE_EVERY = 7000;
+// En el celular el globo se aparta mientras se desliza la página y vuelve al detenerse
+const MOBILE_SCROLL_IDLE_MS = 700;
 const SECTION_IDS = Object.keys(MESSAGES);
 const BASE_MOOD: Record<string, string> = {
   inicio: 'happy',
@@ -62,6 +65,8 @@ export function Mascot() {
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(true);
   const [covered, setCovered] = useState(false);
+  const [scrolling, setScrolling] = useState(false);
+  const motionReduced = useMotionReduced();
   const [anim, setAnim] = useState<{ key: number; kind: 'hop' | 'spin' }>({ key: 0, kind: 'hop' });
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -103,12 +108,27 @@ export function Mascot() {
 
   // Sigue conversando: cambia de mensaje cada tanto, solo mientras el globo se ve
   useEffect(() => {
-    if (!ready || !open || covered) return;
+    if (!ready || !open || covered || scrolling) return;
     const t = window.setTimeout(() => {
       setMsgIndex((i) => (i + 1) % MESSAGES[section].length);
     }, ROTATE_EVERY);
     return () => window.clearTimeout(t);
-  }, [ready, open, covered, section, msgIndex]);
+  }, [ready, open, covered, scrolling, section, msgIndex]);
+
+  useEffect(() => {
+    if (window.innerWidth >= 960) return;
+    let t = 0;
+    const onScroll = () => {
+      setScrolling(true);
+      window.clearTimeout(t);
+      t = window.setTimeout(() => setScrolling(false), MOBILE_SCROLL_IDLE_MS);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.clearTimeout(t);
+    };
+  }, []);
 
   wakeRef.current = () => setAnim((a) => ({ key: a.key + 1, kind: 'hop' }));
 
@@ -116,7 +136,7 @@ export function Mascot() {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduce = motionReduced;
 
     let y = window.innerHeight - 220;
     let vel = 0;
@@ -255,7 +275,7 @@ export function Mascot() {
       window.removeEventListener('pointermove', onPointer);
       window.removeEventListener('resize', onResize);
     };
-  }, []);
+  }, [motionReduced]);
 
   const list = MESSAGES[section];
   const msg = list[msgIndex % list.length];
@@ -266,7 +286,7 @@ export function Mascot() {
         <div
           ref={bubbleRef}
           className={styles.bubble}
-          data-hidden={!open || covered}
+          data-hidden={!open || covered || scrolling}
           role="status"
           aria-live="polite"
         >

@@ -11,6 +11,7 @@ import {
 import { CandidateProfileModal, ProfileTab } from '../chat/CandidateProfileModal';
 import { PipelineTable } from './PipelineTable';
 import { vacancyService } from '../../services/vacancyService';
+import { Icon } from '../ui/Icon';
 
 const PERIODS: { value: DashboardPeriod; label: string }[] = [
   { value: '7d', label: 'Últimos 7 días' },
@@ -91,13 +92,17 @@ export const RecruiterDashboardView = () => {
           <p>Hola, <strong style={{ color: 'var(--text-1)' }}>{user?.full_name ?? 'Usuario'}</strong>. Esto es lo que necesita tu atención.</p>
         </div>
         <div className="dash-filters" role="group" aria-label="Filtros">
-          <label>
+          <span className="dash-filters-title" aria-hidden="true"><Icon name="sliders" size={14} /> Filtros</span>
+          <label className="dash-filter">
+            <Icon name="calendar" size={14} className="dash-filter-icon" />
             <span className="sr-only">Periodo</span>
             <select value={filters.period} onChange={(e) => setFilters((f) => ({ ...f, period: e.target.value as DashboardPeriod }))} aria-label="Periodo">
               {PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
+            <Icon name="chevronDown" size={14} className="dash-filter-chevron" />
           </label>
-          <label>
+          <label className="dash-filter">
+            <Icon name="briefcase" size={14} className="dash-filter-icon" />
             <span className="sr-only">Vacante</span>
             <select value={filters.vacancyId ?? ''} onChange={(e) => setFilters((f) => ({ ...f, vacancyId: e.target.value || undefined }))} aria-label="Vacante">
               <option value="">Todas las vacantes</option>
@@ -105,13 +110,16 @@ export const RecruiterDashboardView = () => {
                 <option key={v.id} value={v.id}>{v.title}{v.status === 'paused' ? ' (pausada)' : ''}</option>
               ))}
             </select>
+            <Icon name="chevronDown" size={14} className="dash-filter-chevron" />
           </label>
-          <label>
+          <label className="dash-filter">
+            <Icon name="compass" size={14} className="dash-filter-icon" />
             <span className="sr-only">Origen</span>
             <select value={filters.source ?? ''} onChange={(e) => setFilters((f) => ({ ...f, source: (e.target.value || undefined) as CandidateSource | undefined }))} aria-label="Origen">
               <option value="">Todos los orígenes</option>
               {(Object.keys(SOURCE_LABELS) as CandidateSource[]).map((s) => <option key={s} value={s}>{SOURCE_LABELS[s]}</option>)}
             </select>
+            <Icon name="chevronDown" size={14} className="dash-filter-chevron" />
           </label>
         </div>
       </div>

@@ -13,18 +13,23 @@ export const RecruiterManagement = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
 
+  const resendMutation = useMutation({
+    mutationFn: (id: string) => recruiterService.resendInvite(id),
+    onSuccess: () => toast.success('Invitación reenviada'),
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'No se pudo reenviar la invitación'),
+  });
+
   const { data: recruiters = [], isLoading } = useQuery({
     queryKey: ['recruiters'],
     queryFn: () => recruiterService.list(),
   });
 
   const createMutation = useMutation({
-    mutationFn: ({ email, password, full_name }: FormData) =>
-      recruiterService.create(email, password, full_name),
+    mutationFn: ({ email, full_name }: FormData) => recruiterService.create(email, full_name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recruiters'] });
       setShowForm(false);
-      toast.success('Reclutador creado exitosamente');
+      toast.success('Invitación enviada: le llegará un correo para crear su contraseña');
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al crear reclutador'),
   });
@@ -78,7 +83,7 @@ export const RecruiterManagement = () => {
             <p>Administra el equipo de reclutamiento de tu empresa</p>
           </div>
           <button className="btn-primary" style={{ width: 'auto', padding: '10px 20px' }} onClick={() => setShowForm(true)}>
-            + Nuevo reclutador
+            + Invitar reclutador
           </button>
         </div>
 
@@ -128,7 +133,7 @@ export const RecruiterManagement = () => {
           <div className="modal-overlay" onClick={() => setShowForm(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h3>Crear reclutador</h3>
+                <h3>Invitar reclutador</h3>
                 <button onClick={() => setShowForm(false)} className="modal-close">×</button>
               </div>
               <CreateRecruiterForm
@@ -162,7 +167,7 @@ export const RecruiterManagement = () => {
                 ? (
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-3)' }}>
-                        Aún no hay reclutadores. Crea el primero para empezar.
+                        Aún no hay reclutadores. Invita al primero para empezar.
                       </td>
                     </tr>
                   )
@@ -177,11 +182,24 @@ export const RecruiterManagement = () => {
                       <td>{r.email}</td>
                       <td>{r.last_login ? new Date(r.last_login).toLocaleDateString('es-CO') : 'Nunca'}</td>
                       <td>
-                        <span className={`badge ${r.suspended ? 'badge-rejected' : 'badge-hired'}`}>
-                          {r.suspended ? 'Suspendido' : 'Activo'}
-                        </span>
+                        {r.invite_pending && !r.suspended ? (
+                          <span className="badge badge-pending" title="Aún no crea su contraseña">Invitación pendiente</span>
+                        ) : (
+                          <span className={`badge ${r.suspended ? 'badge-rejected' : 'badge-hired'}`}>
+                            {r.suspended ? 'Suspendido' : 'Activo'}
+                          </span>
+                        )}
                       </td>
-                      <td style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <td style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {r.invite_pending && (
+                          <button
+                            className="btn-secondary-sm"
+                            onClick={() => resendMutation.mutate(r.id)}
+                            disabled={resendMutation.isPending}
+                          >
+                            Reenviar invitación
+                          </button>
+                        )}
                         <button
                           className="btn-secondary-sm"
                           onClick={() => setEditTarget(r)}
@@ -198,8 +216,7 @@ export const RecruiterManagement = () => {
                         <button
                           className="btn-danger-sm"
                           onClick={() => setDeleteTarget(r)}
-                          title="Eliminar reclutador"
-                        >×</button>
+                        >Eliminar</button>
                       </td>
                     </tr>
                   ))
@@ -212,10 +229,10 @@ export const RecruiterManagement = () => {
   );
 };
 
-interface FormData { email: string; password: string; full_name: string; }
+interface FormData { email: string; full_name: string; }
 
 const CreateRecruiterForm = ({ onSubmit, loading, error }: { onSubmit: (d: FormData) => void; loading: boolean; error: string | null }) => {
-  const [form, setForm] = useState<FormData>({ email: '', password: '', full_name: '' });
+  const [form, setForm] = useState<FormData>({ email: '', full_name: '' });
   const [localError, setLocalError] = useState<string | null>(null);
 
   const set = (k: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -223,11 +240,7 @@ const CreateRecruiterForm = ({ onSubmit, loading, error }: { onSubmit: (d: FormD
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.password.length < 8) { setLocalError('La contraseña debe tener al menos 8 caracteres'); return; }
-    if (!/[a-zA-Z]/.test(form.password) || !/[0-9]/.test(form.password)) {
-      setLocalError('La contraseña debe ser alfanumérica (letras y números)');
-      return;
-    }
+    if (form.full_name.trim().length < 2) { setLocalError('Escribe el nombre completo'); return; }
     setLocalError(null);
     onSubmit(form);
   };
@@ -245,12 +258,11 @@ const CreateRecruiterForm = ({ onSubmit, loading, error }: { onSubmit: (d: FormD
         <label>Correo electrónico</label>
         <input type="email" value={form.email} onChange={set('email')} placeholder="juan@empresa.com" required />
       </div>
-      <div className="form-group">
-        <label>Contraseña</label>
-        <input type="password" value={form.password} onChange={set('password')} placeholder="Mínimo 8 caracteres alfanuméricos" required />
-      </div>
+      <p style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
+        Le enviaremos un correo de bienvenida para que cree su propia contraseña. Tú no necesitas conocerla.
+      </p>
       <button type="submit" className="btn-primary" disabled={loading}>
-        {loading ? 'Creando...' : 'Crear reclutador'}
+        {loading ? 'Enviando invitación...' : 'Enviar invitación'}
       </button>
     </form>
   );

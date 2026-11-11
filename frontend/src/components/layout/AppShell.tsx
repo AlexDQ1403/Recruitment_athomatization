@@ -4,6 +4,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { QueryProvider, createQueryClient } from '../ui/QueryProvider';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { ResponsiveTables } from '../ui/ResponsiveTables';
+import { AppGuide } from './AppGuide';
 import { LandingThemeProvider } from '../landing/ThemeToggle';
 import { getStoredUser, setStoredUser, clearAuth, ACCOUNT_UPDATED_EVENT } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
@@ -148,6 +150,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
           onClose={() => setSidebarOpen(false)}
         />
         <main className="main-content" id="main-content">{children}</main>
+        <ResponsiveTables rootId="main-content" />
+        <AppGuide role={user.role} pathname={pathname ?? ''} />
       </div>
     </QueryProvider>
     </LandingThemeProvider>

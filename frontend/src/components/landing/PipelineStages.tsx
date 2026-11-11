@@ -2,24 +2,26 @@
 import { CSSProperties, useEffect, useState } from 'react';
 import { useInView } from './Reveal';
 import styles from './landing.module.css';
+import { useMotionReduced } from '../../lib/motion';
 
 const PIPELINE = [
-  { label: 'En contacto', note: 'Primer acercamiento con el candidato' },
-  { label: 'Seguimiento', note: 'Entrevistas y evaluación en curso' },
-  { label: 'Rechazado', note: 'Cierra el ciclo con trazabilidad' },
+  { label: 'Contactado', note: 'Primer mensaje por WhatsApp, correo o LinkedIn' },
+  { label: 'Presentado', note: 'El reclutador lo aprueba para la vacante' },
+  { label: 'Siguiente fase', note: 'La empresa lo autoriza para entrevistas o pruebas' },
 ];
 
 // Las etapas aparecen en cascada y luego se ilumina una a la vez, como un candidato avanzando
 export function PipelineStages() {
   const { ref, inView } = useInView<HTMLOListElement>(0.3);
   const [active, setActive] = useState(-1);
+  const motionReduced = useMotionReduced();
 
   useEffect(() => {
     if (!inView) {
       setActive(-1);
       return;
     }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (motionReduced) return;
     let i = 0;
     const start = window.setTimeout(() => setActive(0), 900);
     const id = window.setInterval(() => {
@@ -30,7 +32,7 @@ export function PipelineStages() {
       window.clearTimeout(start);
       window.clearInterval(id);
     };
-  }, [inView]);
+  }, [inView, motionReduced]);
 
   return (
     <ol ref={ref} className={styles.stages} data-in={inView} data-cycling={active >= 0}>

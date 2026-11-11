@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Candidate, Vacancy } from '../../types';
 import { vacancyService, CreateVacancyInput } from '../../services/vacancyService';
 import { VacancyForm } from '../vacancies/VacancyForm';
@@ -33,19 +33,19 @@ export const VacancySuggestion = ({ role, query, reason, related = [], onCreated
   onCreated?: (vacancy: Match) => void;
   onDismiss: () => void;
 }) => {
-  const [match, setMatch] = useState<Match | null | undefined>(undefined);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<Match | null>(null);
   const [linkResult, setLinkResult] = useState<LinkResult | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    vacancyService.match(role)
-      .then((v) => !cancelled && setMatch(v))
-      .catch(() => !cancelled && setMatch(null));
-    return () => { cancelled = true; };
-  }, [role]);
+  const queryClient = useQueryClient();
+  // Una sola consulta por cargo aunque varios mensajes del chat la necesiten
+  const matchQuery = useQuery({
+    queryKey: ['vacancy-match', role],
+    queryFn: () => vacancyService.match(role).catch(() => null),
+    staleTime: 60_000,
+  });
+  const match: Match | null | undefined = matchQuery.isPending ? undefined : matchQuery.data ?? null;
 
   const linkTo = async (vacancyId: string) => {
     if (related.length === 0) return;
@@ -62,6 +62,7 @@ export const VacancySuggestion = ({ role, query, reason, related = [], onCreated
     onSuccess: async (v) => {
       setCreated({ id: v.id, title: v.title });
       setCreating(false);
+      queryClient.invalidateQueries({ queryKey: ['vacancy-match'] });
       onCreated?.({ id: v.id, title: v.title });
       await linkTo(v.id);
     },

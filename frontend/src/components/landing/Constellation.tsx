@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { LandingTheme, useLandingTheme } from './ThemeToggle';
+import { useMotionReduced } from '../../lib/motion';
 
 // Degradados de marca: del azul (#112454 y sus tonos) al rojo (#c81b1d)
 const PALETTES: Record<LandingTheme, string[]> = {
@@ -163,6 +164,7 @@ export function Constellation({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [shapeIndex, setShapeIndex] = useState(0);
+  const motionReduced = useMotionReduced();
   const { theme } = useLandingTheme();
   const paletteRef = useRef(PALETTES[theme]);
   paletteRef.current = PALETTES[theme];
@@ -173,7 +175,7 @@ export function Constellation({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduceMotion = motionReduced;
     const rand = seeded(20260925);
     const targets = SHAPES.map((s) => (s.path ? sampleIcon(s.path, count, rand) : sampleNetwork(count, rand)));
 
@@ -369,7 +371,7 @@ export function Constellation({
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerleave', onLeave);
     };
-  }, [count, ambient, scale]);
+  }, [count, ambient, scale, motionReduced]);
 
   return (
     <>

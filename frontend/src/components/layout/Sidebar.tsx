@@ -80,7 +80,7 @@ const EMPRESA_NAV = [
     section: 'Administración',
     items: [
       {
-        href: '/recruiters', label: 'Gestión de Reclutadores',
+        href: '/recruiters', label: 'Gestión de reclutadores',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
       },
       {
@@ -99,6 +99,10 @@ const ACCOUNT_NAV = [
       {
         href: '/profile', label: 'Mi perfil',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+      },
+      {
+        href: '/', label: 'Página de inicio',
+        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V9"/></svg>,
       },
     ],
   },
@@ -120,6 +124,10 @@ const CANDIDATO_NAV = [
         href: '/candidate/applications', label: 'Vacantes y postulaciones',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>,
       },
+      {
+        href: '/', label: 'Página de inicio',
+        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V9"/></svg>,
+      },
     ],
   },
 ];
@@ -133,6 +141,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
   const path = usePathname();
+  // '/' (página de inicio) solo cuenta como activa en la raíz: toda ruta empieza por '/'
+  const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
   const initials = user?.full_name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase() ?? '?';
 
   const sections = (() => {
@@ -165,8 +175,10 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
 
       <aside id="sidebar" className={`sidebar${open ? ' sidebar-open' : ''}`} aria-label="Navegación principal">
         <div className="sidebar-logo">
-          {/* misma marca que la web pública */}
-          <BrandLogo height={36} />
+          {/* misma marca que la web pública; lleva a la página de inicio */}
+          <Link href="/" aria-label="Ir a la página de inicio de Kmella" onClick={onClose}>
+            <BrandLogo height={36} />
+          </Link>
           {/* Botón cerrar en móvil */}
           <button
             className="sidebar-close-btn"
@@ -185,8 +197,8 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`nav-item${path.startsWith(item.href) ? ' active' : ''}`}
-                  aria-current={path.startsWith(item.href) ? 'page' : undefined}
+                  className={`nav-item${isActive(item.href) ? ' active' : ''}`}
+                  aria-current={isActive(item.href) ? 'page' : undefined}
                   onClick={onClose}
                 >
                   <span className="nav-icon">{item.icon}</span>

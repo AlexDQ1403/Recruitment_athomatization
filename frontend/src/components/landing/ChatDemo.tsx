@@ -2,24 +2,38 @@
 import { CSSProperties, useEffect, useState } from 'react';
 import { useInView } from './Reveal';
 import styles from './landing.module.css';
+import { useMotionReduced } from '../../lib/motion';
 
-// Ejemplos de lo que se le puede pedir al chat; rotan mientras la persona lee
-const EXAMPLES = [
+// Ejemplos de lo que se le puede pedir al chat; las tarjetas imitan el resultado real de la app
+type DemoCandidate = { name: string; title: string; meta: string; affinity: number; external?: boolean };
+const EXAMPLES: { query: string; candidates: DemoCandidate[] }[] = [
   {
     query: '“Desarrolladora backend en Bogotá, con tres años de Node y experiencia en PostgreSQL”',
-    results: ['Perfiles con 3 años o más en Node.js', 'Candidatos ubicados en Bogotá', 'PostgreSQL resaltado entre sus skills'],
+    candidates: [
+      { name: 'Laura Gómez', title: 'Desarrolladora Backend · Node.js', meta: 'Bogotá · 4 años', affinity: 91 },
+      { name: 'Andrés Rincón', title: 'Backend Developer · PostgreSQL', meta: 'Bogotá · 3 años', affinity: 78, external: true },
+    ],
   },
   {
     query: '“Diseñador UX/UI con portafolio, inglés avanzado y disponibilidad para trabajo remoto”',
-    results: ['Portafolio enlazado en el perfil', 'Inglés avanzado mencionado en la hoja de vida', 'Disponibles para modalidad remota'],
+    candidates: [
+      { name: 'Sebastián Mejía', title: 'Diseñador UX/UI · Figma', meta: 'Remoto · 5 años', affinity: 87 },
+      { name: 'Camila Duarte', title: 'Product Designer', meta: 'Medellín · 3 años', affinity: 72, external: true },
+    ],
   },
   {
     query: '“Analista de datos junior que sepa Python y Power BI, en Medellín”',
-    results: ['Perfiles junior o recién egresados', 'Python y Power BI entre sus skills', 'Candidatos ubicados en Medellín'],
+    candidates: [
+      { name: 'Valentina Ríos', title: 'Analista de datos · Python', meta: 'Medellín · 1 año', affinity: 89 },
+      { name: 'Julián Osorio', title: 'Analista BI · Power BI', meta: 'Envigado · 2 años', affinity: 74 },
+    ],
   },
   {
     query: '“Contadora con experiencia en NIIF y aspiración salarial hasta 4 millones”',
-    results: ['Experiencia en NIIF en su trayectoria', 'Aspiración salarial dentro del rango', 'Ordenados por coincidencia con el perfil'],
+    candidates: [
+      { name: 'Laura Medina', title: 'Contadora pública · NIIF', meta: 'Bogotá · 6 años', affinity: 92 },
+      { name: 'Karen Morales', title: 'Analista contable', meta: 'Bogotá · 4 años', affinity: 70, external: true },
+    ],
   },
 ];
 
@@ -32,6 +46,7 @@ export function ChatDemo() {
   const [index, setIndex] = useState(0);
   const [typed, setTyped] = useState(0);
   const [phase, setPhase] = useState<Phase>('idle');
+  const motionReduced = useMotionReduced();
   const query = EXAMPLES[index].query;
 
   // Arranca al entrar en pantalla y se reinicia al salir
@@ -45,7 +60,7 @@ export function ChatDemo() {
   }, [inView]);
 
   useEffect(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduce = motionReduced;
     let interval = 0;
     let timeout = 0;
 
@@ -79,7 +94,7 @@ export function ChatDemo() {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
     };
-  }, [phase, query.length]);
+  }, [phase, query.length, motionReduced]);
 
   // Transiciones al terminar de escribir o de borrar
   useEffect(() => {
@@ -123,15 +138,29 @@ export function ChatDemo() {
           <span />
           <span />
         </span>
-        Buscando en tu base de candidatos
+        Buscando en tu base y en LinkedIn
         </div>
       </div>
 
       <ul className={styles.chatResults} data-in={phase === 'done'}>
-        {EXAMPLES[index].results.map((r, i) => (
-          <li key={r} style={{ '--i': i } as CSSProperties}>
-            <span className={styles.dot} />
-            {r}
+        {EXAMPLES[index].candidates.map((c, i) => (
+          <li key={c.name} className={styles.candCard} style={{ '--i': i } as CSSProperties}>
+            <div className={styles.candHead}>
+              <div>
+                <p className={styles.candName}>{c.name}</p>
+                <p className={styles.candTitle}>{c.title}</p>
+              </div>
+              <span className={styles.candTag}>{c.external ? 'Búsqueda externa' : 'Tu base'}</span>
+            </div>
+            <div className={styles.candAffinity}>
+              <span className={styles.affBar}><span style={{ width: `${c.affinity}%` }} /></span>
+              <b>{c.affinity} %</b> afinidad
+              <span className={styles.candMeta}>{c.meta}</span>
+            </div>
+            <div className={styles.candActions}>
+              <span className={styles.btnOk}>Contactar</span>
+              <span className={styles.linkish}>Ver perfil completo</span>
+            </div>
           </li>
         ))}
       </ul>

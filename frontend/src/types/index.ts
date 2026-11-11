@@ -32,8 +32,8 @@ export interface CandidateDecisionState {
 
 export const SOURCE_LABELS: Record<CandidateSource, string> = {
   'internal': 'Interno',
-  'scraping': 'Web Scraping',
-  'applicant': 'Solicitante',
+  'scraping': 'Búsqueda externa',
+  'applicant': 'Postulante',
 };
 
 export interface Company {

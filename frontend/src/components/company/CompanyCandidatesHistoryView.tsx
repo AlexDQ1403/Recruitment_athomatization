@@ -6,7 +6,7 @@ import { Candidate, CompanyCandidateProcess, STATUS_LABELS, CandidateStatus } fr
 import { CompanyDecisionControl } from './CompanyDecisionControl';
 import { CandidateProfileModal } from '../chat/CandidateProfileModal';
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
 const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 const STATUS_BADGE: Record<string, string> = {
@@ -70,9 +70,8 @@ export const CompanyCandidatesHistoryView = () => {
               <th>Candidato</th>
               <th>Cargo</th>
               <th>Reclutador responsable</th>
-              <th>Proceso / Oferta</th>
+              <th>Vacante</th>
               <th>Presentado</th>
-              <th>Proceso</th>
               <th>Tu decisión</th>
             </tr>
           </thead>
@@ -80,13 +79,13 @@ export const CompanyCandidatesHistoryView = () => {
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="skeleton-row">
-                    {Array.from({ length: 7 }).map((__, j) => <td key={j}><div className="skeleton" /></td>)}
+                    {Array.from({ length: 6 }).map((__, j) => <td key={j}><div className="skeleton" /></td>)}
                   </tr>
                 ))
               : processes.length === 0
               ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-3)', fontSize: 13 }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-3)', fontSize: 13 }}>
                       Todavía no hay candidatos aceptados. Aparecerán aquí cuando un reclutador los apruebe.
                     </td>
                   </tr>
@@ -125,7 +124,7 @@ function ProcessRow({ process: p, expanded, onToggle, onOpen }: {
             <button
               type="button"
               className="result-link"
-              style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', fontSize: 12 }}
+              style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}
               onClick={(e) => { e.stopPropagation(); onOpen(); }}
               aria-label={`Ver perfil de ${p.candidate.full_name}`}
             >Ver perfil</button>
@@ -134,13 +133,12 @@ function ProcessRow({ process: p, expanded, onToggle, onOpen }: {
         <td>{p.candidate.position ?? '—'}</td>
         <td>{p.recruiter?.full_name ?? 'Sin asignar'}</td>
         <td>{p.vacancy?.title ?? '—'}</td>
-        <td style={{ color: 'var(--text-3)', fontSize: 12 }}>{p.presented_at ? fmtDate(p.presented_at) : '—'}</td>
-        <td><span className={`badge ${STATUS_BADGE[p.status] ?? ''}`}>{STATUS_LABELS[p.status as CandidateStatus] ?? p.status}</span></td>
+        <td style={{ color: 'var(--text-3)', fontSize: 12, whiteSpace: 'nowrap' }}>{p.presented_at ? fmtDate(p.presented_at) : '—'}</td>
         <td onClick={(e) => e.stopPropagation()}><CompanyDecisionControl candidate={{ kind: p.kind, id: p.candidate.id, full_name: p.candidate.full_name }} decision={p.decision} /></td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={7} style={{ background: 'var(--surface-2)', padding: '14px 20px' }}>
+          <td colSpan={6} style={{ background: 'var(--surface-2)', padding: '14px 20px' }}>
             <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               {p.candidate.location && <span>Ubicación: {p.candidate.location}</span>}
               {p.candidate.experience_years !== null && <span>Experiencia: {p.candidate.experience_years} años</span>}

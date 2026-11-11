@@ -86,8 +86,8 @@ describe('RecruiterDashboardView', () => {
   it('orígenes con su tasa de aprobación', async () => {
     renderView();
     const sources = within((await screen.findByRole('heading', { name: /De dónde salen/ })).closest('section')!);
-    expect(sources.getByText('Web Scraping').closest('li')).toHaveTextContent('3 % aprobados');
-    expect(sources.getByText('Solicitante').closest('li')).toHaveTextContent('10 % aprobados · 1 autorizado');
+    expect(sources.getByText('Búsqueda externa').closest('li')).toHaveTextContent('3 % aprobados');
+    expect(sources.getByText('Postulante').closest('li')).toHaveTextContent('10 % aprobados · 1 autorizado');
   });
 
   it('los filtros vuelven a consultar con periodo, vacante y origen', async () => {

@@ -1,10 +1,12 @@
 import Link from 'next/link';
+import { CANDIDATE_FEATURES, COMPANY_FEATURES, FeatureList, JobSearchMock } from './Audience';
 import { ChatDemo } from './ChatDemo';
 import { Constellation } from './Constellation';
 import { NavActions } from './NavActions';
 import { Logo } from './Logo';
 import { Mascot } from './Mascot';
 import { MobileMenu } from './MobileMenu';
+import { MotionToggle } from './MotionToggle';
 import { PipelineStages } from './PipelineStages';
 import { Reveal, SplitWords } from './Reveal';
 import { RoleShowcase } from './RoleShowcase';
@@ -19,11 +21,12 @@ export function LandingPage() {
         <div className={styles.nav}>
           <Logo />
           <nav className={styles.navLinks} aria-label="Secciones">
-            <a href="#chat" className={styles.navLink}>Búsqueda IA</a>
-            <a href="#pipeline" className={styles.navLink}>Pipeline</a>
-            <a href="#roles" className={styles.navLink}>Para quién</a>
+            <a href="#empresas" className={styles.navLink}>Para empresas</a>
+            <a href="#candidatos" className={styles.navLink}>Para candidatos</a>
+            <a href="#pipeline" className={styles.navLink}>Cómo funciona</a>
           </nav>
           <div className={styles.navActions}>
+            <MotionToggle />
             <ThemeToggle />
             <NavActions />
             <MobileMenu />
@@ -42,14 +45,16 @@ export function LandingPage() {
             </Reveal>
             <Reveal delay={500}>
               <p className={styles.body}>
-                Escribe «desarrolladora Python, tres años, Bogotá» y Kmella revisa tu
-                base de candidatos por ti. Vacantes, postulaciones y tu equipo de
-                reclutamiento quedan en el mismo lugar.
+                Kmella une a las empresas que buscan talento con las personas que
+                buscan empleo. Las empresas encuentran candidatos escribiendo lo que
+                necesitan; los candidatos suben su hoja de vida y ven primero las
+                vacantes que más se ajustan a ellos.
               </p>
             </Reveal>
             <Reveal delay={620}>
               <div className={styles.ctaRow}>
-                <Link href="/register" className={styles.pill}>Crear cuenta</Link>
+                <Link href="/register/company" className={styles.pill}>Soy empresa</Link>
+                <Link href="/register/candidate" className={styles.pillGhost}>Busco empleo</Link>
                 <Link href="/login" className={styles.textLink}>Ya tengo cuenta</Link>
               </div>
             </Reveal>
@@ -57,6 +62,15 @@ export function LandingPage() {
           <div className={styles.heroVisual}>
             <Constellation className={styles.canvas} captionClassName={styles.shapeCaption} />
           </div>
+        </section>
+
+        {/* ─── Para empresas y reclutadores ─────────────── */}
+        <section id="empresas" className={styles.section}>
+          <Reveal>
+            <p className={styles.eyebrow}>Para empresas y reclutadores</p>
+            <h2 className={styles.headingLg}>Encuentra, contacta y decide en un solo lugar.</h2>
+          </Reveal>
+          <FeatureList items={COMPANY_FEATURES} />
         </section>
 
         {/* ─── Búsqueda por chat ────────────────────────── */}
@@ -67,9 +81,10 @@ export function LandingPage() {
             </Reveal>
             <Reveal delay={120}>
               <p className={styles.body}>
-                Una frase basta. La búsqueda entiende ciudad, años de experiencia y
-                habilidades, te muestra los perfiles más cercanos y guarda cada
-                consulta en tu historial para retomarla después.
+                Una frase basta. La búsqueda entiende cargo, ciudad, años de
+                experiencia y salario, y ordena los perfiles por afinidad. Desde el
+                mismo resultado contactas por WhatsApp, correo o LinkedIn con un
+                mensaje ya redactado, y cada búsqueda queda en tu historial.
               </p>
             </Reveal>
           </div>
@@ -84,9 +99,9 @@ export function LandingPage() {
             </Reveal>
             <Reveal delay={120}>
               <p className={styles.body}>
-                Mueve a cada persona entre etapas desde la tabla o el tablero, deja
-                notas y revisa quién cambió qué. El dashboard te dice cómo va el
-                proceso sin abrir una hoja de cálculo.
+                El reclutador contacta y presenta a cada candidato para una vacante;
+                la empresa decide quién pasa a la siguiente fase y deja el motivo. El
+                dashboard muestra qué hacer hoy y dónde se pierden candidatos.
               </p>
             </Reveal>
           </div>
@@ -101,6 +116,23 @@ export function LandingPage() {
           <RoleShowcase />
         </section>
 
+        {/* ─── Para quienes buscan empleo ───────────────── */}
+        <section id="candidatos" className={styles.split}>
+          <div className={styles.splitText}>
+            <Reveal>
+              <p className={styles.eyebrow}>Para quienes buscan empleo</p>
+              <h2 className={styles.headingLg}>Tu búsqueda de empleo, en orden.</h2>
+            </Reveal>
+            <FeatureList items={CANDIDATE_FEATURES} />
+            <Reveal delay={320}>
+              <div className={styles.ctaRow}>
+                <Link href="/register/candidate" className={styles.pill}>Crear mi perfil</Link>
+              </div>
+            </Reveal>
+          </div>
+          <JobSearchMock />
+        </section>
+
         {/* ─── Cierre ───────────────────────────────────── */}
         <section id="empezar" className={`${styles.split} ${styles.closing}`}>
           <div className={styles.splitText}>
@@ -110,8 +142,8 @@ export function LandingPage() {
             <Reveal delay={120}>
               <p className={styles.body}>
                 Las empresas crean su cuenta e invitan a sus reclutadores en pocos
-                minutos. Si buscas empleo, sube tu hoja de vida y mira qué vacantes
-                encajan contigo.
+                minutos. Si buscas empleo, sube tu hoja de vida: verás qué vacantes
+                encajan contigo y cómo ajustar tu HV para cada una.
               </p>
             </Reveal>
             <Reveal delay={240}>
@@ -130,17 +162,17 @@ export function LandingPage() {
           <Reveal className={styles.footerBrand}>
             <Logo height={44} variant="onred" />
             <p className={styles.bodyMuted}>
-              Vacantes, candidatos y equipos de reclutamiento en un mismo lugar,
-              con búsqueda en lenguaje natural.
+              Reclutamiento con IA para empresas, reclutadores y personas que
+              buscan empleo en Colombia.
             </p>
           </Reveal>
 
           <Reveal delay={100}>
             <nav className={styles.footerCol} aria-label="Explorar">
               <p className={styles.footerTitle}>Producto</p>
-              <a href="#chat">Búsqueda por chat</a>
-              <a href="#pipeline">Pipeline de candidatos</a>
-              <a href="#roles">Para quién es</a>
+              <a href="#empresas">Para empresas</a>
+              <a href="#candidatos">Para candidatos</a>
+              <a href="#pipeline">Cómo funciona</a>
             </nav>
           </Reveal>
 

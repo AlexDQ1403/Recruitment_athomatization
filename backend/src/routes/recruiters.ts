@@ -17,45 +17,49 @@ const recruiterLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// POST /api/recruiters - Crear recruiter (empresa-only)
+// La invitación lleva a crear la contraseña; debe estar en las redirecciones permitidas de Supabase
+const WELCOME_REDIRECT = `${config.CORS_ORIGIN.replace(/\/+$/, '')}/reset-password?bienvenida=1`;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * POST /api/recruiters — la empresa invita a un reclutador.
+ * Supabase le envía el correo de bienvenida (plantilla invitacion.html) con un
+ * enlace para crear SU contraseña: la empresa nunca la conoce.
+ */
 router.post(
   '/',
   recruiterLimiter,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      // Validar que sea empresa
       if (req.locals?.profile?.role !== 'empresa') {
         res.status(403).json({ error: 'Solo empresas pueden crear reclutadores' });
         return;
       }
 
       const companyId = req.locals.companyId;
-      const { email, password, full_name } = req.body;
+      const email = String(req.body?.email ?? '').trim().toLowerCase();
+      const full_name = String(req.body?.full_name ?? '').trim();
 
-      if (!email || !password || !full_name) {
-        res.status(400).json({ error: 'email, password y full_name son requeridos' });
+      if (!EMAIL_RE.test(email) || full_name.length < 2) {
+        res.status(400).json({ error: 'Escribe el nombre y un correo válido' });
         return;
       }
 
-      if (password.length < 8) {
-        res.status(400).json({ error: 'Contraseña mínimo 8 caracteres' });
-        return;
-      }
+      const { data: company } = await supabaseAdmin.from('companies').select('name').eq('id', companyId).maybeSingle();
 
-      // Crear usuario en auth
-      const { data, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        user_metadata: { full_name, role: 'recruiter' },
-        email_confirm: true,
+      const { data, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: WELCOME_REDIRECT,
+        // Datos que usa la plantilla del correo
+        data: { full_name, role: 'recruiter', account_type: 'reclutador', company_name: company?.name ?? null },
       });
 
-      if (createError) {
-        res.status(400).json({ error: createError.message });
+      if (inviteError || !data?.user) {
+        const exists = /already|registered|exists/i.test(inviteError?.message ?? '');
+        logger.warn('Invitación de reclutador rechazada', { companyId, error: inviteError?.message });
+        res.status(400).json({ error: exists ? 'Ya existe una cuenta con ese correo' : 'No se pudo enviar la invitación' });
         return;
       }
 
-      // Crear profile con company_id
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .upsert({
@@ -72,25 +76,25 @@ router.post(
         return;
       }
 
-      // Log a recruiter_audit_log
       await supabaseAdmin.from('recruiter_audit_log').insert({
         company_id: companyId,
         recruiter_id: data.user.id,
         action: 'created',
         changed_by: req.locals.user?.id,
-        changes: { email, full_name, role: 'recruiter' },
+        changes: { email, full_name, role: 'recruiter', invited: true },
       });
 
-      logger.info('Recruiter creado', { companyId, recruiterId: data.user.id, email });
+      logger.info('Reclutador invitado', { companyId, recruiterId: data.user.id });
       res.status(201).json({
         id: data.user.id,
         email,
         full_name,
         role: 'recruiter',
         company_id: companyId,
+        invited: true,
       });
     } catch (err) {
-      logger.error('Error creando recruiter', { error: String(err) });
+      logger.error('Error invitando reclutador', { error: String(err) });
       res.status(500).json({ error: 'Error interno' });
     }
   }
@@ -126,9 +130,56 @@ router.get(
         return;
       }
 
-      res.json({ recruiters: data, total: count || 0, limit, offset });
+      // Invitación pendiente: nunca entró y aún no confirma su correo (no ha creado su contraseña)
+      const recruiters = await Promise.all((data ?? []).map(async (r) => {
+        if (r.last_login) return { ...r, invite_pending: false };
+        const { data: auth } = await supabaseAdmin.auth.admin.getUserById(r.id as string);
+        return { ...r, invite_pending: !!auth?.user && !auth.user.email_confirmed_at };
+      }));
+
+      res.json({ recruiters, total: count || 0, limit, offset });
     } catch (err) {
       logger.error('Error listando recruiters', { error: String(err) });
+      res.status(500).json({ error: 'Error interno' });
+    }
+  }
+);
+
+// POST /api/recruiters/:id/invite — reenviar la invitación a quien aún no crea su contraseña
+router.post(
+  '/:id/invite',
+  recruiterLimiter,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      if (req.locals?.profile?.role !== 'empresa') {
+        res.status(403).json({ error: 'No autorizado' });
+        return;
+      }
+      const companyId = req.locals.companyId;
+      const { data: recruiter } = await supabaseAdmin
+        .from('profiles').select('id, email, full_name, role, company_id').eq('id', req.params.id).single();
+      if (!recruiter || recruiter.company_id !== companyId || recruiter.role !== 'recruiter') {
+        res.status(404).json({ error: 'Reclutador no encontrado' });
+        return;
+      }
+      const { data: auth } = await supabaseAdmin.auth.admin.getUserById(recruiter.id as string);
+      if (auth?.user?.email_confirmed_at) {
+        res.status(409).json({ error: 'Ya creó su contraseña: puede entrar con su correo' });
+        return;
+      }
+      const { data: company } = await supabaseAdmin.from('companies').select('name').eq('id', companyId).maybeSingle();
+      const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(recruiter.email as string, {
+        redirectTo: WELCOME_REDIRECT,
+        data: { full_name: recruiter.full_name, role: 'recruiter', account_type: 'reclutador', company_name: company?.name ?? null },
+      });
+      if (error) {
+        logger.warn('Reenvío de invitación rechazado', { companyId, error: error.message });
+        res.status(400).json({ error: 'No se pudo reenviar la invitación' });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      logger.error('Error reenviando invitación', { error: String(err) });
       res.status(500).json({ error: 'Error interno' });
     }
   }
