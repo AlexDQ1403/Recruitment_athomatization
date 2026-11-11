@@ -1,6 +1,7 @@
 import { Scope_One } from 'next/font/google';
 import { ReactNode } from 'react';
 import { LandingThemeProvider } from './ThemeToggle';
+import { StorageNotice } from '../legal/StorageNotice';
 
 const scopeOne = Scope_One({
   subsets: ['latin'],
@@ -13,7 +14,10 @@ const scopeOne = Scope_One({
 export function SiteShell({ children }: { children: ReactNode }) {
   return (
     <div className={scopeOne.variable}>
-      <LandingThemeProvider>{children}</LandingThemeProvider>
+      <LandingThemeProvider>
+        {children}
+        <StorageNotice />
+      </LandingThemeProvider>
     </div>
   );
 }

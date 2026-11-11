@@ -1,4 +1,5 @@
 /** Mensaje de primer contacto y enlaces para abrirlo en WhatsApp o en el correo */
+import { LEGAL } from './legal';
 
 export interface ContactMessageInput {
   fullName: string;
@@ -7,6 +8,12 @@ export interface ContactMessageInput {
   location?: string | null;
   recruiterName?: string | null;
   companyName?: string | null;
+  /**
+   * El perfil salió de una fuente pública (LinkedIn). La persona no nos dio sus datos:
+   * en el primer contacto le decimos de dónde salieron y cómo pedir que los borremos
+   * (Ley 1581 de 2012, deber de informar al titular).
+   */
+  foundOnline?: boolean;
 }
 
 /** "LAURA marcela ríos" → "Laura". */
@@ -38,6 +45,13 @@ export function buildContactMessage(input: ContactMessageInput): { subject: stri
     `${intro} ${interest}`,
     '¿Te gustaría que conversáramos unos minutos esta semana para contarte los detalles? Quedo pendiente de tu respuesta.',
     'Muchas gracias.',
+    ...(input.foundOnline
+      ? [
+          'P. D.: Encontré tu perfil profesional publicado en internet y solo lo usamos para proponerte esta oportunidad. ' +
+            `Si prefieres que no te contactemos y que borremos tus datos, respóndeme o escribe a ${LEGAL.email}. ` +
+            `Política de datos: ${LEGAL.site}/privacidad`,
+        ]
+      : []),
   ].join('\n\n');
 
   const subject = [role ? `Oportunidad laboral: ${role}` : 'Oportunidad laboral', input.companyName?.trim()]

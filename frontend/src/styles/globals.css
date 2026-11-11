@@ -2354,3 +2354,15 @@ html[data-motion='paused'] *::after {
   .week-bars { gap: 4px; padding: 12px 8px 0; }
   .week-label { font-size: 9.5px; white-space: normal; text-align: center; line-height: 1.2; }
 }
+
+/* ── Autorización de datos pendiente (ConsentGate.tsx) ── */
+.consent-overlay { z-index: 120; }
+.modal.consent-modal { max-width: 500px; display: flex; flex-direction: column; gap: 14px; }
+.consent-modal h2 { font-size: 1.2rem; }
+.consent-modal p { color: var(--text-2); line-height: 1.55; font-size: 14px; }
+.consent-docs { display: grid; gap: 6px; padding-left: 18px; font-size: 14px; }
+.consent-docs a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.consent-check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--text-1); cursor: pointer; line-height: 1.5; }
+.consent-check input { flex: none; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
+.consent-error { color: var(--red) !important; }
+.consent-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 4px; }

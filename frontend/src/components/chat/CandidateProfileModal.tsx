@@ -71,6 +71,7 @@ export const CandidateProfileModal = ({ candidate, initialTab = 'perfil', onClos
           location: p.location,
           recruiterName: p.sender.recruiter_name,
           companyName: p.sender.company_name,
+          foundOnline: p.kind === 'legacy' && p.source === 'scraping',
         });
         setSubject(draft.subject);
         setMessage(draft.body);

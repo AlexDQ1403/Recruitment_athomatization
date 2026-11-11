@@ -4,6 +4,8 @@ export interface CompanyRegistration {
   full_name: string;
   email: string;
   password: string;
+  /** Autorización de datos (Ley 1581): el backend rechaza el registro sin ella */
+  accept_terms: true;
 }
 
 export interface CandidateRegistration {
@@ -13,6 +15,7 @@ export interface CandidateRegistration {
   position?: string;
   location?: string;
   experience_years?: number;
+  accept_terms: true;
 }
 
 export interface RegistrationResult {

@@ -78,6 +78,7 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
   const [done, setDone] = useState(false);
   const [field, setField] = useState<Field>('none');
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const { eyesRef, semiRef } = useSemiRefs();
 
   const tip = useIdleTips(field === 'none' && !loading && !done);
@@ -133,6 +134,10 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
       setError(passwordError);
       return;
     }
+    if (!acceptTerms) {
+      setError('Para crear la cuenta debes aceptar la Política de Tratamiento de Datos y los Términos y Condiciones.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -143,6 +148,7 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
           full_name: form.full_name.trim(),
           email: form.email.trim(),
           password: form.password,
+          accept_terms: true,
         });
       } else {
         await registerService.registerCandidate({
@@ -152,6 +158,7 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
           position: form.position.trim() || undefined,
           location: form.location.trim() || undefined,
           experience_years: form.experience_years ? Number(form.experience_years) : undefined,
+          accept_terms: true,
         });
       }
       setDone(true);
@@ -325,6 +332,21 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
                 </div>
               </>
             )}
+
+            {/* Autorización previa, expresa e informada (Ley 1581 de 2012): casilla sin marcar por defecto */}
+            <label className={styles.consent}>
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                required
+              />
+              <span>
+                Autorizo el tratamiento de mis datos personales según la{' '}
+                <Link href="/privacidad" target="_blank">Política de Tratamiento de Datos</Link> y acepto los{' '}
+                <Link href="/terminos" target="_blank">Términos y Condiciones</Link>. Declaro ser mayor de 18 años.
+              </span>
+            </label>
 
             <button type="submit" className={`${landing.pill} ${styles.submit}`} data-loading={loading} disabled={loading}>
               {loading ? 'Creando cuenta…' : copy.cta}

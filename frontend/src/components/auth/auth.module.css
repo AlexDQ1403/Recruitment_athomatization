@@ -593,3 +593,23 @@
   .submit, .field input { transition: none; }
   .choice, .rules li span { transition: none; }
 }
+
+/* Casilla de autorización de datos en el registro */
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--soft);
+  cursor: pointer;
+}
+.consent input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.consent a { color: var(--primary-text) !important; text-decoration: underline !important; text-underline-offset: 2px; }

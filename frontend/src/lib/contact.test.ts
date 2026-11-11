@@ -24,6 +24,14 @@ describe('buildContactMessage', () => {
     expect(body).not.toContain('undefined');
     expect(body).not.toContain('null');
     expect(subject).toBe('Oportunidad laboral');
+    expect(body).not.toContain('Política de datos');
+  });
+
+  it('a un perfil encontrado en internet le dice de dónde salió y cómo pedir que se borre', () => {
+    const { body } = buildContactMessage({ fullName: 'Ana', foundOnline: true });
+    expect(body).toContain('Encontré tu perfil profesional publicado en internet');
+    expect(body).toContain('borremos tus datos');
+    expect(body).toMatch(/\/privacidad$/);
   });
 });
 

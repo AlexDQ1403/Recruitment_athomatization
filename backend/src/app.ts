@@ -23,6 +23,7 @@ import sessionRouter from './routes/session';
 import companyCandidatesRouter from './routes/company-candidates';
 import companyDashboardRouter from './routes/company-dashboard';
 import accountRouter from './routes/account';
+import consentRouter from './routes/consent';
 
 const n8nWebhookLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -64,6 +65,9 @@ export const createApp = () => {
 
   // Sesión: cualquier rol autenticado (auditoría de entrada y salida)
   app.use('/api/session', sessionRouter);
+
+  // Autorización de tratamiento de datos: cualquier rol autenticado (Ley 1581 de 2012)
+  app.use('/api/consent', companyAuthMiddleware, consentRouter);
 
   // Rutas de empresa: autenticadas, con empresa y vetadas a candidatos
   app.use('/api/chat', companyAuthMiddleware, requireRole('recruiter'), requireCompany, chatRouter);

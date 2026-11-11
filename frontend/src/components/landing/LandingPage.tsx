@@ -13,6 +13,7 @@ import { RoleShowcase } from './RoleShowcase';
 import { Sprout } from './Sprout';
 import { ThemeToggle } from './ThemeToggle';
 import styles from './landing.module.css';
+import { LEGAL } from '../../lib/legal';
 
 export function LandingPage() {
   return (
@@ -181,6 +182,15 @@ export function LandingPage() {
               <p className={styles.footerTitle}>Cuentas</p>
               <Link href="/register/company">Registrar empresa</Link>
               <Link href="/register/candidate">Crear perfil de candidato</Link>
+            </nav>
+          </Reveal>
+
+          <Reveal delay={300}>
+            <nav className={styles.footerCol} aria-label="Legal">
+              <p className={styles.footerTitle}>Legal</p>
+              <Link href="/privacidad">Tratamiento de datos</Link>
+              <Link href="/terminos">Términos y condiciones</Link>
+              <a href={`mailto:${LEGAL.email}`}>Peticiones y reclamos</a>
             </nav>
           </Reveal>
         </div>

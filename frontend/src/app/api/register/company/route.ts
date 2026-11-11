@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { backendJson } from '../../../../lib/backendProxy';
+import { backendJson, clientHeaders } from '../../../../lib/backendProxy';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const res = await fetch(`${BACKEND_URL}/register/company`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...clientHeaders(req) },
       body: JSON.stringify(body),
     });
     const data = await backendJson(res);

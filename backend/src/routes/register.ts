@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { getCorrelationId } from '../utils/tracing';
+import { recordConsent } from '../services/consent';
 
 const router = Router();
 const supabaseAdmin = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
@@ -30,6 +31,12 @@ async function sendConfirmationEmail(email: string): Promise<void> {
   }
 }
 
+/** La prueba de la autorización no debe tumbar el registro: si falla queda en el log y la app la pide al entrar */
+async function saveConsent(userId: string, req: Request, correlationId: string | undefined): Promise<void> {
+  const { error } = await recordConsent(supabaseAdmin, userId, req);
+  if (error) logger.error('No se guardó la autorización del registro', { correlationId, userId, error });
+}
+
 const registerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -50,12 +57,18 @@ const passwordSchema = z
   .regex(/[a-zA-Z]/, 'La contraseña debe incluir letras')
   .regex(/[0-9]/, 'La contraseña debe incluir números');
 
+// Autorización previa, expresa e informada (Ley 1581 de 2012, art. 9): sin la casilla no hay cuenta
+const acceptTerms = z.literal(true, {
+  errorMap: () => ({ message: 'Debes aceptar la Política de Tratamiento de Datos y los Términos y Condiciones' }),
+});
+
 const companySchema = z.object({
   company_name: z.string().trim().min(2).max(120),
   industry: z.string().trim().max(120).optional(),
   full_name: z.string().trim().min(2).max(120),
   email: z.string().trim().toLowerCase().email(),
   password: passwordSchema,
+  accept_terms: acceptTerms,
 });
 
 const candidateSchema = z.object({
@@ -65,6 +78,7 @@ const candidateSchema = z.object({
   position: z.string().trim().max(120).optional(),
   location: z.string().trim().max(120).optional(),
   experience_years: z.coerce.number().int().min(0).max(60).optional(),
+  accept_terms: acceptTerms,
 });
 
 /** POST /api/register/company */
@@ -134,6 +148,7 @@ router.post('/company', registerLimiter, async (req: Request, res: Response): Pr
       throw new Error(`No se pudo crear el perfil: ${profileError.message}`);
     }
 
+    await saveConsent(createdUserId, req, correlationId);
     await sendConfirmationEmail(email);
 
     logger.info('Empresa registrada', { correlationId, companyId: company.id, email });
@@ -203,6 +218,7 @@ router.post('/candidate', registerLimiter, async (req: Request, res: Response): 
       throw new Error(`No se pudo crear la ficha: ${candidateError.message}`);
     }
 
+    await saveConsent(createdUserId, req, correlationId);
     await sendConfirmationEmail(email);
 
     logger.info('Candidato registrado', { correlationId, email });
