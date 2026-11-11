@@ -1,5 +1,4 @@
 # Despliegue de prueba gratuito en Render (Blueprint): backend, frontend y n8n.
-# Guía paso a paso: DEPLOY_PRUEBA.md
 #
 # Los servicios gratuitos se duermen tras ~15 min sin uso y tardan ~1 min en
 # despertar. La base de datos de n8n (Postgres gratis de Render) vence a los
@@ -18,7 +17,7 @@ services:
     runtime: node
     plan: free
     region: virginia
-    rootDir: Semillero-Frontend/backend
+    rootDir: backend
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /health
@@ -52,7 +51,7 @@ services:
     runtime: node
     plan: free
     region: virginia
-    rootDir: Semillero-Frontend/frontend
+    rootDir: frontend
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     envVars:
@@ -77,8 +76,8 @@ services:
     runtime: docker
     plan: free
     region: virginia
-    dockerfilePath: ./Semillero-Frontend/deploy/n8n/Dockerfile
-    dockerContext: ./Semillero-Frontend/deploy/n8n
+    dockerfilePath: ./deploy/n8n/Dockerfile
+    dockerContext: ./deploy/n8n
     healthCheckPath: /healthz
     envVars:
       - key: DB_TYPE

@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Semillero-Frontend/backend
+        working-directory: backend
 
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: Semillero-Frontend/backend/package-lock.json
+          cache-dependency-path: backend/package-lock.json
 
       - name: Instalar dependencias
         run: npm ci
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Semillero-Frontend/frontend
+        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: Semillero-Frontend/frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Instalar dependencias
         run: npm ci --legacy-peer-deps
