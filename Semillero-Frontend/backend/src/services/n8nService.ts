@@ -51,6 +51,8 @@ export async function callN8nOutboundWebhook(
     // Fire and forget (no await)
     fetch(config.N8N_WEBHOOK_URL, {
       method: 'POST',
+      // Fire and forget, pero sin dejar sockets colgados si n8n no responde
+      signal: AbortSignal.timeout(10_000),
       headers: {
         'Content-Type': 'application/json',
         ...(signature && { 'X-N8N-Signature': signature }),

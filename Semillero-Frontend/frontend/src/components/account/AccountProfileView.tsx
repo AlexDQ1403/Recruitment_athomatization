@@ -117,7 +117,7 @@ const ProfileHeader = ({ profile, onError, onSuccess }: { profile: AccountProfil
         title="PNG, JPG o WEBP, máx 3 MB"
       >
         {profile.avatar_url
-          ? <img src={profile.avatar_url} alt="" />
+          ? <img src={profile.avatar_url} alt="" loading="lazy" decoding="async" />
           : <span>{initials(name)}</span>}
         <span className="account-avatar-hint">{uploading ? 'Subiendo…' : 'Cambiar'}</span>
       </button>

@@ -14,12 +14,12 @@ type Variant = 'auto' | 'onred';
 export function BrandMonogram({ height = 34, variant = 'auto' }: { height?: number; variant?: Variant }) {
   const size = { height, width: Math.round(height * RATIO) };
   if (variant === 'onred') {
-    return <img src="/brand/km-onred.png" alt="" aria-hidden="true" {...size} style={{ display: 'block' }} />;
+    return <img src="/brand/km-onred.webp" alt="" aria-hidden="true" {...size} style={{ display: 'block' }} />;
   }
   return (
     <>
-      <img src="/brand/km-light.png" alt="" aria-hidden="true" {...size} className="brand-img-light" />
-      <img src="/brand/km-dark.png" alt="" aria-hidden="true" {...size} className="brand-img-dark" />
+      <img src="/brand/km-light.webp" alt="" aria-hidden="true" {...size} className="brand-img-light" />
+      <img src="/brand/km-dark.webp" alt="" aria-hidden="true" {...size} className="brand-img-dark" />
     </>
   );
 }

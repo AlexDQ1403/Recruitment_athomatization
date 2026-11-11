@@ -7,6 +7,9 @@ const LLM_URL = config.LLM_BASE_URL
   ?? (useOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
 const LLM_KEY = config.OPENROUTER_API_KEY ?? config.OPENAI_API_KEY;
 const LLM_MODEL = config.LLM_MODEL ?? (useOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini');
+// Sin límite, un proveedor colgado deja la petición abierta hasta que Render la corte.
+// Holgado: extraer una HV larga (1400 tokens de salida) puede tardar ~30 s.
+const LLM_TIMEOUT_MS = 45_000;
 
 export type LLMMessage = { role: 'system' | 'user' | 'assistant' | string; content: string };
 
@@ -17,6 +20,7 @@ export async function callLLM(
 ): Promise<string> {
   const res = await fetch(`${LLM_URL}/chat/completions`, {
     method: 'POST',
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${LLM_KEY}`,

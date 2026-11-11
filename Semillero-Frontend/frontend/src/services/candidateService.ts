@@ -4,6 +4,10 @@ import { Candidate, CandidateStatus, CandidateDecision, CandidateDecisionState, 
 // El backend acepta hasta 100 ids por consulta
 const DECISION_LOOKUP_CHUNK = 100;
 
+// Tabla y kanban: sin resumen ni datos internos de n8n (el detalle sí trae todo)
+const LIST_COLUMNS =
+  'id, company_id, full_name, email, phone, position, experience_years, expected_salary, location, status, source, resume_url, profile_url, linkedin_url, vacancy_id, created_by, created_at, updated_at';
+
 export interface CandidateFilters {
   search?: string;
   status?: CandidateStatus;
@@ -39,7 +43,7 @@ export const candidateService = {
   },
 
   async list(page: number, limit = 15, filters: CandidateFilters = {}): Promise<PaginatedResponse<Candidate>> {
-    let query = supabase.from('candidates').select('*', { count: 'exact' });
+    let query = supabase.from('candidates').select(LIST_COLUMNS, { count: 'exact' });
 
     if (filters.search) {
       query = query.or(
@@ -68,7 +72,7 @@ export const candidateService = {
   async listByStatus(): Promise<Record<CandidateStatus, Candidate[]>> {
     const { data, error } = await supabase
       .from('candidates')
-      .select('*')
+      .select(LIST_COLUMNS)
       .order('updated_at', { ascending: false });
     if (error) throw new Error(error.message);
 

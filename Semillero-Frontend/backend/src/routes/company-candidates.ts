@@ -47,40 +47,45 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
       return;
     }
 
-    // Conteos exactos de toda la bandeja (no de la página que se pide)
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    // Conteos exactos de toda la bandeja (no de la página que se pide) y la página,
+    // en paralelo: son independientes entre sí
     const summary: Record<CompanyDecision, number> = { pendiente: 0, contratado: 0, descartado: 0 };
-    for (const d of Object.keys(summary) as CompanyDecision[]) {
-      const { count: n, error: countError } = await supabaseAdmin
+    const decisions = Object.keys(summary) as CompanyDecision[];
+    const [counts, pageRes] = await Promise.all([
+      Promise.all(decisions.map((d) => supabaseAdmin
         .from('company_candidates')
         .select('id', { count: 'exact', head: true })
         .eq('company_id', companyId)
         .eq('presented_to_company', true)
-        .eq('company_decision', d);
-      if (countError) {
-        logger.error('Error contando decisiones de la empresa', { error: JSON.stringify(countError) });
-        if (['PGRST204', '42703', '42P01'].includes(String((countError as { code?: unknown }).code))) {
-          res.status(503).json({ error: 'Los candidatos presentados no están disponibles por una actualización pendiente de la base de datos. Avisa al administrador.' });
-          return;
-        }
-        res.status(500).json({ error: 'Error interno' });
+        .eq('company_decision', d))),
+      supabaseAdmin
+        .from('company_candidates')
+        .select(
+          'id, candidate_profile_id, legacy_candidate_id, status, presented_at, presented_by, company_decision, company_decided_at',
+          { count: 'exact' }
+        )
+        .eq('company_id', companyId)
+        .eq('presented_to_company', true)
+        .order('presented_at', { ascending: false })
+        .range(offset, offset + limit - 1),
+    ]);
+
+    const countError = counts.find((c) => c.error)?.error;
+    if (countError) {
+      logger.error('Error contando decisiones de la empresa', { error: JSON.stringify(countError) });
+      if (['PGRST204', '42703', '42P01'].includes(String((countError as { code?: unknown }).code))) {
+        res.status(503).json({ error: 'Los candidatos presentados no están disponibles por una actualización pendiente de la base de datos. Avisa al administrador.' });
         return;
       }
-      summary[d] = n ?? 0;
+      res.status(500).json({ error: 'Error interno' });
+      return;
     }
+    decisions.forEach((d, i) => { summary[d] = counts[i].count ?? 0; });
 
-    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-    const offset = parseInt(req.query.offset as string) || 0;
-
-    const { data: bridgeRows, error: bridgeError, count } = await supabaseAdmin
-      .from('company_candidates')
-      .select(
-        'id, candidate_profile_id, legacy_candidate_id, status, presented_at, presented_by, company_decision, company_decided_at',
-        { count: 'exact' }
-      )
-      .eq('company_id', companyId)
-      .eq('presented_to_company', true)
-      .order('presented_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    const { data: bridgeRows, error: bridgeError, count } = pageRes;
 
     if (bridgeError) {
       res.status(500).json({ error: bridgeError.message });

@@ -206,7 +206,7 @@ export const Sidebar = ({ user, onLogout, open, onClose }: Props) => {
             title="Ver mi perfil"
           >
             <span className="user-avatar" aria-hidden="true">
-              {user?.avatar_url ? <img src={user.avatar_url} alt="" /> : initials}
+              {user?.avatar_url ? <img src={user.avatar_url} alt="" loading="lazy" decoding="async" /> : initials}
             </span>
             <span className="user-info">
               <span className="user-name">{user?.full_name ?? 'Usuario'}</span>
