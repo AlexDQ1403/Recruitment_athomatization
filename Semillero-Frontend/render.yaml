@@ -23,8 +23,9 @@ services:
     startCommand: npm start
     healthCheckPath: /health
     envVars:
+      # supabase-js necesita WebSocket nativo (Node 22+)
       - key: NODE_VERSION
-        value: "20"
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: TRUST_PROXY
@@ -55,8 +56,9 @@ services:
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     envVars:
+      # supabase-js necesita WebSocket nativo (Node 22+)
       - key: NODE_VERSION
-        value: "20"
+        value: "22"
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
       - key: NEXT_PUBLIC_API_URL
