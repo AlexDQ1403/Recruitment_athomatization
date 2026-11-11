@@ -54,6 +54,8 @@ export async function callN8nOutboundWebhook(
       headers: {
         'Content-Type': 'application/json',
         ...(signature && { 'X-N8N-Signature': signature }),
+        // n8n público (Render) exige el secreto compartido en su webhook
+        ...(config.N8N_WEBHOOK_SECRET && { 'X-N8N-Secret': config.N8N_WEBHOOK_SECRET }),
       },
       body: JSON.stringify(fullPayload),
     }).catch((err) => {
