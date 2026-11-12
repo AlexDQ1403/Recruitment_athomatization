@@ -2,6 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
+/** URL de /health del backend (vive en la raíz, no bajo /api) */
+export const BACKEND_HEALTH_URL = BACKEND_URL.replace(/\/api\/?$/, '') + '/health';
+
+const COLD_START_STATUSES = new Set([502, 503, 504]);
+const COLD_START_MAX_MS = 90_000;
+const COLD_START_DELAY_MS = 3_000;
+
+/**
+ * fetch al backend que tolera su arranque en frío: en el plan gratuito de Render
+ * el servicio se duerme y, mientras despierta, Render responde 502/503/504 con HTML
+ * (la petición no llega a Express, así que reintentar no la duplica).
+ */
+export async function fetchBackend(url: string, init?: RequestInit): Promise<Response> {
+  const deadline = Date.now() + COLD_START_MAX_MS;
+  for (;;) {
+    try {
+      const res = await fetch(url, init);
+      const isJson = (res.headers.get('content-type') ?? '').includes('application/json');
+      if (!COLD_START_STATUSES.has(res.status) || isJson || Date.now() >= deadline) return res;
+    } catch (err) {
+      if (Date.now() >= deadline) throw err;
+    }
+    await new Promise((r) => setTimeout(r, COLD_START_DELAY_MS));
+  }
+}
+
 /** Cuerpo de la respuesta del backend; si no es JSON (p. ej. un 429), un error legible */
 export async function backendJson(res: Response): Promise<unknown> {
   return res.json().catch(() => ({
@@ -28,7 +54,7 @@ export async function proxyToBackend(req: NextRequest, path: string, method: 'GE
 
   try {
     const body = method === 'GET' || method === 'DELETE' ? undefined : JSON.stringify(await req.json().catch(() => ({})));
-    const res = await fetch(`${BACKEND_URL}${path}${req.nextUrl.search}`, {
+    const res = await fetchBackend(`${BACKEND_URL}${path}${req.nextUrl.search}`, {
       method,
       headers: { Authorization: token, ...clientHeaders(req), ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body,

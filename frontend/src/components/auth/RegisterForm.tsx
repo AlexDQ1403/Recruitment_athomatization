@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { registerService, validatePassword } from '../../services/registerService';
 import { mapRegisterError } from '../../lib/authErrors';
@@ -79,6 +79,11 @@ export const RegisterForm = ({ variant }: { variant: Variant }) => {
   const [field, setField] = useState<Field>('none');
   const [showPassword, setShowPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
+
+  // Despierta el backend mientras la persona llena el formulario (Render free lo duerme)
+  useEffect(() => {
+    fetch('/api/wake', { cache: 'no-store' }).catch(() => {});
+  }, []);
   const { eyesRef, semiRef } = useSemiRefs();
 
   const tip = useIdleTips(field === 'none' && !loading && !done);
